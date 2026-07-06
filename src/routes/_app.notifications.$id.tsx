@@ -134,10 +134,9 @@ function NotificationDetailPage() {
                     <div className="mt-1 text-2xl font-semibold">{v}</div>
                   </div>
                 ))}
-                <div className="rounded-md border p-3">
-                  <div className="text-xs uppercase text-muted-foreground">No Response</div>
-                  <div className="mt-1 text-2xl font-semibold flex items-center gap-1"><XCircle className="h-5 w-5 text-muted-foreground" />{ackCounts.NoResponse}</div>
-                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
               </CardContent>
             </Card>
           </TabsContent>
