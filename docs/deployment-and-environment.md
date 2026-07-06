@@ -101,8 +101,14 @@ Examples:
 Examples:
 - LDAP or Active Directory host
 - bind settings
+- allowed admin groups
 - session or token expiry
 - signing keys or token secrets
+
+Current implementation baseline:
+- Phase 1 currently uses LDAP-backed admin authentication.
+- Phase 1 currently issues opaque bearer session tokens from an in-memory session store.
+- Group-based access admission may be controlled through `LDAP_ALLOWED_GROUPS`.
 
 ### Channel And Connector Configuration
 Examples:

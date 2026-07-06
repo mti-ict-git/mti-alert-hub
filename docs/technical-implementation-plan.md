@@ -43,6 +43,8 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - LDAP or Active Directory login and session/token issuance
 - Local role and scope mapping
 - Permission checks
+- Phase 1 baseline may use opaque bearer session tokens backed by an in-memory session store until persistent session infrastructure is introduced
+- Phase 1 baseline access mapping may default to a documented global scope placeholder before site and area scoped records are implemented
 
 ### 2. Organization Module
 - Sites

@@ -9,9 +9,9 @@ For the current MVP, the primary channels are:
 The platform is designed around one unified communication model for alerts, reminders, operational notices, news, articles, and knowledge updates.
 
 ## Current Status
-- Documentation baseline is the active implementation phase.
-- The repository currently contains an admin application codebase plus source-of-truth project documentation.
-- Backend implementation is planned in phases through the roadmap under `docs/`.
+- `Phase 1 - Core Backend Foundation` is the active implementation phase.
+- The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
+- Backend implementation continues in phases through the roadmap under `docs/`.
 
 ## Source Of Truth
 The source of truth for product scope, workflow, architecture, API contract, and data model is under `docs/`.
@@ -36,6 +36,7 @@ Supporting references may also exist under `docs/`, such as:
 ```text
 .
 ├── docs/                    # Source-of-truth documents and supporting references
+├── backend/                 # Backend scaffold and modular server implementation
 ├── public/                  # Static assets
 ├── src/                     # Admin application source code
 ├── AGENTS.md                # Working method and guardrails for AI agents
@@ -64,7 +65,9 @@ Supporting references may also exist under `docs/`, such as:
 3. `docs/technical-implementation-plan.md`
 4. `docs/database-schema-specification.md`
 5. `docs/openapi.yaml`
-6. `docs/testing-strategy.md`
+6. `docs/backend-module-breakdown.md`
+7. `docs/phase-1-execution-plan.md`
+8. `docs/testing-strategy.md`
 
 ### For AI Agents
 1. `AGENTS.md`

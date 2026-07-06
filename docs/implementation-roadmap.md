@@ -3,14 +3,14 @@
 ## Document Status
 - Version: `0.1`
 - Status: `Active`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-06`
 
 ## Active Phase
-- `Phase 0 - Documentation Baseline`
+- `Phase 1 - Core Backend Foundation`
 
 ## Phase 0 - Documentation Baseline
 ### Status
-- `In Progress`
+- `Completed`
 
 ### Objective
 Establish the baseline source-of-truth documentation for the MTI Alert server so implementation can proceed with explicit product, workflow, data, and API guidance.
@@ -30,6 +30,8 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
 - `docs/windows-agent-client-specification.md`
+- `docs/backend-module-breakdown.md`
+- `docs/phase-1-execution-plan.md`
 
 ### Checklist
 - `[x]` Documentation baseline: define the project vision and MVP scope.
@@ -42,6 +44,9 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `[x]` Documentation refinement: align the mandatory documents with user decisions.
 - `[x]` Documentation refinement: add supporting references where ambiguity remained high.
 - `[x]` Documentation refinement: add template policy schema support.
+- `[x]` Documentation refinement: align the OpenAPI contract with phased implementation boundaries and reusable contract patterns.
+- `[x]` Documentation refinement: add backend module breakdown guidance for implementation planning.
+- `[x]` Documentation refinement: add a Phase 1 execution plan for implementation sequencing and verification.
 
 ### Output
 - A complete baseline documentation package in `docs/`.
@@ -51,11 +56,11 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 ### Challenge / Verification
 - Verification target: required documentation files exist and form a coherent baseline for implementation.
 - Challenge: key architecture decisions were narrowed, but several implementation details remain open and are tracked in `docs/open-questions-and-challenges.md`.
-- Evidence: mandatory baseline documents were created and refined against explicit user decisions on `2026-07-06`, then extended with supporting baseline references, a template policy schema reference, and repository entry documentation guidance on `2026-07-07`.
+- Evidence: mandatory baseline documents were created and refined against explicit user decisions on `2026-07-06`, then extended with supporting baseline references, a template policy schema reference, repository entry documentation guidance, a more implementation-ready phased OpenAPI contract, backend module breakdown guidance, and a dedicated Phase 1 execution plan on `2026-07-06`.
 
 ## Phase 1 - Core Backend Foundation
 ### Status
-- `Pending`
+- `In Progress`
 
 ### Objective
 Implement the core backend foundation for authentication, role scope enforcement, organization data, communication management, and audience resolution.
@@ -73,14 +78,17 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `docs/deployment-and-environment.md`
 - `docs/template-policy-schema.md`
 - `docs/windows-agent-client-specification.md`
+- `docs/backend-module-breakdown.md`
+- `docs/phase-1-execution-plan.md`
 
 ### Checklist
-- `[ ]` Auth foundation: define the concrete LDAP or AD login flow.
-- `[ ]` Auth foundation: define session or token strategy for admin APIs.
-- `[ ]` Auth foundation: implement `login`, `logout`, and `me` endpoints.
-- `[ ]` Authorization: define local role mapping and site or area scope model.
-- `[ ]` Authorization: implement backend scope enforcement guards.
-- `[ ]` Authorization: challenge unauthorized access scenarios and expected errors.
+- `[x]` Application baseline: scaffold the backend runtime, config loading, database bootstrap placeholder, request validation utility, shared error handling, and health endpoint.
+- `[x]` Auth foundation: define the concrete LDAP or AD login flow.
+- `[x]` Auth foundation: define session or token strategy for admin APIs.
+- `[x]` Auth foundation: implement `login`, `logout`, and `me` endpoints.
+- `[x]` Authorization: define local role mapping and site or area scope model.
+- `[x]` Authorization: implement backend scope enforcement guards.
+- `[x]` Authorization: challenge unauthorized access scenarios and expected errors.
 - `[ ]` Organization data: define the HR sync ingestion contract for basic org data.
 - `[ ]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
 - `[ ]` Organization data: implement sync-safe read models for employees and devices.
@@ -96,6 +104,8 @@ Implement the core backend foundation for authentication, role scope enforcement
 - Initial backend modules exist for auth, authorization, organization references, communication drafts, and audience preview.
 
 ### Challenge / Verification
+- Milestone 0 scaffold builds a separate `backend/` runtime foundation without changing current business behavior.
+- Milestone 1 and Milestone 2 baseline currently use LDAP-backed admin authentication, opaque in-memory bearer sessions, role metadata, and a documented global-scope placeholder until organization-scoped records arrive.
 - Build and typecheck pass.
 - API contract matches implementation.
 - Authorization scope is challenged with unauthorized access scenarios.
@@ -121,6 +131,7 @@ Implement communication publication, scheduling, recipient snapshots, and delive
 - `docs/deployment-and-environment.md`
 - `docs/template-policy-schema.md`
 - `docs/windows-agent-client-specification.md`
+- `docs/backend-module-breakdown.md`
 
 ### Checklist
 - `[ ]` Publication flow: implement publish confirmation rules and schedule validation.
@@ -167,6 +178,7 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `docs/testing-strategy.md`
 - `docs/template-policy-schema.md`
 - `docs/windows-agent-client-specification.md`
+- `docs/backend-module-breakdown.md`
 
 ### Checklist
 - `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
