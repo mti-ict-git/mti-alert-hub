@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { notificationsService } from "@/services/notifications.service";
 import { format } from "date-fns";
-import { CheckCircle2, HandHelping, MapPinOff, MessageSquare, XCircle } from "lucide-react";
+import { CheckCircle2, HandHelping, MapPinOff, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/_app/notifications/$id")({
   component: NotificationDetailPage,
