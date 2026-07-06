@@ -1,9 +1,9 @@
 # MTI Alert Phase 1 Execution Plan
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 - Audience: `Backend Engineers`, `Tech Leads`, `AI Builders`
 
 ## Purpose
@@ -97,6 +97,8 @@ Create the backend foundation required for every later module.
 - create the backend app entrypoint
 - add environment configuration loading
 - add database connection bootstrapping
+- add versioned migration tracking and execution support
+- add initial schema migration for Phase 1 foundation tables
 - add HTTP routing baseline
 - add request validation pipeline
 - add error handling middleware
@@ -106,19 +108,27 @@ Create the backend foundation required for every later module.
 ### Deliverables
 - runnable backend skeleton
 - config loading pattern
+- migration runner and versioned migration directory
 - request validation pattern
 - shared error contract utilities
 
 ### Verification
 - application starts locally
 - config validation fails clearly when required variables are missing
+- migration status and application succeed against the target database
 - request validation pipeline rejects malformed payloads
 - shared error responses align with `docs/openapi.yaml`
 
 ### Recommended Output
 - base folder structure
+- initial schema migration baseline
 - shared middleware stack
 - first integration test harness or API smoke-test harness
+
+### Implementation Notes
+- Versioned migration support is now implemented through `backend:migrate` and `backend:migrate:status`.
+- The initial migration file is `backend/migrations/0001_phase1_foundation.up.sql`.
+- Verification on `2026-07-07` confirmed the migration is applied successfully to the target `ictMTIAlertHub` database.
 
 ## Milestone 1: Auth And Session Foundation
 ### Objective
@@ -227,6 +237,13 @@ Provide the reference data used by authoring, filtering, and targeting.
 - employee list supports documented filters
 - organization reference payload is consistent across list and aggregate endpoints
 
+### Implementation Notes
+- Baseline routes and read services are now implemented for all Milestone 3 endpoints.
+- Verification on `2026-07-07` confirmed live database connectivity and contract-valid `200` responses for every endpoint in this milestone.
+- The target `ictMTIAlertHub` database now contains the initial Phase 1 foundation tables for organization reads.
+- The current implementation still returns empty-state payloads because the new tables are present but not yet seeded through HR synchronization or manual baseline data.
+- Fine-grained scoped filtering remains limited by the current global-scope placeholder access model until organization-backed scope records exist.
+
 ### Exit Criteria
 - frontend targeting forms could consume reference data without mocks
 
@@ -256,6 +273,12 @@ Expose devices as admin-side operational entities for targeting and visibility.
 - device list response matches OpenAPI
 - site and area filters behave correctly
 - scoped operators only see devices in their allowed visibility range
+
+### Implementation Notes
+- Baseline route and read service are now implemented for `GET /devices`.
+- Verification on `2026-07-07` confirmed a contract-valid `200` response for authenticated access and `401` for unauthenticated access.
+- The device endpoint currently returns an empty-state payload because the `devices` table exists but contains no records yet.
+- Future heartbeat-enriched state remains dependent on later schema and agent-session milestones.
 
 ### Exit Criteria
 - audience resolution can use devices as concrete endpoints

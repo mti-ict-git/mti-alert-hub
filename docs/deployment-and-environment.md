@@ -90,6 +90,13 @@ Examples:
 - connection pool settings
 - migration execution settings
 
+Current implementation baseline:
+- Phase 1 backend startup verifies live PostgreSQL connectivity during application bootstrap.
+- The current target database is `ictMTIAlertHub`.
+- Versioned migration commands now exist through `npm run backend:migrate` and `npm run backend:migrate:status`.
+- Verification on `2026-07-07` confirmed connectivity succeeds and the initial Phase 1 foundation schema is applied.
+- Organization, employee, and device read-model endpoints currently return empty-state payloads because the new tables are still unseeded, not because the schema is missing.
+
 ### Realtime Configuration
 Examples:
 - hub endpoint or transport settings
@@ -144,6 +151,11 @@ Examples:
 - Staging should validate migrations before production rollout.
 - Backup and rollback expectations must be defined before high-risk schema changes reach production.
 
+Current command conventions:
+- `npm run backend:migrate:status` checks applied and pending migrations against the built backend runtime.
+- `npm run backend:migrate` applies pending migrations against the configured target database.
+- `npm run backend:migrate:status:dev` and `npm run backend:migrate:dev` provide the same behavior through `tsx` during local development.
+
 ## Release Flow Baseline
 1. Confirm related documentation is synchronized.
 2. Validate build, typecheck, and targeted verification for changed areas.
@@ -160,6 +172,14 @@ Examples:
 - agent-facing connectivity or negotiation boundary is reachable
 - a basic authenticated admin request succeeds
 - logging and audit output are visible
+
+Latest verification evidence:
+- `2026-07-07`: backend startup succeeded with live database ping.
+- `2026-07-07`: `backend/migrations/0001_phase1_foundation.up.sql` was applied successfully to `ictMTIAlertHub`.
+- `2026-07-07`: migration status verification confirmed `0001_phase1_foundation.up.sql` is recorded as applied.
+- `2026-07-07`: table existence verification confirmed `schema_migrations`, `users`, `user_scopes`, `sites`, `areas`, `departments`, `sections`, `employees`, and `devices` now exist.
+- `2026-07-07`: authenticated smoke requests to `GET /reference/organization`, `GET /reference/sites`, `GET /reference/areas`, `GET /reference/departments`, `GET /reference/sections`, `GET /employees`, and `GET /devices` returned `200`.
+- `2026-07-07`: unauthenticated `GET /devices` returned `401`.
 
 ## Operational Dependencies
 ### Enterprise Identity

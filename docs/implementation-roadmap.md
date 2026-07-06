@@ -1,9 +1,9 @@
 # MTI Alert Implementation Roadmap
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.3`
 - Status: `Active`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Active Phase
 - `Phase 1 - Core Backend Foundation`
@@ -89,9 +89,10 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `[x]` Authorization: define local role mapping and site or area scope model.
 - `[x]` Authorization: implement backend scope enforcement guards.
 - `[x]` Authorization: challenge unauthorized access scenarios and expected errors.
+- `[x]` Database foundation: implement versioned migrations and initial schema for auth, organization, employee, and device tables.
 - `[ ]` Organization data: define the HR sync ingestion contract for basic org data.
-- `[ ]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
-- `[ ]` Organization data: implement sync-safe read models for employees and devices.
+- `[x]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
+- `[x]` Organization data: implement sync-safe read models for employees and devices.
 - `[ ]` Communication drafts: implement draft create, get, update, duplicate, and cancel rules.
 - `[ ]` Communication drafts: enforce template-locked field validation in the API layer.
 - `[ ]` Audience preview: implement target resolution for site, area, employee, group, and device target types.
@@ -106,9 +107,14 @@ Implement the core backend foundation for authentication, role scope enforcement
 ### Challenge / Verification
 - Milestone 0 scaffold builds a separate `backend/` runtime foundation without changing current business behavior.
 - Milestone 1 and Milestone 2 baseline currently use LDAP-backed admin authentication, opaque in-memory bearer sessions, role metadata, and a documented global-scope placeholder until organization-scoped records arrive.
+- Versioned migration support now exists through `backend:migrate` and `backend:migrate:status`, with the initial Phase 1 foundation schema recorded in `backend/migrations/0001_phase1_foundation.up.sql`.
+- Milestone 3 and Milestone 4 baseline now expose `GET /reference/organization`, `GET /reference/sites`, `GET /reference/areas`, `GET /reference/departments`, `GET /reference/sections`, `GET /employees`, and `GET /devices`.
+- Live PostgreSQL connectivity was verified against the target `ictMTIAlertHub` database on `2026-07-07`, and the initial schema migration has now been applied for `users`, `user_scopes`, `sites`, `areas`, `departments`, `sections`, `employees`, and `devices`.
 - Build and typecheck pass.
 - API contract matches implementation.
 - Authorization scope is challenged with unauthorized access scenarios.
+- Representative authenticated smoke tests for organization and device endpoints return `200`, and an unauthenticated `GET /devices` request returns `401`.
+- Table existence and zero-row baseline were verified after migration application, confirming that current empty-state endpoint responses now come from unseeded tables rather than missing schema.
 - Publish preview output is challenged with representative target combinations.
 
 ## Phase 2 - Delivery Orchestration

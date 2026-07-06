@@ -12,6 +12,10 @@
     "backend:start": "node backend/dist/index.js",
     "backend:build": "tsc -p backend/tsconfig.json",
     "backend:typecheck": "tsc -p backend/tsconfig.json --noEmit",
+    "backend:migrate:dev": "tsx backend/src/scripts/run-migrations.ts up",
+    "backend:migrate": "node backend/dist/scripts/run-migrations.js up",
+    "backend:migrate:status:dev": "tsx backend/src/scripts/run-migrations.ts status",
+    "backend:migrate:status": "node backend/dist/scripts/run-migrations.js status",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

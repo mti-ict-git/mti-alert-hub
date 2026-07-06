@@ -12,6 +12,7 @@ The platform is designed around one unified communication model for alerts, remi
 - `Phase 1 - Core Backend Foundation` is the active implementation phase.
 - The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
 - Backend implementation continues in phases through the roadmap under `docs/`.
+- Versioned backend migrations now exist under `backend/migrations/` for the Phase 1 foundation schema.
 
 ## Source Of Truth
 The source of truth for product scope, workflow, architecture, API contract, and data model is under `docs/`.
@@ -68,6 +69,15 @@ Supporting references may also exist under `docs/`, such as:
 6. `docs/backend-module-breakdown.md`
 7. `docs/phase-1-execution-plan.md`
 8. `docs/testing-strategy.md`
+
+## Backend Migration Commands
+- `npm run backend:build`
+- `npm run backend:migrate:status`
+- `npm run backend:migrate`
+
+For local iteration without a build step:
+- `npm run backend:migrate:status:dev`
+- `npm run backend:migrate:dev`
 
 ### For AI Agents
 1. `AGENTS.md`

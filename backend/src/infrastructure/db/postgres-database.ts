@@ -2,6 +2,10 @@ import { Pool, type QueryResultRow } from "pg";
 
 import type { BackendEnv } from "../../app/config/env.js";
 import type { Logger } from "../../shared/observability/logger.js";
+import {
+  redactPostgresConnectionConfig,
+  resolvePostgresConnectionConfig,
+} from "./postgres-connection-config.js";
 
 export type DatabaseClient = {
   query<T extends QueryResultRow>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -20,12 +24,12 @@ export type DatabaseBootstrap = {
 };
 
 export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBootstrap {
-  const connectionConfig = resolveConnectionConfig(env);
+  const connectionConfig = resolvePostgresConnectionConfig(env);
   const pool = new Pool(connectionConfig);
   const tableExistsCache = new Map<string, boolean>();
 
   logger.info("database.bootstrap.ready", {
-    connectionString: redactConnectionConfig(connectionConfig),
+    connectionString: redactPostgresConnectionConfig(connectionConfig),
   });
 
   const client: DatabaseClient = {
@@ -74,34 +78,6 @@ export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBoot
 
   return {
     client,
-    redactedConnectionString: redactConnectionConfig(connectionConfig),
+    redactedConnectionString: redactPostgresConnectionConfig(connectionConfig),
   };
-}
-
-function resolveConnectionConfig(env: BackendEnv) {
-  const parsedUrl = new URL(env.POSTGRES_URL);
-
-  const sslEnabled = env.POSTGRES_SSL ?? false;
-
-  return {
-    host: parsedUrl.hostname,
-    port: parsedUrl.port ? Number(parsedUrl.port) : 5432,
-    user: env.POSTGRES_USERNAME ?? decodeURIComponent(parsedUrl.username),
-    password: env.POSTGRES_PASSWORD ?? decodeURIComponent(parsedUrl.password),
-    database: env.POSTGRES_DATABASE ?? parsedUrl.pathname.replace(/^\//, ""),
-    ssl: sslEnabled
-      ? {
-          rejectUnauthorized: env.POSTGRES_SSL_REJECT_UNAUTHORIZED ?? false,
-        }
-      : false,
-  };
-}
-
-function redactConnectionConfig(connectionConfig: {
-  host: string;
-  port: number;
-  user: string;
-  database: string;
-}) {
-  return `postgresql://${connectionConfig.user}:***@${connectionConfig.host}:${connectionConfig.port}/${connectionConfig.database}`;
 }

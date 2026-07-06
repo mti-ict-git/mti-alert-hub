@@ -1,9 +1,9 @@
 # MTI Alert Database Schema Specification
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -13,6 +13,12 @@ This document defines the conceptual database schema for the `MTI Alert` server 
 - Audience rules and resolved recipients must both be stored.
 - Delivery tracking and response tracking are separate concerns.
 - Historical truth must remain queryable even if organization data changes later.
+
+## Implementation Baseline
+- Versioned database migrations are now part of the backend foundation.
+- The first applied migration is `backend/migrations/0001_phase1_foundation.up.sql`.
+- That migration currently covers the implemented Phase 1 foundation tables for admin users, user scopes, organization references, employees, and devices.
+- Communication, workflow, delivery, and reporting tables remain part of the conceptual schema and should be added through later migrations as their modules are implemented.
 
 ## Core Tables
 ### users
@@ -86,6 +92,7 @@ Key columns:
 - `email`
 - `phone_number`
 - `site_id`
+- `area_id`
 - `department_id`
 - `section_id`
 - `job_role`
