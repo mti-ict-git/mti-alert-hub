@@ -137,9 +137,6 @@ function NotificationDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </div>
