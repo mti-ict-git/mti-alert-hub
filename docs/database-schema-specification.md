@@ -34,12 +34,24 @@ Defines the organizational scope assigned to an admin user.
 Key columns:
 - `id`
 - `user_id`
-- `scope_type` such as `Global`, `Site`, `Department`, `Section`
+- `scope_type` such as `Global`, `Site`, `Area`, `Department`, `Section`
 - `scope_value`
 - `created_at`
 
 ### sites
 - `id`
+- `code`
+- `name`
+- `status`
+- `source_system`
+- `external_reference`
+
+### areas
+Operational location areas used for device targeting and authorization scope.
+
+Key columns:
+- `id`
+- `site_id`
 - `code`
 - `name`
 - `status`
@@ -92,9 +104,13 @@ Registered Windows Agent devices.
 
 Key columns:
 - `id`
-- `employee_id`
 - `device_identifier`
 - `hostname`
+- `site_id`
+- `area_id`
+- `location_label`
+- `ownership_mode` such as `LocationOwned`
+- `primary_employee_id` nullable for non-shared or historically assigned devices
 - `agent_version`
 - `os_version`
 - `last_heartbeat_at`
@@ -110,6 +126,7 @@ Primary content record.
 Key columns:
 - `id`
 - `template_id`
+- `template_version`
 - `communication_type`
 - `priority`
 - `category`
@@ -131,15 +148,23 @@ Reusable authoring templates for communication creation.
 
 Key columns:
 - `id`
+- `version`
+- `template_key`
 - `name`
 - `communication_type`
 - `default_priority`
 - `default_title`
 - `default_body`
 - `default_channel_strategy`
+- `mandatory_channels_json`
+- `optional_channels_json`
 - `default_windows_agent_presentation`
+- `critical_behavior_mode`
 - `default_requires_response`
 - `workflow_id`
+- `allowed_target_types_json`
+- `locked_fields_json`
+- `editable_fields_json`
 - `is_active`
 - `created_at`
 - `updated_at`
@@ -163,7 +188,7 @@ Stores authoring-time targeting rules.
 Key columns:
 - `id`
 - `communication_id`
-- `target_type` such as `All`, `Site`, `Department`, `Section`, `Role`, `Employee`, `Group`
+- `target_type` such as `All`, `Site`, `Area`, `Department`, `Section`, `Role`, `Employee`, `Group`, `Device`
 - `target_value`
 - `created_at`
 
@@ -188,12 +213,19 @@ Resolved snapshot of recipients at publish time.
 Key columns:
 - `id`
 - `communication_id`
-- `employee_id`
+- `recipient_type` such as `Device`, `Employee`, `ContactEndpoint`
+- `device_id` nullable
+- `employee_id` nullable
+- `channel_endpoint`
+- `site_id`
+- `area_id`
 - `site_name_snapshot`
+- `area_name_snapshot`
 - `department_name_snapshot`
 - `section_name_snapshot`
 - `recipient_name_snapshot`
 - `response_state`
+- `ack_state`
 - `created_at`
 
 ## Workflow Tables
@@ -209,6 +241,7 @@ Key columns:
 - `require_free_text`
 - `escalation_timeout_minutes`
 - `escalation_mode` such as `RecipientOnly`
+- `response_implies_ack`
 - `created_at`
 - `updated_at`
 
@@ -227,6 +260,7 @@ Key columns:
 - `id`
 - `communication_recipient_id`
 - `device_id`
+- `actor_user_identifier` nullable
 - `channel`
 - `response_option_key`
 - `response_note`
@@ -243,6 +277,7 @@ Key columns:
 - `communication_recipient_id`
 - `channel`
 - `delivery_strategy`
+- `template_policy_snapshot_json`
 - `job_status`
 - `queued_at`
 - `started_at`
@@ -272,6 +307,16 @@ Key columns:
 - `event_payload_json`
 - `occurred_at`
 
+Recommended event types include:
+- `Queued`
+- `Sent`
+- `Delivered`
+- `Displayed`
+- `Read`
+- `Responded`
+- `RetryScheduled`
+- `Failed`
+
 ## Channel Tables
 ### whatsapp_connectors
 - `id`
@@ -297,6 +342,18 @@ Key columns:
 - `last_seen_at`
 - `disconnected_at`
 - `status`
+
+### policy_settings
+Stores configurable operational thresholds and retry policies.
+
+Key columns:
+- `id`
+- `policy_key`
+- `policy_scope` such as `Global`, `Site`, `Area`, `Template`
+- `scope_reference`
+- `policy_value_json`
+- `created_at`
+- `updated_at`
 
 ## Audit And Reporting Tables
 ### audit_logs
@@ -327,10 +384,13 @@ Key columns:
 
 ## Important Relationships
 - `users` 1-to-many `user_scopes`
+- `sites` 1-to-many `areas`
 - `sites` 1-to-many `departments`
 - `departments` 1-to-many `sections`
-- `employees` 1-to-many `devices`
+- `areas` 1-to-many `devices`
+- `employees` 1-to-many `devices` through optional assignment metadata
 - `communication_templates` 1-to-many `communications`
+- `communication_templates` 1-to-many version rows by `template_key`
 - `communications` 1-to-many `communication_targets`
 - `communications` 1-to-many `communication_recipients`
 - `communications` many-to-1 `response_workflows`
@@ -343,3 +403,4 @@ Key columns:
 ## Notes
 - Exact physical schema, indexing, and partitioning may evolve during implementation.
 - Any backend change affecting the domain or contract must also update `docs/openapi.yaml`.
+- Device records should stay operationally flat in MVP even if areas are backed by a simple reference table.

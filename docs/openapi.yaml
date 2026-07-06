@@ -183,7 +183,7 @@ paths:
   /communications/{communicationId}/audience-preview:
     post:
       tags: [Audience]
-      summary: Resolve target rules into recipient preview
+      summary: Resolve target rules into recipient preview and publish plan
       parameters:
         - $ref: "#/components/parameters/CommunicationId"
       responses:
@@ -196,6 +196,18 @@ paths:
                 properties:
                   totalRecipients:
                     type: integer
+                  deviceRecipients:
+                    type: integer
+                  whatsappRecipients:
+                    type: integer
+                  previewWarnings:
+                    type: array
+                    items:
+                      type: string
+                  channelPlan:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChannelPlanItem"
                   recipients:
                     type: array
                     items:
@@ -278,14 +290,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [deviceIdentifier, employeeNumber]
+              required: [deviceIdentifier]
               properties:
                 deviceIdentifier:
                   type: string
                 employeeNumber:
                   type: string
+                  nullable: true
                 agentVersion:
                   type: string
+                activeUserIdentifier:
+                  type: string
+                  nullable: true
       responses:
         "200":
           description: Agent session
@@ -472,6 +488,10 @@ components:
       properties:
         user:
           $ref: "#/components/schemas/AdminUser"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminScope"
     AdminUser:
       type: object
       required: [id, username, fullName, roleType]
@@ -488,6 +508,14 @@ components:
         roleType:
           type: string
           enum: [CentralAdmin, LocalOperator, ManagementViewer]
+    AdminScope:
+      type: object
+      properties:
+        scopeType:
+          type: string
+          enum: [Global, Site, Area, Department, Section]
+        scopeValue:
+          type: string
     CommunicationSummary:
       type: object
       required: [id, communicationType, priority, title, status]
@@ -525,6 +553,9 @@ components:
               type: string
             templateId:
               type: string
+              nullable: true
+            templateVersion:
+              type: integer
               nullable: true
             requiresResponse:
               type: boolean
@@ -581,6 +612,10 @@ components:
           type: string
           enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
           nullable: true
+        confirmLockedFieldPolicy:
+          type: boolean
+          description: Optional client assertion that locked template fields have not been overridden.
+          nullable: true
     UpdateCommunicationRequest:
       type: object
       properties:
@@ -623,26 +658,41 @@ components:
           type: string
           format: date-time
           nullable: true
+        confirmedPreview:
+          type: boolean
+          description: Indicates the operator confirmed the preview and channel plan before publishing.
+          nullable: true
     TargetRule:
       type: object
       required: [targetType, targetValue]
       properties:
         targetType:
           type: string
-          enum: [All, Site, Department, Section, Role, Employee, Group]
+          enum: [All, Site, Area, Department, Section, Role, Employee, Group, Device]
         targetValue:
           type: string
     RecipientPreview:
       type: object
       properties:
+        recipientType:
+          type: string
+          enum: [Device, Employee, ContactEndpoint]
+        deviceId:
+          type: string
+          nullable: true
         employeeId:
           type: string
+          nullable: true
         employeeNumber:
           type: string
+          nullable: true
         fullName:
           type: string
         siteName:
           type: string
+        areaName:
+          type: string
+          nullable: true
         departmentName:
           type: string
         sectionName:
@@ -651,6 +701,18 @@ components:
           type: array
           items:
             type: string
+    ChannelPlanItem:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        strategy:
+          type: string
+          enum: [Mandatory, Optional, DelayedFollowUp]
+        plannedDelaySeconds:
+          type: integer
+          nullable: true
     WorkflowDefinition:
       type: object
       properties:
@@ -667,6 +729,8 @@ components:
         escalationMode:
           type: string
           enum: [RecipientOnly]
+        responseImpliesAck:
+          type: boolean
         options:
           type: array
           items:
@@ -689,6 +753,18 @@ components:
           items:
             type: string
             enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        version:
+          type: integer
+        mandatoryChannels:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        optionalChannels:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
         defaultWorkflowId:
           type: string
           nullable: true
@@ -696,9 +772,39 @@ components:
           type: string
           enum: [Toast, Modal, Fullscreen]
           nullable: true
+        criticalBehaviorMode:
+          type: string
+          enum: [ModalThenStronger, FixedModal, FullscreenImmediate]
+          nullable: true
         defaultDeliveryStrategy:
           type: string
           enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+          nullable: true
+        dualPathRule:
+          $ref: "#/components/schemas/DualPathRule"
+        allowedTargetTypes:
+          type: array
+          items:
+            type: string
+            enum: [All, Site, Area, Department, Section, Role, Employee, Group, Device]
+        lockedFields:
+          type: array
+          items:
+            type: string
+        editableFields:
+          type: array
+          items:
+            type: string
+    DualPathRule:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [DesktopFirstShortDelayWhatsApp]
+        delaySeconds:
+          type: integer
           nullable: true
     WorkflowOption:
       type: object
@@ -724,7 +830,7 @@ components:
           enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
         jobStatus:
           type: string
-          enum: [Pending, Sent, Delivered, Read, Failed]
+          enum: [Pending, Sent, Delivered, Displayed, Read, Responded, Failed]
         lastUpdatedAt:
           type: string
           format: date-time
@@ -739,6 +845,9 @@ components:
           type: string
         responseOptionKey:
           type: string
+        actorUserIdentifier:
+          type: string
+          nullable: true
         responseNote:
           type: string
           nullable: true
@@ -750,10 +859,22 @@ components:
       properties:
         id:
           type: string
-        employeeId:
+        primaryEmployeeId:
           type: string
+          nullable: true
         hostname:
           type: string
+        siteId:
+          type: string
+        areaId:
+          type: string
+          nullable: true
+        locationLabel:
+          type: string
+          nullable: true
+        ownershipMode:
+          type: string
+          enum: [LocationOwned, EmployeeAssigned, Mixed]
         agentVersion:
           type: string
         lastHeartbeatAt:
@@ -784,6 +905,11 @@ components:
         windowsAgentPresentation:
           type: string
           enum: [Toast, Modal, Fullscreen]
+        requiresResponse:
+          type: boolean
+        templateVersion:
+          type: integer
+          nullable: true
         workflow:
           $ref: "#/components/schemas/WorkflowDefinition"
     Site:

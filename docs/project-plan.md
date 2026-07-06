@@ -10,7 +10,7 @@
 `MTI Alert` is a centralized real-time communication platform for delivering important information, operational warnings, and emergency notifications to company employees through multiple channels. In the initial phase, the system acts as the central server responsible for content creation, audience targeting, delivery orchestration, delivery monitoring, and acknowledgment collection.
 
 The initial delivery focus is:
-- `Windows Agent` on employee laptops and office workstations as the primary receiver channel.
+- `Windows Agent` on shared or dedicated laptops and office workstations as the primary desktop receiver channel.
 - `WhatsApp` for field personnel or users without desktop agent access.
 - Future expansion to `Email` and `Digital Signage`.
 
@@ -19,6 +19,7 @@ Become the company-wide communication coordination hub that supports worker safe
 
 ## Business Goals
 - Ensure important messages reach the right people based on site, department, section, role, or individual recipient.
+- Ensure desktop alerts can target the correct device endpoints based on site and area.
 - Support routine, operational, and emergency communication within one consistent platform.
 - Provide real-time visibility into delivery, read, and response status for management.
 - Support measurable incident-response workflows through configurable acknowledgments and actions.
@@ -37,6 +38,7 @@ The initial product is positioned as a `server-side platform` with the following
 - Multi-channel delivery orchestration for Windows Agent and WhatsApp.
 - Real-time monitoring for send, delivery, read, acknowledgment, and escalation state across all tracked content types.
 - Configurable response workflows controlled by templates and policies.
+- Device-centric desktop delivery for shared or location-owned PCs.
 - Audit trail, reporting, and access administration.
 
 ## Representative Use Cases
@@ -52,8 +54,10 @@ The initial product is positioned as a `server-side platform` with the following
 - Unified content engine
 - Full delivery and read tracking for all MVP content types
 - Audience segmentation
+- Device-by-location desktop targeting using site and area
 - One-time and recurring scheduling
 - Template-driven response workflow
+- Versioned full-policy templates
 - SignalR-style push-first agent delivery model
 - User-preference-based channel strategy
 - Hybrid RBAC between central admins and local operators
@@ -76,6 +80,7 @@ The initial product is positioned as a `server-side platform` with the following
 - Local operators can only send within their authorized scope.
 - Management can identify who has not received, not read, or still requires assistance.
 - Communication templates can control response behavior while employee channel preference influences default delivery strategy.
+- Desktop-critical messages can target devices by site and area even in shared PC environments.
 
 ## Delivery Strategy
 ### Phase 0
@@ -103,6 +108,7 @@ The initial product is positioned as a `server-side platform` with the following
 - A clear organizational hierarchy: site, department, section, role, employee.
 - A defined enterprise authentication approach for the implementation phase.
 - A synchronization strategy for externally sourced organization data plus limited MTI-side overrides.
+- Local MTI Alert scope mapping for admin authorization after LDAP or AD authentication.
 
 ## Risks
 - The unified content engine may expand uncontrollably if content types are not tightly bounded.

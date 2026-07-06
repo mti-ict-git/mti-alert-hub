@@ -17,11 +17,12 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-2. Windows Agent Authentication Strategy
 - Question: How should the C# agent authenticate to the server and bind a device to an employee?
 - Why it matters: Device trust, impersonation risk, and deployment workflow depend on this.
-- Current safe assumption: device registration plus renewable device session token.
+- Current safe assumption: device registration plus renewable device session token, with desktop delivery remaining device-centric rather than user-centric.
 
 ### OQ-3. Organizational Source Of Truth
 - Question: What exact boundaries apply to the hybrid organization source model between external systems and MTI-managed overrides?
 - Why it matters: This changes CRUD ownership, sync workflows, and data freshness rules.
+- Current safe assumption: basic org data comes from scheduled HR batch sync, while MTI Alert may hold limited local adjustments.
 
 ### OQ-4. WhatsApp Provider Selection
 - Question: Which WhatsApp provider or gateway will be used for production?
@@ -30,7 +31,7 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-5. Response Workflow Limits
 - Question: How far should template-driven response policy go in MVP?
 - Why it matters: Fully dynamic workflows can significantly increase complexity.
-- Current safe assumption: MVP supports template-selected workflows with selectable preset options, optional note fields, and timeout-based overdue tracking.
+- Current safe assumption: MVP supports template-selected workflows with selectable preset options, optional note fields, timeout-based overdue tracking, and response-implies-ack semantics.
 
 ### OQ-6. Escalation Behavior
 - Question: What exact recipient-only follow-up actions are allowed in MVP for overdue or unread critical communications?
@@ -41,18 +42,18 @@ This document records unresolved product and technical questions. No implementat
 - Question: Should long-form news, article, and knowledge content use the exact same UX as alerts and reminders, or require specialized presentation?
 - Why it matters: Unified engine does not always mean identical UX.
 
-### OQ-8. Approval Workflow
-- Question: Do some communications require approval before publication?
-- Why it matters: This may introduce additional lifecycle states, permissions, and audit requirements.
-- Current safe assumption: No approval workflow in MVP unless explicitly added.
+### OQ-8. Critical Dual-Path Timing Range
+- Question: What exact short-delay range should be used between desktop-first delivery and WhatsApp follow-up for critical dual-path templates?
+- Why it matters: This affects urgency, user noise, and operational consistency.
+- Current safe assumption: the delay is template-driven and intentionally short.
 
-### OQ-9. Read Semantics
-- Question: What precisely counts as `Read` for Windows Agent and WhatsApp?
-- Why it matters: Channel semantics differ and can distort reporting.
-
-### OQ-10. Recipient Identity Conflicts
-- Question: If one employee has multiple devices or multiple channels, how should delivery rollup interact with user-preference-based channel strategy?
+### OQ-9. Recipient Identity Conflicts
+- Question: If one employee has multiple devices or multiple channels, how should delivery rollup interact with device-centric desktop targeting and user-preference-based channel strategy?
 - Why it matters: This affects delivery aggregation and dashboard correctness.
+
+### OQ-10. Template Policy Depth
+- Question: Should template version snapshots be stored only at communication level, or also materialized into delivery job policy snapshots for execution auditability?
+- Why it matters: This affects debugging, audit traceability, and schema complexity.
 
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion
@@ -73,7 +74,7 @@ This document records unresolved product and technical questions. No implementat
 
 ### CH-4. Role Scope Enforcement
 - Risk: Frontend-only permission filtering can lead to unauthorized operations.
-- Mitigation: Enforce scope in backend query and command handlers.
+- Mitigation: Enforce site and area scope in backend query and command handlers.
 
 ### CH-5. Scheduling And Recurrence Complexity
 - Risk: Recurring reminders can create edge cases around time zones, missed runs, and editing future schedules.
@@ -82,3 +83,7 @@ This document records unresolved product and technical questions. No implementat
 ### CH-6. Critical Presentation Policy
 - Risk: Immediate modal behavior for critical alerts can become disruptive if policy boundaries are unclear.
 - Mitigation: Keep the behavior template-driven, explicit, and constrained by documented priority rules.
+
+### CH-7. Device-Centric Audit Semantics
+- Risk: Shared devices can blur the distinction between endpoint-level proof and person-level proof.
+- Mitigation: Treat device events as authoritative for desktop delivery, while storing active user context only as optional audit metadata when available.

@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.1`
 - Status: `Active`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Active Phase
 - `Phase 0 - Documentation Baseline`
@@ -23,24 +23,35 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `docs/database-schema-specification.md`
 - `docs/openapi.yaml`
 - `docs/open-questions-and-challenges.md`
+- `docs/template-policy-schema.md`
+
+### Supporting Documents
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/deployment-and-environment.md`
+- `docs/windows-agent-client-specification.md`
 
 ### Checklist
-- `[x]` Define the product vision and MVP scope.
-- `[x]` Define product principles and operating constraints.
-- `[x]` Define the core functional domains and workflows.
-- `[x]` Define the conceptual backend architecture.
-- `[x]` Define the baseline database schema.
-- `[x]` Define the initial OpenAPI contract for the server.
-- `[x]` Record unresolved questions and implementation challenges.
-- `[x]` Review and refine the baseline documents with user feedback.
+- `[x]` Documentation baseline: define the project vision and MVP scope.
+- `[x]` Documentation baseline: define product principles and operating constraints.
+- `[x]` Documentation baseline: define functional domains and key workflows.
+- `[x]` Documentation baseline: define conceptual backend architecture.
+- `[x]` Documentation baseline: define conceptual database schema.
+- `[x]` Documentation baseline: define the initial OpenAPI contract.
+- `[x]` Documentation baseline: record unresolved questions and challenges.
+- `[x]` Documentation refinement: align the mandatory documents with user decisions.
+- `[x]` Documentation refinement: add supporting references where ambiguity remained high.
+- `[x]` Documentation refinement: add template policy schema support.
 
 ### Output
 - A complete baseline documentation package in `docs/`.
+- Repository entry documents should guide humans and AI agents into the authoritative `docs/` set.
+- Supporting schema references may be added when they reduce implementation ambiguity.
 
 ### Challenge / Verification
 - Verification target: required documentation files exist and form a coherent baseline for implementation.
 - Challenge: key architecture decisions were narrowed, but several implementation details remain open and are tracked in `docs/open-questions-and-challenges.md`.
-- Evidence: document set created, then refined against explicit user decisions on `2026-07-06`.
+- Evidence: mandatory baseline documents were created and refined against explicit user decisions on `2026-07-06`, then extended with supporting baseline references, a template policy schema reference, and repository entry documentation guidance on `2026-07-07`.
 
 ## Phase 1 - Core Backend Foundation
 ### Status
@@ -56,21 +67,39 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `docs/database-schema-specification.md`
 - `docs/openapi.yaml`
 
+### Supporting Documents
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/deployment-and-environment.md`
+- `docs/template-policy-schema.md`
+- `docs/windows-agent-client-specification.md`
+
 ### Checklist
-- `[ ]` Implement auth endpoints and session or token model.
-- `[ ]` Implement user role and scope enforcement.
-- `[ ]` Implement organization reference data endpoints.
-- `[ ]` Implement communication draft CRUD endpoints.
-- `[ ]` Implement audience preview and target resolution.
-- `[ ]` Update frontend service layer to use backend endpoints.
+- `[ ]` Auth foundation: define the concrete LDAP or AD login flow.
+- `[ ]` Auth foundation: define session or token strategy for admin APIs.
+- `[ ]` Auth foundation: implement `login`, `logout`, and `me` endpoints.
+- `[ ]` Authorization: define local role mapping and site or area scope model.
+- `[ ]` Authorization: implement backend scope enforcement guards.
+- `[ ]` Authorization: challenge unauthorized access scenarios and expected errors.
+- `[ ]` Organization data: define the HR sync ingestion contract for basic org data.
+- `[ ]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
+- `[ ]` Organization data: implement sync-safe read models for employees and devices.
+- `[ ]` Communication drafts: implement draft create, get, update, duplicate, and cancel rules.
+- `[ ]` Communication drafts: enforce template-locked field validation in the API layer.
+- `[ ]` Audience preview: implement target resolution for site, area, employee, group, and device target types.
+- `[ ]` Audience preview: implement publish preview output with recipient counts and channel plan.
+- `[ ]` Frontend integration: replace mock auth and draft services with backend-backed service calls.
+- `[ ]` Frontend integration: validate that admin flows still work against the new contract.
 
 ### Output
 - Running backend foundation with documented API coverage.
+- Initial backend modules exist for auth, authorization, organization references, communication drafts, and audience preview.
 
 ### Challenge / Verification
 - Build and typecheck pass.
 - API contract matches implementation.
 - Authorization scope is challenged with unauthorized access scenarios.
+- Publish preview output is challenged with representative target combinations.
 
 ## Phase 2 - Delivery Orchestration
 ### Status
@@ -86,21 +115,39 @@ Implement communication publication, scheduling, recipient snapshots, and delive
 - `docs/openapi.yaml`
 - `docs/open-questions-and-challenges.md`
 
+### Supporting Documents
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/deployment-and-environment.md`
+- `docs/template-policy-schema.md`
+- `docs/windows-agent-client-specification.md`
+
 ### Checklist
-- `[ ]` Implement publish and cancel workflows.
-- `[ ]` Implement one-time and recurring schedules.
-- `[ ]` Implement recipient snapshot generation.
-- `[ ]` Implement delivery job and attempt tracking.
-- `[ ]` Implement WhatsApp connector integration boundary.
-- `[ ]` Implement Windows Agent API boundary.
+- `[ ]` Publication flow: implement publish confirmation rules and schedule validation.
+- `[ ]` Publication flow: implement publish now and publish later execution paths.
+- `[ ]` Scheduling: implement one-time scheduling and persistence.
+- `[ ]` Scheduling: implement recurring schedule definition and execution generation.
+- `[ ]` Recipient snapshot: generate immutable snapshots for device-targeted and contact-targeted recipients.
+- `[ ]` Recipient snapshot: store template version and effective policy snapshot for execution.
+- `[ ]` Delivery orchestration: implement delivery job creation per recipient and per channel.
+- `[ ]` Delivery orchestration: implement delivery attempt records and bounded retry behavior.
+- `[ ]` Delivery orchestration: implement delivery status events including `Displayed` and `Read`.
+- `[ ]` WhatsApp boundary: implement outbound provider interface and callback ingestion contract.
+- `[ ]` WhatsApp boundary: implement read receipt mapping and delivery state normalization.
+- `[ ]` Windows Agent boundary: implement device session registration and realtime negotiation endpoints.
+- `[ ]` Windows Agent boundary: implement heartbeat, displayed, read, and response endpoints.
+- `[ ]` Windows Agent boundary: implement pending-message reconciliation for disconnected agents.
+- `[ ]` Frontend integration: replace mock publish, delivery, and device monitoring services with backend-backed calls.
 
 ### Output
 - Backend supports end-to-end communication dispatch orchestration.
+- Delivery orchestration exists for both Windows Agent and WhatsApp with status persistence and retry behavior.
 
 ### Challenge / Verification
 - Scheduled and immediate communications are both verified.
 - Failed delivery paths are challenged.
 - Delivery state rollup is validated for multi-channel recipients.
+- Disconnected-agent recovery is challenged with pending-message reconciliation scenarios.
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status
@@ -115,21 +162,35 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `docs/database-schema-specification.md`
 - `docs/openapi.yaml`
 
+### Supporting Documents
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/template-policy-schema.md`
+- `docs/windows-agent-client-specification.md`
+
 ### Checklist
-- `[ ]` Implement workflow definition management.
-- `[ ]` Implement recipient response submission endpoints.
-- `[ ]` Implement overdue response tracking.
-- `[ ]` Implement communication monitoring endpoints.
-- `[ ]` Implement dashboard summary endpoints.
-- `[ ]` Implement audit logging for communication lifecycle events.
+- `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
+- `[ ]` Workflow management: implement workflow option validation rules.
+- `[ ]` Response handling: implement response submission for Windows Agent and compatible channel responses.
+- `[ ]` Response handling: enforce `response implies ack` semantics in the backend.
+- `[ ]` Response handling: store actor context as optional audit metadata where available.
+- `[ ]` Monitoring: implement communication-level monitoring endpoints.
+- `[ ]` Monitoring: implement recipient-level monitoring endpoints with device and contact distinctions.
+- `[ ]` Monitoring: implement dashboard summary endpoints and aggregation queries.
+- `[ ]` Monitoring: implement delivery and response state rollups for tracked content types.
+- `[ ]` Overdue handling: implement timeout evaluation and recipient-only follow-up triggers.
+- `[ ]` Auditability: implement audit logging for publish, cancel, override rejection, response, and state transitions.
+- `[ ]` Frontend integration: replace mock reports, dashboards, and response summary services with backend-backed calls.
 
 ### Output
 - Backend supports monitored response workflows and operational reporting.
+- Reporting and monitoring are backed by persisted delivery, response, and audit records.
 
 ### Challenge / Verification
 - Response state transitions are validated.
 - Overdue cases are challenged.
 - Dashboard counts reconcile with source records.
+- Audit records are challenged against representative lifecycle events.
 
 ## Phase 4 - Hardening And Expansion
 ### Status
@@ -144,17 +205,30 @@ Prepare the platform for broader rollout and future channels.
 - `docs/open-questions-and-challenges.md`
 - `docs/openapi.yaml`
 
+### Supporting Documents
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/deployment-and-environment.md`
+
 ### Checklist
-- `[ ]` Add email connector design and implementation.
-- `[ ]` Add digital signage connector design.
-- `[ ]` Improve observability and operational tooling.
-- `[ ]` Harden security and session management.
-- `[ ]` Expand reporting and export capability.
+- `[ ]` Channel expansion: define and document the email connector contract.
+- `[ ]` Channel expansion: implement email delivery orchestration if included in scope.
+- `[ ]` Channel expansion: define and document the digital signage connector contract.
+- `[ ]` Channel expansion: implement digital signage orchestration if included in scope.
+- `[ ]` Observability: harden logging, tracing, and operational alerting.
+- `[ ]` Observability: improve connector-health and realtime-hub diagnostics.
+- `[ ]` Security: harden session handling, token rotation, and agent trust controls.
+- `[ ]` Security: review directory integration security settings and environment handling.
+- `[ ]` Reporting: expand historical reporting and export capability.
+- `[ ]` Operations: define deployment, rollback, and incident-response runbook guidance.
+- `[ ]` Documentation: update source docs and supporting docs for any post-MVP contract changes.
 
 ### Output
 - Hardened platform with clearer path to post-MVP expansion.
+- Operational and security guidance is documented for production-oriented rollout.
 
 ### Challenge / Verification
 - New channel contracts are documented.
 - Operational failure recovery is challenged.
 - Security-sensitive actions are re-verified.
+- Production-oriented deployment and rollback assumptions are challenged.

@@ -15,6 +15,15 @@
 This file defines the working method for this repository.
 Use it to keep planning, implementation, and verification consistent across sessions.
 
+## Repository Entry Documents
+The repository should also maintain these top-level entry documents:
+- `README.md`
+- `AGENTS.md`
+
+`README.md` is the repository entry point for humans and AI agents. It should explain what the project is, how the repository is organized, where the source-of-truth documents live, and how to start working safely.
+
+`AGENTS.md` defines the working method for AI agents. It does not replace `README.md`, and `README.md` does not replace the source-of-truth documents under `docs/`.
+
 ## Core Rule
 `docs/` is the source of truth for product scope, workflow, architecture, API contract, and data model.
 Do not implement from assumption when a documented source exists.
@@ -29,7 +38,7 @@ For any non-trivial task, follow this order:
 6. Update roadmap and related docs before declaring completion
 
 ## Mandatory Documents
-The repository should maintain these files when applicable:
+The repository should maintain at least these mandatory documents when applicable:
 - `docs/project-plan.md`
 - `docs/product-principles.md`
 - `docs/functional-specification.md`
@@ -38,6 +47,21 @@ The repository should maintain these files when applicable:
 - `docs/database-schema-specification.md`
 - `docs/implementation-roadmap.md`
 - `docs/open-questions-and-challenges.md`
+
+These files are the minimum required documentation baseline and must remain maintained and synchronized.
+
+## Supporting Documents
+Agents may add other supporting documents under `docs/` when they improve clarity, planning, implementation, verification, operations, or handoff.
+
+Recommended supporting documents include:
+- `docs/architecture-decisions.md`
+- `docs/testing-strategy.md`
+- `docs/deployment-and-environment.md`
+- `docs/security-and-access-model.md`
+- `docs/integration-contracts.md`
+- `docs/operational-runbook.md`
+
+Supporting documents do not replace the mandatory set. Add them when they reduce ambiguity or preserve important implementation and operational knowledge.
 
 ## Change Control Rules
 - Do not change backend behavior without checking whether `docs/openapi.yaml` must change.

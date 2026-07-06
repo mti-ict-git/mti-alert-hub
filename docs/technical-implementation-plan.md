@@ -19,6 +19,7 @@ This document defines the recommended technical shape of the `MTI Alert` server 
 - reporting and auditability
 
 It is not the desktop receiver itself. The `Windows Agent` is a separate client application, expected to be implemented in `C#`.
+Administrative authentication should rely on LDAP or Active Directory, while authorization and scope mapping remain owned by MTI Alert.
 
 ## Recommended Architecture
 ### Logical Components
@@ -39,17 +40,19 @@ It is not the desktop receiver itself. The `Windows Agent` is a separate client 
 
 ## Suggested Modules
 ### 1. Auth And Access Module
-- Admin login and session/token issuance
-- User roles and scope enforcement
+- LDAP or Active Directory login and session/token issuance
+- Local role and scope mapping
 - Permission checks
 
 ### 2. Organization Module
 - Sites
+- Areas
 - Departments
 - Sections
 - Roles
 - Employee directory references
-- Import, synchronization, and limited override support
+- Scheduled batch HR synchronization for basic org data
+- Limited override support where explicitly allowed
 
 ### 3. Communication Module
 - Communication drafts
@@ -57,18 +60,22 @@ It is not the desktop receiver itself. The `Windows Agent` is a separate client 
 - Scheduling
 - Recurrence
 - Templates
-- Template policies for response, presentation, and default delivery strategy
+- Template versioning and policy snapshots
+- Template policies for response, presentation, targeting constraints, channel rules, and default delivery strategy
+- Publish preview and confirmation workflow
 
 ### 4. Audience Module
 - Audience rules
 - Audience preview
 - Saved groups
 - Resolved recipient snapshots
+- Device-by-location resolution for Windows Agent targeting
 
 ### 5. Workflow Module
 - Response workflow definitions
 - Response options
-- Escalation rules
+- Recipient-only escalation rules for MVP
+- Ack and response semantics
 
 ### 6. Delivery Module
 - Delivery jobs
@@ -76,6 +83,8 @@ It is not the desktop receiver itself. The `Windows Agent` is a separate client 
 - Channel-specific payload rendering
 - Delivery state reconciliation
 - User-preference-aware channel selection
+- Template-driven mandatory and optional channel rules
+- Bounded retry orchestration
 
 ### 7. Windows Agent Module
 - Device registration
@@ -88,6 +97,8 @@ It is not the desktop receiver itself. The `Windows Agent` is a separate client 
 - Read confirmation
 - Response submission
 - Client capability reporting
+- Flat device metadata with site, area, and location label
+- Location-owned device targeting support
 
 ### 8. WhatsApp Module
 - Outbound message dispatch
@@ -123,17 +134,21 @@ The current repository already leans toward TypeScript for the admin application
 - Audience resolver generates a recipient snapshot.
 - Delivery jobs are created per recipient and per selected or policy-resolved channel.
 - Communication state moves to `Queued` or `Sending`.
+- Publish preview must resolve target audience, device counts, channel plan, and critical policy summary before final confirmation.
 
 ### Delivery Stage
 - Channel connector or realtime hub attempts delivery.
 - Delivery attempt records are written.
 - Recipient channel status is updated as callbacks or agent confirmations arrive.
 - Employee channel preference influences the default initial channel choice when multiple eligible channels are available.
+- Critical templates may override normal preference flow using desktop-first with short-delay WhatsApp dual-path behavior.
+- Agent delivery retries must be bounded by configurable policy.
 
 ### Response Stage
 - If response is required, recipients enter `AwaitingResponse`.
 - Responses update workflow tracking and dashboards.
 - In MVP, overdue timers may trigger recipient-only follow-up behavior such as re-alerting the same recipient.
+- A workflow response should also satisfy acknowledgment in MVP.
 
 ## Windows Agent Integration Direction
 ### Responsibilities Of The Agent
@@ -143,6 +158,8 @@ The current repository already leans toward TypeScript for the admin application
 - Receive pushed communications in near real time.
 - Render desktop notifications using policy-driven behavior.
 - Show critical communications as immediate modal alerts in MVP.
+- Report `Displayed` only when content is actually rendered on the device.
+- Report `Read` only after real interaction occurs.
 - Confirm display, read, and user response.
 
 ### Minimum Agent API Needs
@@ -154,6 +171,7 @@ The current repository already leans toward TypeScript for the admin application
 - acknowledge display/read
 - submit workflow response
 - report agent version and device state
+- report active user context only as optional audit metadata, not as the primary desktop recipient identity
 
 ## WhatsApp Integration Direction
 ### Responsibilities Of The Server
@@ -161,18 +179,22 @@ The current repository already leans toward TypeScript for the admin application
 - Dispatch through the configured provider or gateway.
 - Receive webhook callbacks for delivery state changes.
 - Map delivery state back to the communication and recipient model.
+- Only promote WhatsApp to `Read` when a provider or gateway emits a real read receipt.
 
 ## Data Strategy
 - Use normalized operational tables for authoritative state.
 - Use append-only event records for status transitions where possible.
 - Keep resolved audience snapshots to preserve historical targeting truth even if org structure later changes.
 - Store template policy and channel preference state needed for delivery decisions and auditability.
+- Store template version snapshots on communications and delivery records when policy materially affects execution.
+- Keep flat device records with site, area, and location metadata directly on the device model for MVP simplicity.
 
 ## Security Direction
 - Enforce authentication for all admin APIs.
 - Enforce scoped authorization for all create, publish, and report actions.
 - Protect agent endpoints with device credentials, signed tokens, or equivalent secure mechanism.
 - Log high-risk actions such as publish, cancel, scope changes, and role changes.
+- Block template-locked field overrides at the API layer and return explicit validation errors.
 
 ## Observability
 - Structured logs per module
@@ -181,6 +203,7 @@ The current repository already leans toward TypeScript for the admin application
 - Delivery error tracking by channel
 - Heartbeat freshness visibility for Windows Agents
 - Realtime connection health and stale connection visibility for Windows Agents
+- Preview-to-publish auditability for critical communications
 
 ## API Contract Rules
 - `docs/openapi.yaml` is the source of truth for backend contract.
@@ -195,3 +218,5 @@ The current repository already leans toward TypeScript for the admin application
 - Model recipient delivery and recipient response separately.
 - Implement template-driven policy as backend behavior, not only UI metadata.
 - Do not add approval gates to MVP publication unless the specification is updated.
+- Treat Windows Agent desktop targeting as device-centric and location-oriented for MVP.
+- Keep site and area as the primary scope dimensions for device-targeted desktop delivery.
