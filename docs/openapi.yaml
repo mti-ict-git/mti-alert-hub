@@ -1,0 +1,819 @@
+openapi: 3.1.0
+info:
+  title: MTI Alert Server API
+  version: 0.1.0
+  description: |
+    Baseline API contract for the MTI Alert central server.
+    This contract covers the MVP server direction for admin operations,
+    communication management, audience resolution, delivery tracking,
+    Windows Agent integration, and dashboard monitoring.
+servers:
+  - url: https://api.example.com
+    description: Production placeholder
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Auth
+  - name: Communications
+  - name: Templates
+  - name: Audience
+  - name: Deliveries
+  - name: Responses
+  - name: Devices
+  - name: Dashboard
+  - name: Reference
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login an admin user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current admin user
+      responses:
+        "204":
+          description: Logged out
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current admin session
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+  /communications:
+    get:
+      tags: [Communications]
+      summary: List communications
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+        - in: query
+          name: priority
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: templateId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Communication list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CommunicationSummary"
+    post:
+      tags: [Communications]
+      summary: Create a communication draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommunicationRequest"
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+  /communications/{communicationId}:
+    get:
+      tags: [Communications]
+      summary: Get communication detail
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Communication detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+    patch:
+      tags: [Communications]
+      summary: Update a communication draft
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommunicationRequest"
+      responses:
+        "200":
+          description: Draft updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+  /communications/{communicationId}/publish:
+    post:
+      tags: [Communications]
+      summary: Publish or schedule a communication
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishCommunicationRequest"
+      responses:
+        "200":
+          description: Publish accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+  /communications/{communicationId}/cancel:
+    post:
+      tags: [Communications]
+      summary: Cancel a scheduled or active communication
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Communication cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+  /communications/{communicationId}/audience-preview:
+    post:
+      tags: [Audience]
+      summary: Resolve target rules into recipient preview
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Audience preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalRecipients:
+                    type: integer
+                  recipients:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecipientPreview"
+  /communications/{communicationId}/deliveries:
+    get:
+      tags: [Deliveries]
+      summary: List delivery jobs and status for a communication
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Delivery status list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DeliveryRecord"
+  /communications/{communicationId}/responses:
+    get:
+      tags: [Responses]
+      summary: List recipient responses for a communication
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Response list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecipientResponse"
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List communication templates
+      responses:
+        "200":
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CommunicationTemplate"
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List registered Windows Agent devices
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Device"
+  /agent/session:
+    post:
+      tags: [Devices]
+      summary: Create or refresh a Windows Agent session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceIdentifier, employeeNumber]
+              properties:
+                deviceIdentifier:
+                  type: string
+                employeeNumber:
+                  type: string
+                agentVersion:
+                  type: string
+      responses:
+        "200":
+          description: Agent session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionToken:
+                    type: string
+                  device:
+                    $ref: "#/components/schemas/Device"
+  /agent/realtime/negotiate:
+    post:
+      tags: [Devices]
+      summary: Negotiate a realtime Windows Agent connection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceIdentifier]
+              properties:
+                deviceIdentifier:
+                  type: string
+      responses:
+        "200":
+          description: Realtime connection metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connectionUrl:
+                    type: string
+                  accessToken:
+                    type: string
+  /agent/heartbeat:
+    post:
+      tags: [Devices]
+      summary: Report device heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceIdentifier, heartbeatAt]
+              properties:
+                deviceIdentifier:
+                  type: string
+                heartbeatAt:
+                  type: string
+                  format: date-time
+                status:
+                  type: string
+      responses:
+        "204":
+          description: Heartbeat accepted
+  /agent/messages:
+    get:
+      tags: [Devices]
+      summary: Fetch pending messages for the Windows Agent
+      responses:
+        "200":
+          description: Pending messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentMessage"
+  /agent/messages/{messageId}/read:
+    post:
+      tags: [Devices]
+      summary: Mark a Windows Agent message as read
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Read recorded
+  /agent/messages/{messageId}/displayed:
+    post:
+      tags: [Devices]
+      summary: Mark a Windows Agent message as displayed
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Display recorded
+  /agent/messages/{messageId}/response:
+    post:
+      tags: [Devices]
+      summary: Submit a response from the Windows Agent
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [responseOptionKey]
+              properties:
+                responseOptionKey:
+                  type: string
+                responseNote:
+                  type: string
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipientResponse"
+  /dashboard/overview:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard summary metrics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeCommunications:
+                    type: integer
+                  recipientsPending:
+                    type: integer
+                  deliveredCount:
+                    type: integer
+                  respondedCount:
+                    type: integer
+                  failedCount:
+                    type: integer
+                  overdueResponses:
+                    type: integer
+  /reference/organization:
+    get:
+      tags: [Reference]
+      summary: Get organization reference data for sites, departments, and sections
+      responses:
+        "200":
+          description: Reference data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sites:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Site"
+components:
+  parameters:
+    CommunicationId:
+      in: path
+      name: communicationId
+      required: true
+      schema:
+        type: string
+  schemas:
+    AuthSession:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/AdminUser"
+    AdminUser:
+      type: object
+      required: [id, username, fullName, roleType]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        roleType:
+          type: string
+          enum: [CentralAdmin, LocalOperator, ManagementViewer]
+    CommunicationSummary:
+      type: object
+      required: [id, communicationType, priority, title, status]
+      properties:
+        id:
+          type: string
+        communicationType:
+          type: string
+          enum: [Alert, Reminder, OperationalNotice, News, Article, KnowledgeUpdate]
+        priority:
+          type: string
+          enum: [Info, Warning, Critical]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Scheduled, Queued, Sending, Active, Completed, Cancelled, Failed]
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        channelSelections:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+    CommunicationDetail:
+      allOf:
+        - $ref: "#/components/schemas/CommunicationSummary"
+        - type: object
+          properties:
+            body:
+              type: string
+            category:
+              type: string
+            templateId:
+              type: string
+              nullable: true
+            requiresResponse:
+              type: boolean
+            windowsAgentPresentation:
+              type: string
+              enum: [Toast, Modal, Fullscreen]
+              nullable: true
+            deliveryStrategy:
+              type: string
+              enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+            workflow:
+              $ref: "#/components/schemas/WorkflowDefinition"
+            targets:
+              type: array
+              items:
+                $ref: "#/components/schemas/TargetRule"
+    CreateCommunicationRequest:
+      type: object
+      required:
+        [communicationType, priority, title, body, channelSelections, targets]
+      properties:
+        communicationType:
+          type: string
+          enum: [Alert, Reminder, OperationalNotice, News, Article, KnowledgeUpdate]
+        priority:
+          type: string
+          enum: [Info, Warning, Critical]
+        category:
+          type: string
+        templateId:
+          type: string
+          nullable: true
+        title:
+          type: string
+        body:
+          type: string
+        channelSelections:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TargetRule"
+        workflowId:
+          type: string
+          nullable: true
+        windowsAgentPresentation:
+          type: string
+          enum: [Toast, Modal, Fullscreen]
+          nullable: true
+        deliveryStrategy:
+          type: string
+          enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+          nullable: true
+    UpdateCommunicationRequest:
+      type: object
+      properties:
+        category:
+          type: string
+        templateId:
+          type: string
+          nullable: true
+        title:
+          type: string
+        body:
+          type: string
+        channelSelections:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TargetRule"
+        workflowId:
+          type: string
+          nullable: true
+        windowsAgentPresentation:
+          type: string
+          enum: [Toast, Modal, Fullscreen]
+          nullable: true
+        deliveryStrategy:
+          type: string
+          enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+          nullable: true
+    PublishCommunicationRequest:
+      type: object
+      properties:
+        publishMode:
+          type: string
+          enum: [Now, Scheduled]
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+    TargetRule:
+      type: object
+      required: [targetType, targetValue]
+      properties:
+        targetType:
+          type: string
+          enum: [All, Site, Department, Section, Role, Employee, Group]
+        targetValue:
+          type: string
+    RecipientPreview:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        employeeNumber:
+          type: string
+        fullName:
+          type: string
+        siteName:
+          type: string
+        departmentName:
+          type: string
+        sectionName:
+          type: string
+        availableChannels:
+          type: array
+          items:
+            type: string
+    WorkflowDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        allowFreeText:
+          type: boolean
+        requireFreeText:
+          type: boolean
+        escalationTimeoutMinutes:
+          type: integer
+        escalationMode:
+          type: string
+          enum: [RecipientOnly]
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowOption"
+    CommunicationTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        communicationType:
+          type: string
+          enum: [Alert, Reminder, OperationalNotice, News, Article, KnowledgeUpdate]
+        defaultPriority:
+          type: string
+          enum: [Info, Warning, Critical]
+        defaultChannels:
+          type: array
+          items:
+            type: string
+            enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        defaultWorkflowId:
+          type: string
+          nullable: true
+        defaultWindowsAgentPresentation:
+          type: string
+          enum: [Toast, Modal, Fullscreen]
+          nullable: true
+        defaultDeliveryStrategy:
+          type: string
+          enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+          nullable: true
+    WorkflowOption:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+    DeliveryRecord:
+      type: object
+      properties:
+        deliveryJobId:
+          type: string
+        recipientId:
+          type: string
+        recipientName:
+          type: string
+        channel:
+          type: string
+          enum: [WindowsAgent, WhatsApp, Email, DigitalSignage]
+        deliveryStrategy:
+          type: string
+          enum: [UserPreference, MultiSend, PrimaryFallback, TemplatePolicy]
+        jobStatus:
+          type: string
+          enum: [Pending, Sent, Delivered, Read, Failed]
+        lastUpdatedAt:
+          type: string
+          format: date-time
+    RecipientResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        recipientId:
+          type: string
+        channel:
+          type: string
+        responseOptionKey:
+          type: string
+        responseNote:
+          type: string
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        hostname:
+          type: string
+        agentVersion:
+          type: string
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastConnectionAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [Online, Offline, Stale]
+    AgentMessage:
+      type: object
+      properties:
+        messageId:
+          type: string
+        communicationId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        priority:
+          type: string
+          enum: [Info, Warning, Critical]
+        windowsAgentPresentation:
+          type: string
+          enum: [Toast, Modal, Fullscreen]
+        workflow:
+          $ref: "#/components/schemas/WorkflowDefinition"
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        departments:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              code:
+                type: string
+              name:
+                type: string
+              sections:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    code:
+                      type: string
+                    name:
+                      type: string

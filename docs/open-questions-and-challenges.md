@@ -1,0 +1,84 @@
+# MTI Alert Open Questions And Challenges
+
+## Document Status
+- Version: `0.1`
+- Status: `Open`
+- Last Updated: `2026-07-06`
+
+## Purpose
+This document records unresolved product and technical questions. No implementation should silently assume answers where these decisions materially affect behavior.
+
+## Open Questions
+### OQ-1. SignalR-Style Realtime Technology Choice
+- Question: Which concrete server technology will implement the SignalR-style realtime contract for the Windows Agent?
+- Why it matters: This affects framework choice, scaling behavior, deployment topology, and C# client compatibility.
+- Current safe assumption: MVP uses a hub-based push model compatible with a C# Windows Agent.
+
+### OQ-2. Windows Agent Authentication Strategy
+- Question: How should the C# agent authenticate to the server and bind a device to an employee?
+- Why it matters: Device trust, impersonation risk, and deployment workflow depend on this.
+- Current safe assumption: device registration plus renewable device session token.
+
+### OQ-3. Organizational Source Of Truth
+- Question: What exact boundaries apply to the hybrid organization source model between external systems and MTI-managed overrides?
+- Why it matters: This changes CRUD ownership, sync workflows, and data freshness rules.
+
+### OQ-4. WhatsApp Provider Selection
+- Question: Which WhatsApp provider or gateway will be used for production?
+- Why it matters: Template rules, webhook payloads, retry behavior, and message cost visibility depend on provider capabilities.
+
+### OQ-5. Response Workflow Limits
+- Question: How far should template-driven response policy go in MVP?
+- Why it matters: Fully dynamic workflows can significantly increase complexity.
+- Current safe assumption: MVP supports template-selected workflows with selectable preset options, optional note fields, and timeout-based overdue tracking.
+
+### OQ-6. Escalation Behavior
+- Question: What exact recipient-only follow-up actions are allowed in MVP for overdue or unread critical communications?
+- Why it matters: Escalation affects workflow engine design, notifications, and reporting.
+- Current safe assumption: MVP limits automatic escalation to recipient-only re-alerting or re-attempting the same recipient.
+
+### OQ-7. Knowledge And Article Experience
+- Question: Should long-form news, article, and knowledge content use the exact same UX as alerts and reminders, or require specialized presentation?
+- Why it matters: Unified engine does not always mean identical UX.
+
+### OQ-8. Approval Workflow
+- Question: Do some communications require approval before publication?
+- Why it matters: This may introduce additional lifecycle states, permissions, and audit requirements.
+- Current safe assumption: No approval workflow in MVP unless explicitly added.
+
+### OQ-9. Read Semantics
+- Question: What precisely counts as `Read` for Windows Agent and WhatsApp?
+- Why it matters: Channel semantics differ and can distort reporting.
+
+### OQ-10. Recipient Identity Conflicts
+- Question: If one employee has multiple devices or multiple channels, how should delivery rollup interact with user-preference-based channel strategy?
+- Why it matters: This affects delivery aggregation and dashboard correctness.
+
+## Challenges
+### CH-1. Unified Content Without Scope Explosion
+- Risk: Supporting alerts, reminders, news, articles, and knowledge items in one engine can become too broad.
+- Mitigation: Keep one aggregate model but limit MVP behavior differences to content type metadata and workflow settings.
+
+### CH-2. Real-Time Visibility Across Channels
+- Risk: Windows Agent and WhatsApp will produce different delivery and read semantics.
+- Mitigation: Separate raw channel events from normalized dashboard states.
+
+### CH-2A. Push Connectivity Reliability
+- Risk: Push-first Windows Agent delivery requires stable connection tracking and fallback handling when agents disconnect.
+- Mitigation: Track realtime connection health explicitly and support reconciliation for missed messages.
+
+### CH-3. AI-Driven Implementation Drift
+- Risk: Multiple AI tools building different parts of the system may interpret behavior differently.
+- Mitigation: Keep `functional-specification.md`, `technical-implementation-plan.md`, `database-schema-specification.md`, and `openapi.yaml` synchronized and explicit.
+
+### CH-4. Role Scope Enforcement
+- Risk: Frontend-only permission filtering can lead to unauthorized operations.
+- Mitigation: Enforce scope in backend query and command handlers.
+
+### CH-5. Scheduling And Recurrence Complexity
+- Risk: Recurring reminders can create edge cases around time zones, missed runs, and editing future schedules.
+- Mitigation: Treat schedules and generated executions as separate concerns.
+
+### CH-6. Critical Presentation Policy
+- Risk: Immediate modal behavior for critical alerts can become disruptive if policy boundaries are unclear.
+- Mitigation: Keep the behavior template-driven, explicit, and constrained by documented priority rules.
