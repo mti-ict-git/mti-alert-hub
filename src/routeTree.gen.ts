@@ -12,6 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppWhatsappRouteImport } from './routes/_app.whatsapp'
+import { Route as AppTemplatesRouteImport } from './routes/_app.templates'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppReportsRouteImport } from './routes/_app.reports'
+import { Route as AppEmployeesRouteImport } from './routes/_app.employees'
+import { Route as AppDevicesRouteImport } from './routes/_app.devices'
+import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
 import { Route as AppNotificationsIndexRouteImport } from './routes/_app.notifications.index'
 import { Route as AppNotificationsNewRouteImport } from './routes/_app.notifications.new'
 import { Route as AppNotificationsIdRouteImport } from './routes/_app.notifications.$id'
@@ -28,6 +35,41 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWhatsappRoute = AppWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTemplatesRoute = AppTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesRoute = AppEmployeesRouteImport.update({
+  id: '/employees',
+  path: '/employees',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDevicesRoute = AppDevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditLogsRoute = AppAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNotificationsIndexRoute = AppNotificationsIndexRouteImport.update({
@@ -49,12 +91,26 @@ const AppNotificationsIdRoute = AppNotificationsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/audit-logs': typeof AppAuditLogsRoute
+  '/devices': typeof AppDevicesRoute
+  '/employees': typeof AppEmployeesRoute
+  '/reports': typeof AppReportsRoute
+  '/settings': typeof AppSettingsRoute
+  '/templates': typeof AppTemplatesRoute
+  '/whatsapp': typeof AppWhatsappRoute
   '/notifications/$id': typeof AppNotificationsIdRoute
   '/notifications/new': typeof AppNotificationsNewRoute
   '/notifications/': typeof AppNotificationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/audit-logs': typeof AppAuditLogsRoute
+  '/devices': typeof AppDevicesRoute
+  '/employees': typeof AppEmployeesRoute
+  '/reports': typeof AppReportsRoute
+  '/settings': typeof AppSettingsRoute
+  '/templates': typeof AppTemplatesRoute
+  '/whatsapp': typeof AppWhatsappRoute
   '/': typeof AppIndexRoute
   '/notifications/$id': typeof AppNotificationsIdRoute
   '/notifications/new': typeof AppNotificationsNewRoute
@@ -64,6 +120,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/audit-logs': typeof AppAuditLogsRoute
+  '/_app/devices': typeof AppDevicesRoute
+  '/_app/employees': typeof AppEmployeesRoute
+  '/_app/reports': typeof AppReportsRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/templates': typeof AppTemplatesRoute
+  '/_app/whatsapp': typeof AppWhatsappRoute
   '/_app/': typeof AppIndexRoute
   '/_app/notifications/$id': typeof AppNotificationsIdRoute
   '/_app/notifications/new': typeof AppNotificationsNewRoute
@@ -74,12 +137,26 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/audit-logs'
+    | '/devices'
+    | '/employees'
+    | '/reports'
+    | '/settings'
+    | '/templates'
+    | '/whatsapp'
     | '/notifications/$id'
     | '/notifications/new'
     | '/notifications/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/audit-logs'
+    | '/devices'
+    | '/employees'
+    | '/reports'
+    | '/settings'
+    | '/templates'
+    | '/whatsapp'
     | '/'
     | '/notifications/$id'
     | '/notifications/new'
@@ -88,6 +165,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/audit-logs'
+    | '/_app/devices'
+    | '/_app/employees'
+    | '/_app/reports'
+    | '/_app/settings'
+    | '/_app/templates'
+    | '/_app/whatsapp'
     | '/_app/'
     | '/_app/notifications/$id'
     | '/_app/notifications/new'
@@ -122,6 +206,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/whatsapp': {
+      id: '/_app/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AppWhatsappRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/templates': {
+      id: '/_app/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof AppTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees': {
+      id: '/_app/employees'
+      path: '/employees'
+      fullPath: '/employees'
+      preLoaderRoute: typeof AppEmployeesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/devices': {
+      id: '/_app/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof AppDevicesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit-logs': {
+      id: '/_app/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AppAuditLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/notifications/': {
       id: '/_app/notifications/'
       path: '/notifications'
@@ -147,6 +280,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAuditLogsRoute: typeof AppAuditLogsRoute
+  AppDevicesRoute: typeof AppDevicesRoute
+  AppEmployeesRoute: typeof AppEmployeesRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppTemplatesRoute: typeof AppTemplatesRoute
+  AppWhatsappRoute: typeof AppWhatsappRoute
   AppIndexRoute: typeof AppIndexRoute
   AppNotificationsIdRoute: typeof AppNotificationsIdRoute
   AppNotificationsNewRoute: typeof AppNotificationsNewRoute
@@ -154,6 +294,13 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAuditLogsRoute: AppAuditLogsRoute,
+  AppDevicesRoute: AppDevicesRoute,
+  AppEmployeesRoute: AppEmployeesRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppTemplatesRoute: AppTemplatesRoute,
+  AppWhatsappRoute: AppWhatsappRoute,
   AppIndexRoute: AppIndexRoute,
   AppNotificationsIdRoute: AppNotificationsIdRoute,
   AppNotificationsNewRoute: AppNotificationsNewRoute,
