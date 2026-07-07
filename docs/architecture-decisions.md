@@ -139,6 +139,24 @@ Each decision should include:
   - `docs/product-principles.md`
   - `docs/openapi.yaml`
 
+### ADR-9. Routine Reminder Scheduling Is Server-Managed But May Execute Locally On Windows Agent
+- Status: `Accepted`
+- Date: `2026-07-07`
+- Context: Routine reminders such as OHIH stretch prompts can lose reliability if every recurrence depends on a fresh server push, especially during temporary device or network disruption.
+- Decision: Keep the recurring schedule lifecycle authoritative on the server, but allow approved routine Windows Agent reminders to run from synchronized local reminder policies with bounded validity windows.
+- Consequences:
+  - The server owns create, update, cancel, expiry, versioning, and audit visibility for recurring reminder policies.
+  - The Windows Agent may evaluate recurrence rules locally only for policies explicitly marked for local routine execution.
+  - Critical, emergency, and ad hoc communications remain server-triggered and must not depend on autonomous local scheduling.
+  - Contracts, schema, and reconciliation flows must support policy invalidation and local occurrence reporting.
+- Related documents:
+  - `docs/functional-specification.md`
+  - `docs/technical-implementation-plan.md`
+  - `docs/windows-agent-client-specification.md`
+  - `docs/database-schema-specification.md`
+  - `docs/openapi.yaml`
+  - `docs/open-questions-and-challenges.md`
+
 ## Open Decision Follow-Up
 - Convert new major implementation choices into additional ADR entries instead of burying them inside roadmap notes.
 - If a baseline ADR changes, update this file first, then synchronize the dependent specifications.

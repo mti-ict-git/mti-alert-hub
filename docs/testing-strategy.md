@@ -89,7 +89,7 @@ Use for business workflows that cross modules or channel boundaries.
 
 Examples:
 - create draft -> preview -> publish -> monitor
-- recurring reminder generation
+- recurring reminder generation and local policy sync
 - critical alert desktop-first with delayed WhatsApp follow-up
 - response-required communication becoming `Responded`
 

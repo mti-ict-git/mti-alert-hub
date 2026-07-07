@@ -1,33 +1,65 @@
-// Mock auth service.
-// TODO(backend): POST /api/auth/login → { user, token }; store JWT in httpOnly cookie or memory.
 import type { User } from "@/types";
-import { mockDelay } from "@/lib/mock-delay";
+import { apiClient } from "@/services/api-client";
+import { sessionService } from "@/services/session.service";
 
-const STORAGE_KEY = "mti_alert_user";
+type AuthSessionResponse = {
+  sessionToken: string;
+  user: {
+    id: string;
+    username: string;
+    fullName: string;
+    email?: string | null;
+    roleType: "CentralAdmin" | "LocalOperator" | "ManagementViewer";
+  };
+  expiresAt?: string | null;
+};
 
 export const authService = {
-  async login(username: string, _password: string): Promise<User> {
-    await mockDelay(400);
-    const user: User = {
-      id: "u-1",
+  async login(username: string, password: string): Promise<User> {
+    const session = await apiClient.post<AuthSessionResponse>("/auth/login", {
       username,
-      name: username
-        .split(".")
-        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-        .join(" "),
-      role: "Admin",
-      email: `${username}@mti.co.id`,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      password,
+    });
+    const user = mapAuthUser(session.user);
+
+    sessionService.setSession({
+      sessionToken: session.sessionToken,
+      expiresAt: session.expiresAt ?? null,
+      user,
+    });
+
     return user;
   },
   async logout(): Promise<void> {
-    await mockDelay(150);
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      await apiClient.post<void>("/auth/logout");
+    } finally {
+      sessionService.clearSession();
+    }
   },
   getCurrentUser(): User | null {
-    if (typeof window === "undefined") return null;
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
+    return sessionService.getSession()?.user ?? null;
   },
 };
+
+function mapAuthUser(user: AuthSessionResponse["user"]): User {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.fullName,
+    role: mapRoleType(user.roleType),
+    email: user.email ?? `${user.username}@mti.co.id`,
+  };
+}
+
+function mapRoleType(roleType: AuthSessionResponse["user"]["roleType"]): User["role"] {
+  if (roleType === "CentralAdmin") {
+    return "Admin";
+  }
+
+  if (roleType === "LocalOperator") {
+    return "Operator";
+  }
+
+  return "Viewer";
+}

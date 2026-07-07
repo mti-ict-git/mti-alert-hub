@@ -1,9 +1,9 @@
 # MTI Alert Technical Implementation Plan
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Purpose
 This document defines the recommended technical shape of the `MTI Alert` server so backend, frontend, and Windows Agent teams can work from one consistent implementation direction.
@@ -61,6 +61,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Publication state
 - Scheduling
 - Recurrence
+- Execution mode selection for recurring schedules, including bounded local routine reminder execution on Windows Agent
 - Templates
 - Template versioning and policy snapshots
 - Template policies for response, presentation, targeting constraints, channel rules, and default delivery strategy
@@ -94,10 +95,12 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Device heartbeat
 - Presence tracking
 - Push message dispatch
+- Routine reminder policy sync for approved local reminder execution
 - Delivery confirmation
 - Display confirmation
 - Read confirmation
 - Response submission
+- Local reminder occurrence reporting
 - Client capability reporting
 - Flat device metadata with site, area, and location label
 - Location-owned device targeting support
@@ -138,6 +141,14 @@ The current repository already leans toward TypeScript for the admin application
 - Communication state moves to `Queued` or `Sending`.
 - Publish preview must resolve target audience, device counts, channel plan, and critical policy summary before final confirmation.
 
+### Recurring Routine Reminder Stage
+- The server remains the authoritative owner of the recurrence rule, execution mode, policy version, and cancellation state.
+- Recurring schedules may execute in one of two modes:
+  - `ServerGenerated` for normal scheduled execution
+  - `AgentLocalRoutine` for approved Windows Agent reminder policies that must remain reliable during temporary disconnection
+- For `AgentLocalRoutine`, the server materializes a versioned reminder policy with a bounded validity window for eligible devices.
+- The agent executes only the synchronized policy window and must stop using a policy when it is expired, replaced, or cancelled by the server.
+
 ### Delivery Stage
 - Channel connector or realtime hub attempts delivery.
 - Delivery attempt records are written.
@@ -145,6 +156,7 @@ The current repository already leans toward TypeScript for the admin application
 - Employee channel preference influences the default initial channel choice when multiple eligible channels are available.
 - Critical templates may override normal preference flow using desktop-first with short-delay WhatsApp dual-path behavior.
 - Agent delivery retries must be bounded by configurable policy.
+- Locally executed routine reminders must reconcile occurrence and interaction evidence back to the server when connectivity is available.
 
 ### Response Stage
 - If response is required, recipients enter `AwaitingResponse`.
@@ -158,20 +170,25 @@ The current repository already leans toward TypeScript for the admin application
 - Establish and maintain a realtime connection using the server's SignalR-style contract.
 - Send periodic heartbeat.
 - Receive pushed communications in near real time.
+- Synchronize approved recurring reminder policies for bounded local execution.
+- Execute approved routine reminder policies locally within the server-defined validity window.
 - Render desktop notifications using policy-driven behavior.
 - Show critical communications as immediate modal alerts in MVP.
 - Report `Displayed` only when content is actually rendered on the device.
 - Report `Read` only after real interaction occurs.
 - Confirm display, read, and user response.
+- Report locally executed reminder occurrences and outcomes when the server becomes reachable.
 
 ### Minimum Agent API Needs
 - authenticate or register device session
 - negotiate realtime connection or obtain hub credentials
 - send heartbeat
 - receive or reconcile pending messages
+- fetch active reminder policies eligible for local execution
 - acknowledge display state
 - acknowledge display/read
 - submit workflow response
+- submit reminder occurrence or local interaction events
 - report agent version and device state
 - report active user context only as optional audit metadata, not as the primary desktop recipient identity
 
@@ -189,6 +206,8 @@ The current repository already leans toward TypeScript for the admin application
 - Keep resolved audience snapshots to preserve historical targeting truth even if org structure later changes.
 - Store template policy and channel preference state needed for delivery decisions and auditability.
 - Store template version snapshots on communications and delivery records when policy materially affects execution.
+- Store recurring schedule execution mode, schedule version, and bounded validity windows when local routine reminder execution is enabled.
+- Preserve local reminder occurrence evidence after reconciliation so monitoring and audit trails remain server-queryable.
 - Keep flat device records with site, area, and location metadata directly on the device model for MVP simplicity.
 
 ## Security Direction

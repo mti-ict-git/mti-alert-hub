@@ -242,6 +242,7 @@ Provide the reference data used by authoring, filtering, and targeting.
 - Verification on `2026-07-07` confirmed live database connectivity and contract-valid `200` responses for every endpoint in this milestone.
 - The target `ictMTIAlertHub` database now contains the initial Phase 1 foundation tables for organization reads.
 - The current implementation still returns empty-state payloads because the new tables are present but not yet seeded through HR synchronization or manual baseline data.
+- A controlled baseline import path now exists through `npm run backend:import:baseline:dev -- "<path-to-json>"`, with a safe rollback variant available at `npm run backend:import:baseline:dev:rollback -- "<path-to-json>"`.
 - Fine-grained scoped filtering remains limited by the current global-scope placeholder access model until organization-backed scope records exist.
 
 ### Exit Criteria
@@ -278,6 +279,7 @@ Expose devices as admin-side operational entities for targeting and visibility.
 - Baseline route and read service are now implemented for `GET /devices`.
 - Verification on `2026-07-07` confirmed a contract-valid `200` response for authenticated access and `401` for unauthenticated access.
 - The device endpoint currently returns an empty-state payload because the `devices` table exists but contains no records yet.
+- The same baseline import path can now populate device inventory records together with org and employee references.
 - Future heartbeat-enriched state remains dependent on later schema and agent-session milestones.
 
 ### Exit Criteria
@@ -416,6 +418,10 @@ Finalize the backend foundation so Phase 1 can be considered implementation-read
 - frontend authoring flow works against backend for Phase 1 endpoints
 - unauthorized and out-of-scope scenarios are challenged
 - roadmap status and checklist are updated to match reality
+
+### Current Stabilization Notes
+- LDAP group admission parsing now supports full DN values without unsafe comma-splitting, plus `;`-separated and JSON-array formats for multiple groups.
+- A baseline import path now exists for org, employee, and device data so audience preview can be validated without waiting for a future continuous sync implementation.
 
 ### Exit Criteria
 - Phase 1 backend foundation is stable enough to begin Phase 2 planning or implementation

@@ -1,9 +1,9 @@
 # MTI Alert Functional Specification
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Product Definition
 `MTI Alert` is a centralized communication server platform that enables organizations to create, schedule, deliver, monitor, and govern real-time communications across multiple channels. The MVP channels are `Windows Agent` and `WhatsApp`.
@@ -39,6 +39,8 @@ The system uses a unified communication model for:
   - delivery channels
 - Save drafts, publish immediately, or schedule for future execution.
 - Support recurring schedules for routine reminders.
+- Treat the server as the source of truth for recurring reminder lifecycle, including create, update, cancel, and versioning.
+- Allow bounded local execution on Windows Agent for approved routine reminders so recurring prompts remain reliable during temporary connectivity loss.
 
 ### 3. Audience Targeting
 - Select recipients by:
@@ -66,6 +68,7 @@ The system uses a unified communication model for:
 - Respect employee channel preferences as the default delivery strategy when more than one eligible channel is available.
 - Use device-targeted delivery for Windows Agent and employee/contact-targeted delivery for WhatsApp.
 - For critical templates, support desktop-first delivery with a short WhatsApp delay when dual-path policy is enabled.
+- Keep critical and ad hoc communications server-triggered; autonomous local execution is reserved for approved routine reminder policies only.
 
 ### 5. Recipient Response Workflow
 - Communications may require no response, simple acknowledgment, or a custom response flow.
@@ -107,6 +110,7 @@ The system uses a unified communication model for:
 - Device records remain operationally flat, but each device stores site, area, and location metadata directly.
 - Device ownership is location-oriented rather than person-oriented for desktop targeting.
 - Device health uses the states `Online`, `Offline`, and `Stale`.
+- Routine reminder policies may be synchronized to Windows Agent for bounded local execution, but the server remains authoritative for policy lifecycle and invalidation.
 
 ### 10. Template Policy
 - Templates are full policy objects, not just content presets.
@@ -188,8 +192,10 @@ All MVP communication types remain delivery-tracked and read-tracked.
 ### Workflow 2: Recurring Reminder
 1. User creates a reminder communication.
 2. User defines recurrence rule.
-3. System generates scheduled executions.
-4. Each execution creates its own delivery jobs and delivery tracking records.
+3. System stores the recurring schedule and its execution mode as the authoritative server record.
+4. For server-generated schedules, the system generates scheduled executions.
+5. For approved routine Windows Agent reminders, the system distributes a versioned reminder policy with a bounded validity window to eligible agents.
+6. Each server-generated execution or local reminder occurrence produces delivery tracking evidence when the device reports back.
 
 ### Workflow 3: Critical Emergency Communication
 1. User creates a critical alert.
@@ -213,6 +219,9 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-2` The system shall support a unified communication form with type-specific fields controlled by metadata and workflow rules.
 - `FR-3` The system shall support immediate and scheduled publication.
 - `FR-4` The system shall support recurring schedules for reminder-type communications.
+- `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
+- `FR-4D` The system shall allow approved routine Windows Agent reminders to execute locally from a synchronized reminder policy with bounded validity.
+- `FR-4E` The system shall invalidate or replace locally stored reminder policies when the server updates, expires, or cancels the schedule.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
 
@@ -230,6 +239,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-10B` The system shall use employee channel preference as a default delivery policy where multiple channels are available.
 - `FR-10C` The system shall support desktop-first with short-delay WhatsApp dual-path delivery when required by template policy.
 - `FR-10D` The system shall use bounded retry for agent delivery attempts.
+- `FR-10E` The system shall limit autonomous local scheduling to approved routine reminder policies and shall not rely on it for critical or emergency communications.
 
 ### Response
 - `FR-11` The system shall allow communications to require no response, simple acknowledgment, or custom workflow response.

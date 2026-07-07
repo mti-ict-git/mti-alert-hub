@@ -1,0 +1,76 @@
+{
+  "sites": [
+    {
+      "code": "SITE-HQ",
+      "name": "Headquarters",
+      "status": "Active",
+      "sourceSystem": "ManualBaseline",
+      "externalReference": "site-hq"
+    }
+  ],
+  "areas": [
+    {
+      "siteCode": "SITE-HQ",
+      "code": "AREA-IT",
+      "name": "IT Command Center",
+      "status": "Active",
+      "sourceSystem": "ManualBaseline",
+      "externalReference": "area-it"
+    }
+  ],
+  "departments": [
+    {
+      "siteCode": "SITE-HQ",
+      "code": "DEPT-IT",
+      "name": "Information Technology",
+      "status": "Active",
+      "sourceSystem": "ManualBaseline",
+      "externalReference": "dept-it"
+    }
+  ],
+  "sections": [
+    {
+      "siteCode": "SITE-HQ",
+      "departmentName": "Information Technology",
+      "code": "SEC-OPS",
+      "name": "Operations Support",
+      "status": "Active",
+      "sourceSystem": "ManualBaseline",
+      "externalReference": "sec-ops"
+    }
+  ],
+  "employees": [
+    {
+      "employeeNumber": "EMP-1001",
+      "fullName": "Sample Operator",
+      "email": "sample.operator@example.local",
+      "phoneNumber": "+628000000001",
+      "siteCode": "SITE-HQ",
+      "areaName": "IT Command Center",
+      "departmentName": "Information Technology",
+      "sectionName": "Operations Support",
+      "jobRole": "Operator",
+      "employmentStatus": "Active",
+      "hasWindowsAgent": true,
+      "hasWhatsApp": true,
+      "preferredPrimaryChannel": "WindowsAgent",
+      "preferredSecondaryChannel": "WhatsApp",
+      "sourceSystem": "ManualBaseline",
+      "externalReference": "emp-1001"
+    }
+  ],
+  "devices": [
+    {
+      "hostname": "MTI-OPS-01",
+      "deviceIdentifier": "device-mti-ops-01",
+      "primaryEmployeeNumber": "EMP-1001",
+      "siteCode": "SITE-HQ",
+      "areaName": "IT Command Center",
+      "locationLabel": "Command Desk 01",
+      "ownershipMode": "EmployeeAssigned",
+      "agentVersion": "0.1.0",
+      "osVersion": "Windows 11",
+      "status": "Online"
+    }
+  ]
+}

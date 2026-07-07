@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mti-alert.local/schemas/phase1-baseline.schema.json",
+  "title": "MTI Alert Phase 1 Baseline Import",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "sites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/site"
+      },
+      "default": []
+    },
+    "areas": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/area"
+      },
+      "default": []
+    },
+    "departments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/department"
+      },
+      "default": []
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/section"
+      },
+      "default": []
+    },
+    "employees": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/employee"
+      },
+      "default": []
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/device"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "channel": {
+      "type": "string",
+      "enum": ["WindowsAgent", "WhatsApp", "Email", "DigitalSignage"]
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "name"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "default": "Active" },
+        "sourceSystem": { "type": "string" },
+        "externalReference": { "type": "string" }
+      }
+    },
+    "area": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["siteCode", "name"],
+      "properties": {
+        "siteCode": { "type": "string", "minLength": 1 },
+        "code": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "default": "Active" },
+        "sourceSystem": { "type": "string" },
+        "externalReference": { "type": "string" }
+      }
+    },
+    "department": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["siteCode", "name"],
+      "properties": {
+        "siteCode": { "type": "string", "minLength": 1 },
+        "code": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "default": "Active" },
+        "sourceSystem": { "type": "string" },
+        "externalReference": { "type": "string" }
+      }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["siteCode", "departmentName", "name"],
+      "properties": {
+        "siteCode": { "type": "string", "minLength": 1 },
+        "departmentName": { "type": "string", "minLength": 1 },
+        "code": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "default": "Active" },
+        "sourceSystem": { "type": "string" },
+        "externalReference": { "type": "string" }
+      }
+    },
+    "employee": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["employeeNumber", "fullName"],
+      "properties": {
+        "employeeNumber": { "type": "string", "minLength": 1 },
+        "fullName": { "type": "string", "minLength": 1 },
+        "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "siteCode": { "type": "string" },
+        "areaName": { "type": "string" },
+        "departmentName": { "type": "string" },
+        "sectionName": { "type": "string" },
+        "jobRole": { "type": "string" },
+        "employmentStatus": { "type": "string", "default": "Active" },
+        "hasWindowsAgent": { "type": "boolean", "default": false },
+        "hasWhatsApp": { "type": "boolean", "default": false },
+        "preferredPrimaryChannel": { "$ref": "#/$defs/channel" },
+        "preferredSecondaryChannel": { "$ref": "#/$defs/channel" },
+        "sourceSystem": { "type": "string" },
+        "externalReference": { "type": "string" }
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "siteCode"],
+      "properties": {
+        "hostname": { "type": "string", "minLength": 1 },
+        "deviceIdentifier": { "type": "string" },
+        "primaryEmployeeNumber": { "type": "string" },
+        "siteCode": { "type": "string", "minLength": 1 },
+        "areaName": { "type": "string" },
+        "locationLabel": { "type": "string" },
+        "ownershipMode": {
+          "type": "string",
+          "enum": ["LocationOwned", "EmployeeAssigned", "Mixed"],
+          "default": "LocationOwned"
+        },
+        "agentVersion": { "type": "string" },
+        "osVersion": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["Online", "Offline", "Stale"],
+          "default": "Offline"
+        }
+      }
+    }
+  }
+}

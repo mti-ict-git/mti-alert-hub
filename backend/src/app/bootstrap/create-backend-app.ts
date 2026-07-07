@@ -5,6 +5,10 @@ import { registerAuthRoutes } from "../../modules/auth/controller/register-auth-
 import { AdminSessionStore } from "../../modules/auth/service/admin-session-store.js";
 import { AuthService } from "../../modules/auth/service/auth-service.js";
 import { LdapAuthenticator } from "../../modules/auth/service/ldap-authenticator.js";
+import { registerCommunicationRoutes } from "../../modules/communications/controller/register-communication-routes.js";
+import { AudiencePreviewService } from "../../modules/communications/service/audience-preview-service.js";
+import { CommunicationDraftService } from "../../modules/communications/service/communication-draft-service.js";
+import { CommunicationTemplateService } from "../../modules/communications/service/communication-template-service.js";
 import { AccessProfileService } from "../../modules/access/service/access-profile-service.js";
 import { registerDeviceRoutes } from "../../modules/devices/controller/register-device-routes.js";
 import { DeviceReadService } from "../../modules/devices/service/device-read-service.js";
@@ -25,6 +29,15 @@ export async function createBackendApp() {
   const ldapAuthenticator = new LdapAuthenticator(env, logger);
   const organizationReadService = new OrganizationReadService(database.client);
   const deviceReadService = new DeviceReadService(database.client);
+  const communicationTemplateService = new CommunicationTemplateService(database.client);
+  const communicationDraftService = new CommunicationDraftService(
+    database.client,
+    communicationTemplateService,
+  );
+  const audiencePreviewService = new AudiencePreviewService(
+    database.client,
+    communicationTemplateService,
+  );
   const authService = new AuthService(
     ldapAuthenticator,
     accessProfileService,
@@ -49,6 +62,11 @@ export async function createBackendApp() {
       }),
       ...registerDeviceRoutes({
         deviceReadService,
+      }),
+      ...registerCommunicationRoutes({
+        communicationDraftService,
+        communicationTemplateService,
+        audiencePreviewService,
       }),
     ],
   });

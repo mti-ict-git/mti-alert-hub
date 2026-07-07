@@ -1,9 +1,9 @@
 # MTI Alert Open Questions And Challenges
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Open`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 
 ## Purpose
 This document records unresolved product and technical questions. No implementation should silently assume answers where these decisions materially affect behavior.
@@ -55,6 +55,11 @@ This document records unresolved product and technical questions. No implementat
 - Question: Should template version snapshots be stored only at communication level, or also materialized into delivery job policy snapshots for execution auditability?
 - Why it matters: This affects debugging, audit traceability, and schema complexity.
 
+### OQ-11. Local Routine Reminder Missed-Run Semantics
+- Question: When a Windows Agent wakes up after sleep, prolonged offline time, or clock drift, should locally executed routine reminders skip missed occurrences, emit one catch-up reminder, or replay multiple missed windows?
+- Why it matters: This affects user experience, duplicate suppression, audit semantics, and implementation complexity in the agent scheduler.
+- Current safe assumption: skip backlog replay and continue from the next eligible occurrence unless a tighter product rule is later approved.
+
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion
 - Risk: Supporting alerts, reminders, news, articles, and knowledge items in one engine can become too broad.
@@ -78,7 +83,7 @@ This document records unresolved product and technical questions. No implementat
 
 ### CH-5. Scheduling And Recurrence Complexity
 - Risk: Recurring reminders can create edge cases around time zones, missed runs, and editing future schedules.
-- Mitigation: Treat schedules and generated executions as separate concerns.
+- Mitigation: Keep schedule lifecycle authoritative on the server, use versioned reminder policies for approved local routine execution, and avoid backlog replay after long offline gaps unless explicitly required.
 
 ### CH-6. Critical Presentation Policy
 - Risk: Immediate modal behavior for critical alerts can become disruptive if policy boundaries are unclear.

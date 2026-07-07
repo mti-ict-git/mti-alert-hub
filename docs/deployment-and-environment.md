@@ -1,7 +1,7 @@
 # MTI Alert Deployment And Environment
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
 - Last Updated: `2026-07-07`
 - Owner: `Engineering / Operations`
@@ -116,6 +116,28 @@ Current implementation baseline:
 - Phase 1 currently uses LDAP-backed admin authentication.
 - Phase 1 currently issues opaque bearer session tokens from an in-memory session store.
 - Group-based access admission may be controlled through `LDAP_ALLOWED_GROUPS`.
+- `LDAP_ALLOWED_GROUPS` should be configured as either:
+  - a single full LDAP group DN
+  - multiple full group DNs separated by `;`
+  - a JSON array of full group DNs
+- Comma-separated parsing is unsafe for LDAP DNs because a single DN already contains commas.
+
+### Baseline Data Import
+Examples:
+- one-time org baseline import
+- one-time employee baseline import
+- one-time device inventory import
+- dry-run validation before shared-environment execution
+
+Current implementation baseline:
+- Phase 1 now includes a baseline import script for `sites`, `areas`, `departments`, `sections`, `employees`, and `devices`.
+- Development command: `npm run backend:import:baseline:dev -- "<path-to-json>"`
+- Development rollback command: `npm run backend:import:baseline:dev:rollback -- "<path-to-json>"`
+- Built command: `npm run backend:import:baseline -- "<path-to-json>"`
+- Built rollback command: `npm run backend:import:baseline:rollback -- "<path-to-json>"`
+- Example payload: `backend/examples/phase1-baseline.example.json`
+- The import path is idempotent and intended for controlled baseline loads, not for continuous realtime synchronization.
+- Direct script usage also supports `--rollback` and `--dry-run`, but the dedicated rollback npm scripts are safer in shared environments.
 
 ### Channel And Connector Configuration
 Examples:

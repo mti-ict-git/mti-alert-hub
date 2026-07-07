@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { notificationsService } from "@/services/notifications.service";
 import { format } from "date-fns";
-import { CheckCircle2, HandHelping, MapPinOff, MessageSquare } from "lucide-react";
+import { AlertTriangle, MonitorSmartphone, MessageSquare, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_app/notifications/$id")({
   component: NotificationDetailPage,
@@ -21,9 +21,14 @@ function NotificationDetailPage() {
   const { data: n } = useQuery({ queryKey: ["notification", id], queryFn: () => notificationsService.get(id) });
   const { data: recipients = [] } = useQuery({ queryKey: ["recipients", id], queryFn: () => notificationsService.recipients(id) });
   const { data: logs = [] } = useQuery({ queryKey: ["logs", id], queryFn: () => notificationsService.deliveryLogs(id) });
+  const { data: audiencePreview } = useQuery({
+    queryKey: ["audience-preview", id],
+    queryFn: () => notificationsService.audiencePreview(id),
+  });
 
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
+  const previewRecipients = audiencePreview?.recipients ?? [];
   const ackCounts = {
     Safe: recipients.filter((r) => r.ackStatus === "Safe").length,
     NeedAssistance: recipients.filter((r) => r.ackStatus === "NeedAssistance").length,
@@ -41,19 +46,19 @@ function NotificationDetailPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-success"><CheckCircle2 className="h-4 w-4"/><span className="text-xs font-medium uppercase">Safe</span></div><div className="mt-2 text-2xl font-semibold">{ackCounts.Safe}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-emergency"><HandHelping className="h-4 w-4"/><span className="text-xs font-medium uppercase">Need Assistance</span></div><div className="mt-2 text-2xl font-semibold">{ackCounts.NeedAssistance}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-warning"><MapPinOff className="h-4 w-4"/><span className="text-xs font-medium uppercase">Not In Area</span></div><div className="mt-2 text-2xl font-semibold">{ackCounts.NotInArea}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-info"><MessageSquare className="h-4 w-4"/><span className="text-xs font-medium uppercase">Acknowledged</span></div><div className="mt-2 text-2xl font-semibold">{ackCounts.Acknowledged}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-info"><Users className="h-4 w-4"/><span className="text-xs font-medium uppercase">Recipients</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.totalRecipients ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-success"><MonitorSmartphone className="h-4 w-4"/><span className="text-xs font-medium uppercase">Windows Agent</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.deviceRecipients ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-success"><MessageSquare className="h-4 w-4"/><span className="text-xs font-medium uppercase">WhatsApp</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.whatsappRecipients ?? 0}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-warning"><AlertTriangle className="h-4 w-4"/><span className="text-xs font-medium uppercase">Warnings</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.previewWarnings.length ?? 0}</div></CardContent></Card>
       </div>
 
       <div className="mt-6">
         <Tabs defaultValue="overview">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="recipients">Recipients ({recipients.length})</TabsTrigger>
+            <TabsTrigger value="recipients">Recipients ({previewRecipients.length})</TabsTrigger>
             <TabsTrigger value="logs">Delivery Logs</TabsTrigger>
-            <TabsTrigger value="ack">Acknowledgement</TabsTrigger>
+            <TabsTrigger value="ack">Audience Summary</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
@@ -66,9 +71,37 @@ function NotificationDetailPage() {
                 <Info label="Created By" value={n.createdBy} />
                 <Info label="Created At" value={format(new Date(n.createdAt), "dd MMM yyyy HH:mm")} />
                 {n.scheduledAt && <Info label="Scheduled At" value={format(new Date(n.scheduledAt), "dd MMM yyyy HH:mm")} />}
-                <Info label="Recipients" value={`${n.recipientsCount}`} />
+                <Info label="Recipients" value={`${audiencePreview?.totalRecipients ?? 0}`} />
               </CardContent>
             </Card>
+            {audiencePreview && (
+              <Card className="mt-4">
+                <CardHeader><CardTitle className="text-base">Channel Plan</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {audiencePreview.channelPlan.map((item) => (
+                      <div key={item.channel} className="rounded-md border p-3">
+                        <div className="text-sm font-medium">{item.channel}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {item.strategy}
+                          {item.plannedDelaySeconds ? ` · ${item.plannedDelaySeconds}s delay` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {audiencePreview.previewWarnings.length > 0 && (
+                    <div className="rounded-md border border-warning/40 bg-warning/5 p-3">
+                      <div className="text-sm font-medium">Preview Warnings</div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                        {audiencePreview.previewWarnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="recipients" className="mt-4">
@@ -77,26 +110,31 @@ function NotificationDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee ID</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Channel</TableHead><TableHead>Delivery</TableHead><TableHead>Ack</TableHead><TableHead>Response</TableHead><TableHead>Response Time</TableHead>
+                      <TableHead>Recipient Type</TableHead><TableHead>Employee No</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recipients.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-mono text-xs">{r.employeeId}</TableCell>
-                        <TableCell>{r.name}</TableCell>
-                        <TableCell>{r.department}</TableCell>
-                        <TableCell>{r.section}</TableCell>
-                        <TableCell>{r.site}</TableCell>
-                        <TableCell>{r.channel}</TableCell>
-                        <TableCell><StatusBadge status={r.deliveryStatus} /></TableCell>
-                        <TableCell><StatusBadge status={r.ackStatus} /></TableCell>
-                        <TableCell>{r.response ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                          {r.responseTime ? format(new Date(r.responseTime), "HH:mm:ss") : "—"}
+                    {previewRecipients.map((recipient) => (
+                      <TableRow key={`${recipient.recipientType}-${recipient.deviceId ?? recipient.employeeId ?? recipient.employeeNumber}`}>
+                        <TableCell>{recipient.recipientType}</TableCell>
+                        <TableCell className="font-mono text-xs">{recipient.employeeNumber ?? "—"}</TableCell>
+                        <TableCell>{recipient.fullName ?? "—"}</TableCell>
+                        <TableCell>{recipient.departmentName ?? "—"}</TableCell>
+                        <TableCell>{recipient.sectionName ?? "—"}</TableCell>
+                        <TableCell>{recipient.siteName ?? "—"}</TableCell>
+                        <TableCell>{recipient.areaName ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {recipient.availableChannels.join(", ") || "—"}
                         </TableCell>
                       </TableRow>
                     ))}
+                    {previewRecipients.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                          No audience preview is available for this draft yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -119,6 +157,13 @@ function NotificationDetailPage() {
                       <TableCell className="text-sm text-muted-foreground">{l.detail}</TableCell>
                     </TableRow>
                   ))}
+                  {logs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                        Delivery logs are not available until delivery orchestration is implemented.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent></Card>
@@ -134,6 +179,9 @@ function NotificationDetailPage() {
                     <div className="mt-1 text-2xl font-semibold">{v}</div>
                   </div>
                 ))}
+              </CardContent>
+              <CardContent className="pt-0 text-sm text-muted-foreground">
+                Response and acknowledgement counts stay `0` until delivery and response tracking endpoints are implemented in later phases.
               </CardContent>
             </Card>
           </TabsContent>

@@ -1,9 +1,9 @@
 # MTI Alert Windows Agent Client Specification
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-06`
+- Last Updated: `2026-07-07`
 - Audience: `Windows Agent Engineers`
 
 ## Purpose
@@ -38,6 +38,7 @@ The server is responsible for:
 - communication lifecycle orchestration
 - targeting resolution
 - policy evaluation
+- recurring reminder lifecycle ownership, including versioning, expiry, and cancellation
 - delivery state persistence
 - auditability
 
@@ -46,8 +47,46 @@ The Windows Agent is responsible for:
 - maintaining realtime connectivity
 - reporting heartbeat and connection health
 - receiving communication payloads
+- synchronizing approved recurring reminder policies for bounded local execution
 - rendering content according to policy
 - reporting displayed, read, and response events
+- reporting locally executed reminder occurrences and outcomes when connectivity is available
+
+## Locked Client Platform Decisions
+The following client-platform decisions are now considered the baseline for MVP implementation and should not be treated as open unless this document is revised again.
+
+### Framework And App Mode
+- desktop framework: `WPF`
+- application mode: `tray-first desktop app`
+- runtime behavior: the agent should start into background operation with a system tray presence and only surface full UI when interaction is required
+- MVP should not assume a separate Windows Service unless a later document explicitly introduces it
+
+### Target Operating System
+- supported OS baseline: `Windows 10` and `Windows 11`
+- the client should avoid implementation choices that unnecessarily depend on Windows 11-only UI capabilities
+
+### Packaging, Startup, And Update Model
+- packaging baseline: `classic internal installer`, not `MSIX`, for MVP
+- startup policy: `auto start at user login` is required
+- deployment expectation: internal managed rollout by IT or operations
+- update policy for MVP: `manual or centrally scheduled update`, not self-managed auto-update
+
+### Local Persistence And Logging Baseline
+- local persistence is allowed and expected where it improves resilience
+- preferred local persistence engine: `SQLite`
+- local persistence may be used for pending queue state, deduplication markers, reconciliation helpers, versioned reminder policies, reminder execution markers, and lightweight cached client state
+- local file logging is required for operational diagnostics
+- telemetry forwarding is also desired; the client should keep logging and telemetry transport abstracted so local logging remains reliable even if remote telemetry is unavailable
+
+### UI Quality Baseline
+- the initial release should target an `enterprise-polished` UX baseline, not a merely minimal functional shell
+- tray presence may stay lightweight, but modal, toast, and response surfaces should look intentional, production-ready, and operationally clear from the start
+
+### Device Identity Baseline
+- the client should generate a stable `deviceIdentifier` during first install or first successful initialization
+- the generated identifier must be persisted locally and reused across normal restarts and application updates
+- `hostname` should be sent as supporting metadata, not used as the authoritative device identifier
+- MVP should not rely on hardware serial or machine fingerprint as the primary identity source unless a later trust model explicitly requires it
 
 ## Core Operating Model
 ### Device-Centric Delivery
@@ -77,6 +116,8 @@ The Windows Agent should be able to:
 - maintain connection health and heartbeat
 - receive pushed communications
 - reconcile missed messages after disconnection
+- fetch approved reminder policies for bounded local execution
+- execute synchronized routine reminder policies even when the server is temporarily unreachable
 - render messages according to template policy
 - support workflow responses
 - report delivery lifecycle events accurately
@@ -87,18 +128,22 @@ The client depends on the server providing:
 - a realtime negotiation endpoint
 - a heartbeat endpoint
 - a pending message retrieval or reconciliation endpoint
+- a reminder policy sync endpoint for approved local routine reminders
 - displayed acknowledgement endpoint
 - read acknowledgement endpoint
 - response submission endpoint
+- a reminder occurrence event endpoint
 
 These are represented in `docs/openapi.yaml` as:
 - `POST /agent/session`
 - `POST /agent/realtime/negotiate`
 - `POST /agent/heartbeat`
 - `GET /agent/messages`
+- `GET /agent/reminder-policies`
 - `POST /agent/messages/{messageId}/displayed`
 - `POST /agent/messages/{messageId}/read`
 - `POST /agent/messages/{messageId}/response`
+- `POST /agent/reminder-policies/{policyId}/events`
 
 ## Realtime Model
 ### Direction
@@ -131,7 +176,9 @@ The current API contract indicates the agent may send:
 ### Implementation Guidance
 The client should:
 - persist a stable `deviceIdentifier`
+- generate that identifier locally during first install or first initialization if one does not already exist
 - treat the device session as the authoritative agent credential
+- treat `hostname` as useful metadata but not as the canonical device identity
 - avoid assuming employee binding is mandatory for desktop delivery
 - send active user context only when available and trustworthy
 
@@ -145,7 +192,10 @@ Recommended client startup sequence:
 5. Establish realtime connection using returned hub metadata.
 6. Start heartbeat cycle.
 7. Call `GET /agent/messages` to reconcile any pending messages after startup or reconnect.
-8. Begin normal realtime event handling.
+8. Call `GET /agent/reminder-policies` to refresh locally executable reminder policies.
+9. Begin normal realtime event handling.
+
+The tray application should auto start on user login and execute this sequence without requiring the user to manually open the full desktop UI.
 
 ## Heartbeat And Device Health
 ### Required Client Behavior
@@ -184,6 +234,47 @@ This endpoint should be used after:
 
 ### Client Rule
 The agent should never assume realtime delivery alone is sufficient. Reconciliation is part of the normal reliability model.
+
+For MVP, the client may persist reconciliation and deduplication state locally in `SQLite` when that improves safe retry behavior and duplicate suppression.
+
+## Routine Reminder Local Execution Model
+### Applicability
+Local recurring execution is allowed only for approved routine reminder policies, such as wellness or OHIH prompts.
+
+It is not the default model for:
+- critical alerts
+- emergency communications
+- ad hoc operational announcements
+
+### Source Of Truth Rule
+The server remains authoritative for:
+- recurrence rule definition
+- policy version
+- enable or disable state
+- expiration and cancellation
+
+The agent must not invent or continue a reminder policy outside the validity window last approved by the server.
+
+### Agent Execution Rule
+When the server marks a reminder policy as locally executable, the agent may:
+- store the policy locally
+- evaluate the recurrence rule on-device
+- render the reminder without requiring a fresh push from the server for each occurrence
+
+The agent must:
+- replace older policy versions with the newest accepted version
+- stop local execution when the policy is expired, cancelled, or superseded
+- avoid replaying a backlog of missed occurrences after long sleep or disconnection
+- resume from the next eligible occurrence after reconnect or wake-up unless a future server contract says otherwise
+
+### Audit And Reporting Rule
+Local execution does not remove server auditability.
+
+The agent should report reminder occurrence evidence such as:
+- local trigger time
+- displayed time
+- read or interaction time when applicable
+- dismissal, snooze, or response action when supported by policy
 
 ## Message Rendering Model
 ### Policy-Driven Rendering
@@ -294,6 +385,7 @@ The client should:
 - survive temporary disconnection
 - reconnect automatically
 - query pending messages after reconnect
+- keep approved local routine reminders running while the synchronized policy remains valid
 - avoid duplicate destructive actions if the same message is received again after reconciliation
 
 ### Idempotency Guidance
@@ -346,6 +438,8 @@ The client should be prepared for:
 
 The client should:
 - log local operational errors
+- write local rotating log files suitable for operational support and field troubleshooting
+- prepare structured telemetry emission through an abstraction so remote telemetry can be enabled without redesigning the logging pipeline
 - retry where safe and bounded
 - re-authenticate or renew session when required
 - surface operationally meaningful diagnostics for support use
@@ -367,6 +461,11 @@ Because many devices may be shared:
 - do not assume a stable single-user identity
 - location and device context matter operationally
 
+### Quality Bar
+- the MVP should look operationally production-ready rather than prototype-like
+- dialog layout, typography, spacing, and action emphasis should be clear enough for shared-device enterprise environments
+- tray UI, modal UI, and response UI should feel visually consistent with one another
+
 ## Recommended Client Architecture
 Recommended internal client components:
 - `Device Identity Service`
@@ -374,6 +473,7 @@ Recommended internal client components:
 - `Realtime Connection Service`
 - `Heartbeat Service`
 - `Pending Message Sync Service`
+- `Local Persistence Service`
 - `Message Store`
 - `Notification Renderer`
 - `Workflow Response Handler`

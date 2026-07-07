@@ -122,7 +122,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `Pending`
 
 ### Objective
-Implement communication publication, scheduling, recipient snapshots, and delivery job orchestration for Windows Agent and WhatsApp.
+Implement communication publication, scheduling, recipient snapshots, delivery job orchestration, and routine reminder policy distribution for Windows Agent and WhatsApp.
 
 ### Source Documents
 - `docs/functional-specification.md`
@@ -143,7 +143,9 @@ Implement communication publication, scheduling, recipient snapshots, and delive
 - `[ ]` Publication flow: implement publish confirmation rules and schedule validation.
 - `[ ]` Publication flow: implement publish now and publish later execution paths.
 - `[ ]` Scheduling: implement one-time scheduling and persistence.
-- `[ ]` Scheduling: implement recurring schedule definition and execution generation.
+- `[ ]` Scheduling: implement recurring schedule definition, execution mode selection, and validation.
+- `[ ]` Scheduling: implement server-generated recurring execution for standard scheduled communications.
+- `[ ]` Scheduling: implement versioned local reminder policy distribution for approved Windows Agent routine reminders.
 - `[ ]` Recipient snapshot: generate immutable snapshots for device-targeted and contact-targeted recipients.
 - `[ ]` Recipient snapshot: store template version and effective policy snapshot for execution.
 - `[ ]` Delivery orchestration: implement delivery job creation per recipient and per channel.
@@ -154,14 +156,17 @@ Implement communication publication, scheduling, recipient snapshots, and delive
 - `[ ]` Windows Agent boundary: implement device session registration and realtime negotiation endpoints.
 - `[ ]` Windows Agent boundary: implement heartbeat, displayed, read, and response endpoints.
 - `[ ]` Windows Agent boundary: implement pending-message reconciliation for disconnected agents.
+- `[ ]` Windows Agent boundary: implement reminder policy sync, invalidation, and local occurrence reporting for approved routine reminders.
 - `[ ]` Frontend integration: replace mock publish, delivery, and device monitoring services with backend-backed calls.
 
 ### Output
 - Backend supports end-to-end communication dispatch orchestration.
 - Delivery orchestration exists for both Windows Agent and WhatsApp with status persistence and retry behavior.
+- Routine reminder policies can be synchronized to Windows Agent for bounded local execution without changing server ownership of schedule lifecycle.
 
 ### Challenge / Verification
 - Scheduled and immediate communications are both verified.
+- Approved local routine reminders remain functional across disconnect and reconnect scenarios.
 - Failed delivery paths are challenged.
 - Delivery state rollup is validated for multi-channel recipients.
 - Disconnected-agent recovery is challenged with pending-message reconciliation scenarios.

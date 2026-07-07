@@ -13,11 +13,12 @@ export function DesktopPreview({
   priority: Priority;
   instruction?: string;
 }) {
-  const Icon = priority === "Emergency" ? Siren : priority === "Warning" ? TriangleAlert : Info;
+  const isCritical = priority === "Emergency" || priority === "Critical";
+  const Icon = isCritical ? Siren : priority === "Warning" ? TriangleAlert : Info;
   const border =
-    priority === "Emergency" ? "border-emergency" : priority === "Warning" ? "border-warning" : "border-info";
+    isCritical ? "border-emergency" : priority === "Warning" ? "border-warning" : "border-info";
   const bar =
-    priority === "Emergency" ? "bg-emergency" : priority === "Warning" ? "bg-warning" : "bg-info";
+    isCritical ? "bg-emergency" : priority === "Warning" ? "bg-warning" : "bg-info";
   return (
     <div className="rounded-lg border bg-muted/40 p-3">
       <div className="mb-2 text-xs text-muted-foreground">Desktop Agent popup preview</div>

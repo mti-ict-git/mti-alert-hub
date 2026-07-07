@@ -31,6 +31,7 @@ Supporting references may also exist under `docs/`, such as:
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
+- `docs/integration-contracts.md`
 - `docs/template-policy-schema.md`
 
 ## Repository Structure
@@ -78,6 +79,19 @@ Supporting references may also exist under `docs/`, such as:
 For local iteration without a build step:
 - `npm run backend:migrate:status:dev`
 - `npm run backend:migrate:dev`
+
+## Baseline Import Commands
+Use these when preparing Phase 1 organization, employee, and device baseline data.
+
+- `npm run backend:import:baseline:dev -- "<path-to-json>"`
+- `npm run backend:import:baseline:dev:rollback -- "<path-to-json>"`
+- `npm run backend:import:baseline -- "<path-to-json>"`
+- `npm run backend:import:baseline:rollback -- "<path-to-json>"`
+
+Reference files:
+- `backend/examples/phase1-baseline.example.json`
+- `backend/examples/phase1-baseline.schema.json`
+- `docs/integration-contracts.md`
 
 ### For AI Agents
 1. `AGENTS.md`

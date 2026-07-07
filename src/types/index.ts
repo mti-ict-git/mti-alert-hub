@@ -1,14 +1,33 @@
 // Shared domain types for MTI Alert.
 // TODO(backend): keep these in sync with the Node/Express API schemas.
 
-export type Priority = "Info" | "Warning" | "Emergency";
+export type Priority = "Info" | "Warning" | "Emergency" | "Critical";
 export type Category = "IT" | "OHSE" | "Security" | "Operation" | "HR" | "General";
-export type Channel = "DesktopAgent" | "WhatsApp" | "Email" | "DigitalSignage";
-export type TargetType = "All" | "Site" | "Department" | "Section" | "Individual" | "Custom";
-export type NotificationStatus = "Draft" | "Scheduled" | "Sending" | "Sent" | "Cancelled" | "Failed";
+export type Channel = "DesktopAgent" | "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage";
+export type TargetType =
+  | "All"
+  | "Site"
+  | "Area"
+  | "Department"
+  | "Section"
+  | "Employee"
+  | "Group"
+  | "Device"
+  | "Individual"
+  | "Custom";
+export type NotificationStatus =
+  | "Draft"
+  | "Scheduled"
+  | "Sending"
+  | "Sent"
+  | "Queued"
+  | "Active"
+  | "Completed"
+  | "Cancelled"
+  | "Failed";
 export type DeliveryStatus = "Pending" | "Delivered" | "Failed" | "Read";
 export type AckStatus = "Safe" | "NeedAssistance" | "NotInArea" | "Acknowledged" | "NoResponse";
-export type DeviceStatus = "Online" | "Offline";
+export type DeviceStatus = "Online" | "Offline" | "Stale";
 export type EmployeeStatus = "Active" | "Inactive";
 
 export interface User {
@@ -94,6 +113,34 @@ export interface DeliveryLog {
   detail: string;
 }
 
+export interface AudiencePreviewRecipient {
+  recipientType: "Employee" | "Device";
+  deviceId?: string | null;
+  employeeId?: string | null;
+  employeeNumber?: string | null;
+  fullName?: string | null;
+  siteName?: string | null;
+  areaName?: string | null;
+  departmentName?: string | null;
+  sectionName?: string | null;
+  availableChannels: Array<"WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage">;
+}
+
+export interface ChannelPlanItem {
+  channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage";
+  strategy: "Mandatory" | "Optional" | "DelayedFollowUp";
+  plannedDelaySeconds?: number | null;
+}
+
+export interface AudiencePreview {
+  totalRecipients: number;
+  deviceRecipients: number;
+  whatsappRecipients: number;
+  previewWarnings: string[];
+  channelPlan: ChannelPlanItem[];
+  recipients: AudiencePreviewRecipient[];
+}
+
 export interface WhatsAppMessage {
   id: string;
   time: string;
@@ -113,6 +160,10 @@ export interface Template {
   defaultInstruction: string;
   defaultChannels: Channel[];
   requireAck: boolean;
+  defaultWorkflowId?: string | null;
+  allowedTargetTypes?: TargetType[];
+  lockedFields?: string[];
+  editableFields?: string[];
 }
 
 export interface AuditLog {

@@ -16,6 +16,10 @@
     "backend:migrate": "node backend/dist/scripts/run-migrations.js up",
     "backend:migrate:status:dev": "tsx backend/src/scripts/run-migrations.ts status",
     "backend:migrate:status": "node backend/dist/scripts/run-migrations.js status",
+    "backend:import:baseline:dev": "tsx backend/src/scripts/import-phase1-baseline.ts",
+    "backend:import:baseline:dev:rollback": "tsx backend/src/scripts/import-phase1-baseline.ts --rollback",
+    "backend:import:baseline": "node backend/dist/scripts/import-phase1-baseline.js",
+    "backend:import:baseline:rollback": "node backend/dist/scripts/import-phase1-baseline.js --rollback",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

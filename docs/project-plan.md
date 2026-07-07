@@ -59,6 +59,7 @@ The initial product is positioned as a `server-side platform` with the following
 - Template-driven response workflow
 - Versioned full-policy templates
 - SignalR-style push-first agent delivery model
+- Server-managed recurring reminder policies with bounded local Windows Agent execution for routine reminders
 - User-preference-based channel strategy
 - Hybrid RBAC between central admins and local operators
 - Hybrid organization data source strategy

@@ -48,12 +48,18 @@ function NotificationCenter() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Notification cancelled");
     },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel communication");
+    },
   });
   const dupMut = useMutation({
     mutationFn: (id: string) => notificationsService.duplicate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Notification duplicated");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to duplicate communication");
     },
   });
 
@@ -77,7 +83,7 @@ function NotificationCenter() {
               <SelectTrigger className="w-40"><SelectValue placeholder="Priority" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All priorities</SelectItem>
-                <SelectItem value="Emergency">Emergency</SelectItem>
+                <SelectItem value="Emergency">Critical</SelectItem>
                 <SelectItem value="Warning">Warning</SelectItem>
                 <SelectItem value="Info">Info</SelectItem>
               </SelectContent>
@@ -86,7 +92,7 @@ function NotificationCenter() {
               <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {["Draft", "Scheduled", "Sending", "Sent", "Cancelled", "Failed"].map((s) => (
+                {["Draft", "Scheduled", "Sending", "Queued", "Active", "Completed", "Cancelled", "Failed"].map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
               </SelectContent>

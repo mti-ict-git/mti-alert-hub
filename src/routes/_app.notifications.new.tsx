@@ -31,6 +31,8 @@ const CHANNELS: { key: Channel; label: string }[] = [
   { key: "DigitalSignage", label: "Digital Signage" },
 ];
 
+const TARGET_TYPES: TargetType[] = ["All", "Site", "Department", "Section"];
+
 interface Search { template?: string }
 
 export const Route = createFileRoute("/_app/notifications/new")({
@@ -73,15 +75,15 @@ function CreateNotificationPage() {
     setRequireAck(t.requireAck);
   }, [search.template, templates]);
 
-  // Emergency: force all channels on
+  // Critical authoring uses stronger defaults.
   useEffect(() => {
-    if (priority === "Emergency") {
+    if (priority === "Emergency" || priority === "Critical") {
       setChannels(["DesktopAgent", "WhatsApp", "Email", "DigitalSignage"]);
       setRequireAck(true);
     }
   }, [priority]);
 
-  const isEmergency = priority === "Emergency";
+  const isEmergency = priority === "Emergency" || priority === "Critical";
   const availableSections = useMemo(() => (department ? SECTIONS[department] ?? [] : []), [department]);
 
   const toggleChannel = (c: Channel) => {
@@ -90,10 +92,21 @@ function CreateNotificationPage() {
 
   const createMut = useMutation({
     mutationFn: notificationsService.create,
-    onSuccess: (n) => {
+    onSuccess: async (n) => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
-      toast.success(scheduleLater ? "Notification scheduled" : "Notification sent");
+      qc.invalidateQueries({ queryKey: ["notification", n.id] });
+      try {
+        const preview = await notificationsService.audiencePreview(n.id);
+        toast.success(
+          `${scheduleLater ? "Draft tersimpan" : "Draft created"} · ${preview.totalRecipients} recipients resolved`,
+        );
+      } catch {
+        toast.success(scheduleLater ? "Draft tersimpan" : "Draft created");
+      }
       nav({ to: "/notifications/$id", params: { id: n.id } });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to create draft");
     },
   });
 
@@ -103,6 +116,7 @@ function CreateNotificationPage() {
       message,
       priority,
       category,
+      templateId: search.template,
       targetType,
       targetSite: site || undefined,
       targetDepartment: department || undefined,
@@ -126,7 +140,7 @@ function CreateNotificationPage() {
           {isEmergency && (
             <div className="flex items-center gap-2 rounded-t-xl bg-emergency px-4 py-2 text-emergency-foreground emergency-pulse">
               <Siren className="h-4 w-4" />
-              <span className="text-sm font-semibold uppercase tracking-wider">Emergency Notification</span>
+              <span className="text-sm font-semibold uppercase tracking-wider">Critical Notification Draft</span>
             </div>
           )}
           <CardContent className="space-y-5 p-6">
@@ -148,7 +162,7 @@ function CreateNotificationPage() {
                   <SelectContent>
                     <SelectItem value="Info">Info</SelectItem>
                     <SelectItem value="Warning">Warning</SelectItem>
-                    <SelectItem value="Emergency">Emergency</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -168,7 +182,7 @@ function CreateNotificationPage() {
             <div className="space-y-2">
               <Label>Target Type</Label>
               <RadioGroup value={targetType} onValueChange={(v) => setTargetType(v as TargetType)} className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {(["All", "Site", "Department", "Section", "Individual", "Custom"] as TargetType[]).map((t) => (
+                {TARGET_TYPES.map((t) => (
                   <Label key={t} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
                     <RadioGroupItem value={t} /> {t}
                   </Label>
@@ -211,7 +225,7 @@ function CreateNotificationPage() {
                 ))}
               </div>
               {isEmergency && (
-                <p className="text-xs text-emergency">Emergency priority auto-enables all channels.</p>
+                <p className="text-xs text-emergency">Critical priority auto-enables all channels.</p>
               )}
             </div>
 
@@ -236,6 +250,9 @@ function CreateNotificationPage() {
               {scheduleLater && (
                 <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="max-w-xs" />
               )}
+              <p className="text-xs text-muted-foreground">
+                Publish scheduling belum aktif di backend Phase 1, jadi form ini saat ini menyimpan draft authoring.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -246,7 +263,7 @@ function CreateNotificationPage() {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => nav({ to: "/notifications" })}>Cancel</Button>
               <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)} className={cn(isEmergency && "bg-emergency hover:bg-emergency/90 text-emergency-foreground")}>
-                {scheduleLater ? "Schedule" : isEmergency ? "Send Emergency" : "Send Notification"}
+                {scheduleLater ? "Save Draft" : isEmergency ? "Create Critical Draft" : "Create Draft"}
               </Button>
             </div>
           </CardContent>
@@ -274,11 +291,11 @@ function CreateNotificationPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEmergency ? "Confirm Emergency Notification" : "Confirm Send"}</DialogTitle>
+            <DialogTitle>{isEmergency ? "Confirm Critical Draft" : "Confirm Draft Creation"}</DialogTitle>
             <DialogDescription>
               {isEmergency
-                ? "This will trigger an EMERGENCY alert across all channels. Proceed only if the situation is real."
-                : `You are about to ${scheduleLater ? "schedule" : "send"} this notification via ${channels.length} channel(s).`}
+                ? "This will create a critical communication draft with stronger defaults for later publishing."
+                : `You are about to create a communication draft using ${channels.length} channel(s).`}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
@@ -292,7 +309,7 @@ function CreateNotificationPage() {
               onClick={() => { setConfirmOpen(false); submit(); }}
               disabled={createMut.isPending}
             >
-              {createMut.isPending ? "Sending…" : "Confirm"}
+              {createMut.isPending ? "Saving…" : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

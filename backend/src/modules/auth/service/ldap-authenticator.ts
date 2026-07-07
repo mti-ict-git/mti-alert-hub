@@ -129,17 +129,15 @@ function enforceAllowedGroups(rawAllowedGroups: string | undefined, memberOf: st
     return;
   }
 
-  const allowedGroups = rawAllowedGroups
-    .split(",")
-    .map((group) => group.trim())
-    .filter(Boolean);
+  const allowedGroups = parseAllowedGroups(rawAllowedGroups);
 
   if (allowedGroups.length === 0) {
     return;
   }
 
+  const normalizedMemberGroups = new Set(memberOf.map(normalizeDnValue));
   const isAllowed = allowedGroups.some((allowedGroup) =>
-    memberOf.some((memberGroup) => memberGroup.toLowerCase() === allowedGroup.toLowerCase()),
+    normalizedMemberGroups.has(normalizeDnValue(allowedGroup)),
   );
 
   if (!isAllowed) {
@@ -149,6 +147,41 @@ function enforceAllowedGroups(rawAllowedGroups: string | undefined, memberOf: st
       message: "The authenticated account is not allowed to access MTI Alert.",
     });
   }
+}
+
+function parseAllowedGroups(rawAllowedGroups: string): string[] {
+  const trimmedValue = rawAllowedGroups.trim();
+  if (!trimmedValue) {
+    return [];
+  }
+
+  if (trimmedValue.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmedValue) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean);
+      }
+    } catch {
+      // Fall through to the delimiter-based parsing rules below.
+    }
+  }
+
+  if (/[;\r\n]/.test(trimmedValue)) {
+    return trimmedValue
+      .split(/[;\r\n]+/)
+      .map((group) => group.trim())
+      .filter(Boolean);
+  }
+
+  // A single LDAP DN contains commas, so comma-separated parsing is unsafe here.
+  return [trimmedValue];
+}
+
+function normalizeDnValue(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 function escapeLdapFilter(value: string): string {

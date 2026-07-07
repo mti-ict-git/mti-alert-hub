@@ -3,10 +3,10 @@ import type { Priority } from "@/types";
 import { AlertTriangle, Info, TriangleAlert } from "lucide-react";
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
-  if (priority === "Emergency") {
+  if (priority === "Emergency" || priority === "Critical") {
     return (
       <Badge className="gap-1 bg-emergency text-emergency-foreground hover:bg-emergency border-transparent">
-        <AlertTriangle className="h-3 w-3" /> Emergency
+        <AlertTriangle className="h-3 w-3" /> {priority === "Critical" ? "Critical" : "Emergency"}
       </Badge>
     );
   }

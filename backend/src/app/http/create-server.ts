@@ -15,6 +15,7 @@ export type AppRouteHandlerContext = {
   request: IncomingMessage;
   response: ServerResponse;
   url: URL;
+  params: Record<string, string>;
   auth?: AuthContext;
   json: () => Promise<unknown>;
 };
@@ -46,10 +47,14 @@ export function createHttpServer(options: CreateServerOptions) {
 
     try {
       const auth = resolveAuthContext(request, options.resolveSession);
-      const route = options.routes.find(
-        (candidate) =>
-          candidate.method === request.method && candidate.path === requestUrl.pathname,
-      );
+      const matchedRoute = options.routes
+        .filter((candidate) => candidate.method === request.method)
+        .map((candidate) => ({
+          route: candidate,
+          match: matchRoutePath(candidate.path, requestUrl.pathname),
+        }))
+        .find((candidate) => candidate.match !== undefined);
+      const route = matchedRoute?.route;
 
       if (!route) {
         sendJson(response, 404, {
@@ -87,6 +92,7 @@ export function createHttpServer(options: CreateServerOptions) {
         request,
         response,
         url: requestUrl,
+        params: matchedRoute?.match ?? {},
         auth,
         json: () => parseJsonBody(request),
       });
@@ -176,4 +182,44 @@ function extractBearerToken(authorizationHeader: string | undefined): string | u
   }
 
   return token;
+}
+
+function matchRoutePath(routePath: string, requestPath: string) {
+  if (routePath === requestPath) {
+    return {};
+  }
+
+  const routeSegments = normalizePathSegments(routePath);
+  const requestSegments = normalizePathSegments(requestPath);
+  if (routeSegments.length !== requestSegments.length) {
+    return undefined;
+  }
+
+  const params: Record<string, string> = {};
+  for (let index = 0; index < routeSegments.length; index += 1) {
+    const routeSegment = routeSegments[index];
+    const requestSegment = requestSegments[index];
+    if (!routeSegment || !requestSegment) {
+      return undefined;
+    }
+
+    if (isRouteParamSegment(routeSegment)) {
+      params[routeSegment.slice(1, -1)] = decodeURIComponent(requestSegment);
+      continue;
+    }
+
+    if (routeSegment !== requestSegment) {
+      return undefined;
+    }
+  }
+
+  return params;
+}
+
+function normalizePathSegments(pathname: string) {
+  return pathname.split("/").filter((segment) => segment.length > 0);
+}
+
+function isRouteParamSegment(segment: string) {
+  return segment.startsWith("{") && segment.endsWith("}") && segment.length > 2;
 }

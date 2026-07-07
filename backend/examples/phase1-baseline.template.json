@@ -1,0 +1,76 @@
+{
+  "sites": [
+    {
+      "code": "SITE-CODE",
+      "name": "Site Name",
+      "status": "Active",
+      "sourceSystem": "HRExport",
+      "externalReference": "site-external-id"
+    }
+  ],
+  "areas": [
+    {
+      "siteCode": "SITE-CODE",
+      "code": "AREA-CODE",
+      "name": "Area Name",
+      "status": "Active",
+      "sourceSystem": "HRExport",
+      "externalReference": "area-external-id"
+    }
+  ],
+  "departments": [
+    {
+      "siteCode": "SITE-CODE",
+      "code": "DEPT-CODE",
+      "name": "Department Name",
+      "status": "Active",
+      "sourceSystem": "HRExport",
+      "externalReference": "department-external-id"
+    }
+  ],
+  "sections": [
+    {
+      "siteCode": "SITE-CODE",
+      "departmentName": "Department Name",
+      "code": "SECTION-CODE",
+      "name": "Section Name",
+      "status": "Active",
+      "sourceSystem": "HRExport",
+      "externalReference": "section-external-id"
+    }
+  ],
+  "employees": [
+    {
+      "employeeNumber": "EMP001",
+      "fullName": "Employee Name",
+      "email": "employee@example.com",
+      "phoneNumber": "+628123456789",
+      "siteCode": "SITE-CODE",
+      "areaName": "Area Name",
+      "departmentName": "Department Name",
+      "sectionName": "Section Name",
+      "jobRole": "Operator",
+      "employmentStatus": "Active",
+      "hasWindowsAgent": true,
+      "hasWhatsApp": true,
+      "preferredPrimaryChannel": "WindowsAgent",
+      "preferredSecondaryChannel": "WhatsApp",
+      "sourceSystem": "HRExport",
+      "externalReference": "employee-external-id"
+    }
+  ],
+  "devices": [
+    {
+      "hostname": "PC-HOSTNAME-01",
+      "deviceIdentifier": "device-identifier-01",
+      "primaryEmployeeNumber": "EMP001",
+      "siteCode": "SITE-CODE",
+      "areaName": "Area Name",
+      "locationLabel": "Control Room",
+      "ownershipMode": "EmployeeAssigned",
+      "agentVersion": "0.1.0",
+      "osVersion": "Windows 11",
+      "status": "Online"
+    }
+  ]
+}

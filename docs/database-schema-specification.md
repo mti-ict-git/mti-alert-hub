@@ -1,7 +1,7 @@
 # MTI Alert Database Schema Specification
 
 ## Document Status
-- Version: `0.2`
+- Version: `0.3`
 - Status: `Draft Baseline`
 - Last Updated: `2026-07-07`
 
@@ -13,6 +13,7 @@ This document defines the conceptual database schema for the `MTI Alert` server 
 - Audience rules and resolved recipients must both be stored.
 - Delivery tracking and response tracking are separate concerns.
 - Historical truth must remain queryable even if organization data changes later.
+- Recurring schedules remain server-owned even when approved routine reminder policies are synchronized to Windows Agent for bounded local execution.
 
 ## Implementation Baseline
 - Versioned database migrations are now part of the backend foundation.
@@ -186,7 +187,47 @@ Key columns:
 - `scheduled_at`
 - `recurrence_rule`
 - `timezone`
+- `execution_mode` such as `ServerGenerated`, `AgentLocalRoutine`
+- `schedule_version`
+- `valid_from`
+- `valid_until`
 - `is_active`
+- `created_at`
+- `updated_at`
+
+### agent_reminder_policies
+Materialized recurring reminder policies distributed to eligible Windows Agent devices for bounded local execution.
+
+Key columns:
+- `id`
+- `communication_schedule_id`
+- `communication_id`
+- `device_id`
+- `schedule_version`
+- `recurrence_rule`
+- `timezone`
+- `title_snapshot`
+- `body_snapshot`
+- `windows_agent_presentation`
+- `valid_from`
+- `valid_until`
+- `is_active`
+- `last_synced_at`
+- `created_at`
+- `updated_at`
+
+### agent_reminder_events
+Reconciled evidence from locally executed reminder occurrences on Windows Agent devices.
+
+Key columns:
+- `id`
+- `agent_reminder_policy_id`
+- `device_id`
+- `event_type` such as `Triggered`, `Displayed`, `Read`, `Dismissed`, `Snoozed`, `Responded`
+- `occurred_at`
+- `reported_at`
+- `active_user_identifier` nullable
+- `metadata_json` nullable
 - `created_at`
 
 ### communication_targets

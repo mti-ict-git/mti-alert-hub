@@ -668,6 +668,59 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /agent/reminder-policies:
+    get:
+      tags: [Agent]
+      summary: Fetch active locally executable reminder policies for the Windows Agent
+      operationId: listAgentReminderPolicies
+      x-implementation-phase: Phase 2
+      security:
+        - AgentSessionAuth: []
+      parameters:
+        - in: query
+          name: since
+          required: false
+          description: Optional cursor or timestamp used to fetch changed reminder policies only.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Active reminder policies eligible for bounded local execution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentReminderPolicyListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /agent/reminder-policies/{policyId}/events:
+    post:
+      tags: [Agent]
+      summary: Report a locally executed reminder occurrence or interaction
+      operationId: reportAgentReminderPolicyEvent
+      x-implementation-phase: Phase 2
+      security:
+        - AgentSessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ReminderPolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentReminderEventRequest"
+      responses:
+        "204":
+          description: Reminder policy event recorded
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /agent/messages/{messageId}/displayed:
     post:
       tags: [Agent]
@@ -803,6 +856,12 @@ components:
     MessageId:
       in: path
       name: messageId
+      required: true
+      schema:
+        type: string
+    ReminderPolicyId:
+      in: path
+      name: policyId
       required: true
       schema:
         type: string
@@ -953,6 +1012,12 @@ components:
     RecipientType:
       type: string
       enum: [Device, Employee, ContactEndpoint]
+    ScheduleExecutionMode:
+      type: string
+      enum: [ServerGenerated, AgentLocalRoutine]
+    ReminderEventType:
+      type: string
+      enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded]
 
     PageMeta:
       type: object
@@ -1217,8 +1282,22 @@ components:
       properties:
         publishMode:
           type: string
-          enum: [Now, Scheduled]
+          enum: [Now, Scheduled, Recurring]
         scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        recurrenceRule:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        executionMode:
+          allOf:
+            - $ref: "#/components/schemas/ScheduleExecutionMode"
+          nullable: true
+        validUntil:
           type: string
           format: date-time
           nullable: true
@@ -1784,6 +1863,74 @@ components:
         criticalBehaviorMode:
           allOf:
             - $ref: "#/components/schemas/CriticalBehaviorMode"
+          nullable: true
+
+    AgentReminderPolicyListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentReminderPolicy"
+
+    AgentReminderPolicy:
+      type: object
+      required:
+        - policyId
+        - communicationId
+        - scheduleVersion
+        - recurrenceRule
+        - timezone
+        - validFrom
+        - validUntil
+        - title
+        - body
+      properties:
+        policyId:
+          type: string
+        communicationId:
+          type: string
+        scheduleVersion:
+          type: integer
+        recurrenceRule:
+          type: string
+        timezone:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        title:
+          type: string
+        body:
+          type: string
+        windowsAgentPresentation:
+          $ref: "#/components/schemas/WindowsAgentPresentation"
+        requiresResponse:
+          type: boolean
+        workflow:
+          allOf:
+            - $ref: "#/components/schemas/WorkflowDefinition"
+          nullable: true
+
+    AgentReminderEventRequest:
+      type: object
+      required: [eventType, occurredAt]
+      properties:
+        eventType:
+          $ref: "#/components/schemas/ReminderEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        activeUserIdentifier:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
           nullable: true
 
     DeliveryRecord:

@@ -16,8 +16,8 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("admin.ohse");
-  const [password, setPassword] = useState("demo");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -108,7 +108,7 @@ function LoginPage() {
             </Button>
 
             <p className="mt-6 text-center text-xs text-muted-foreground">
-              Demo build — any credentials will sign you in.
+              Use your LDAP or Active Directory credentials to continue.
             </p>
           </CardContent>
         </Card>

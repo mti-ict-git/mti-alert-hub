@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 const map: Record<string, { className: string }> = {
   Sent: { className: "bg-success text-success-foreground" },
   Sending: { className: "bg-info text-info-foreground" },
+  Queued: { className: "bg-info text-info-foreground" },
+  Active: { className: "bg-success text-success-foreground" },
+  Completed: { className: "bg-success text-success-foreground" },
   Scheduled: { className: "bg-warning text-warning-foreground" },
   Draft: { className: "bg-muted text-muted-foreground" },
   Cancelled: { className: "bg-muted text-muted-foreground" },
@@ -13,7 +16,7 @@ const map: Record<string, { className: string }> = {
   Pending: { className: "bg-muted text-muted-foreground" },
   Online: { className: "bg-success text-success-foreground" },
   Offline: { className: "bg-muted text-muted-foreground" },
-  Active: { className: "bg-success text-success-foreground" },
+  Stale: { className: "bg-warning text-warning-foreground" },
   Inactive: { className: "bg-muted text-muted-foreground" },
   Safe: { className: "bg-success text-success-foreground" },
   NeedAssistance: { className: "bg-emergency text-emergency-foreground" },
