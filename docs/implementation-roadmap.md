@@ -90,7 +90,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `[x]` Authorization: implement backend scope enforcement guards.
 - `[x]` Authorization: challenge unauthorized access scenarios and expected errors.
 - `[x]` Database foundation: implement versioned migrations and initial schema for auth, organization, employee, and device tables.
-- `[ ]` Organization data: define the HR sync ingestion contract for basic org data.
+- `[ ]` Organization data: define the HR sync ingestion contract for basic org data. `On Hold - Post-Go-Live`
 - `[x]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
 - `[x]` Organization data: implement sync-safe read models for employees and devices.
 - `[ ]` Communication drafts: implement draft create, get, update, duplicate, and cancel rules.
@@ -116,6 +116,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - Representative authenticated smoke tests for organization and device endpoints return `200`, and an unauthenticated `GET /devices` request returns `401`.
 - Table existence and zero-row baseline were verified after migration application, confirming that current empty-state endpoint responses now come from unseeded tables rather than missing schema.
 - Publish preview output is challenged with representative target combinations.
+- Go-live fast-track decision on `2026-07-07`: HR or organization baseline ingestion is not treated as a go-live blocker and is explicitly deferred until after the first live release unless operational needs force it back into scope.
 
 ## Phase 2 - Delivery Orchestration
 ### Status

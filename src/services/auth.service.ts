@@ -14,6 +14,9 @@ type AuthSessionResponse = {
   expiresAt?: string | null;
 };
 
+let lastValidatedAt = 0;
+const SESSION_VALIDATION_TTL_MS = 30_000;
+
 export const authService = {
   async login(username: string, password: string): Promise<User> {
     const session = await apiClient.post<AuthSessionResponse>("/auth/login", {
@@ -22,11 +25,8 @@ export const authService = {
     });
     const user = mapAuthUser(session.user);
 
-    sessionService.setSession({
-      sessionToken: session.sessionToken,
-      expiresAt: session.expiresAt ?? null,
-      user,
-    });
+    persistSession(session, user);
+    lastValidatedAt = Date.now();
 
     return user;
   },
@@ -35,12 +35,43 @@ export const authService = {
       await apiClient.post<void>("/auth/logout");
     } finally {
       sessionService.clearSession();
+      lastValidatedAt = 0;
     }
   },
   getCurrentUser(): User | null {
     return sessionService.getSession()?.user ?? null;
   },
+  async validateSession(force = false): Promise<User | null> {
+    const existingSession = sessionService.getSession();
+    if (!existingSession?.sessionToken) {
+      return null;
+    }
+
+    if (!force && Date.now() - lastValidatedAt < SESSION_VALIDATION_TTL_MS) {
+      return existingSession.user;
+    }
+
+    try {
+      const session = await apiClient.get<AuthSessionResponse>("/auth/me");
+      const user = mapAuthUser(session.user);
+      persistSession(session, user);
+      lastValidatedAt = Date.now();
+      return user;
+    } catch {
+      sessionService.clearSession();
+      lastValidatedAt = 0;
+      return null;
+    }
+  },
 };
+
+function persistSession(session: AuthSessionResponse, user: User) {
+  sessionService.setSession({
+    sessionToken: session.sessionToken,
+    expiresAt: session.expiresAt ?? null,
+    user,
+  });
+}
 
 function mapAuthUser(user: AuthSessionResponse["user"]): User {
   return {

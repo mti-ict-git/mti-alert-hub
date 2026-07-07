@@ -154,6 +154,13 @@ export interface WhatsAppMessage {
 export interface Template {
   id: string;
   name: string;
+  communicationType:
+    | "Alert"
+    | "Reminder"
+    | "OperationalNotice"
+    | "News"
+    | "Article"
+    | "KnowledgeUpdate";
   category: Category;
   priority: Priority;
   defaultMessage: string;

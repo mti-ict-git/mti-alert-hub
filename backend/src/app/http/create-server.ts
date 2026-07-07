@@ -26,7 +26,7 @@ export type AppRouteResult = {
 };
 
 export type AppRoute = {
-  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" | "OPTIONS";
   path: string;
   allowAnonymous?: boolean;
   requiresAuth?: boolean;
@@ -38,14 +38,22 @@ type CreateServerOptions = {
   logger: Logger;
   routes: AppRoute[];
   resolveSession: (sessionToken: string | undefined) => AdminSession | undefined;
+  allowedOrigins?: string[];
 };
 
 export function createHttpServer(options: CreateServerOptions) {
   return createServer(async (request, response) => {
     const startedAt = Date.now();
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
+    applyCorsHeaders(request, response, options.allowedOrigins);
 
     try {
+      if (request.method === "OPTIONS") {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+
       const auth = resolveAuthContext(request, options.resolveSession);
       const matchedRoute = options.routes
         .filter((candidate) => candidate.method === request.method)
@@ -129,6 +137,22 @@ export function createHttpServer(options: CreateServerOptions) {
       });
     }
   });
+}
+
+function applyCorsHeaders(
+  request: IncomingMessage,
+  response: ServerResponse,
+  allowedOrigins: string[] = ["http://localhost:8081", "http://127.0.0.1:8081"],
+) {
+  const requestOrigin = request.headers.origin;
+  const allowOrigin = requestOrigin && allowedOrigins.includes(requestOrigin)
+    ? requestOrigin
+    : allowedOrigins[0];
+
+  response.setHeader("Vary", "Origin");
+  response.setHeader("Access-Control-Allow-Origin", allowOrigin);
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
 }
 
 async function parseJsonBody(request: IncomingMessage): Promise<unknown> {

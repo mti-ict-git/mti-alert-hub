@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { authService } from "@/services/auth.service";
+import { sessionService } from "@/services/session.service";
 import type { User } from "@/types";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => authService.getCurrentUser());
 
   useEffect(() => {
-    const onStorage = () => setUser(authService.getCurrentUser());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return sessionService.subscribe(() => setUser(authService.getCurrentUser()));
   }, []);
 
   return {

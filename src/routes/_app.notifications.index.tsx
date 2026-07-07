@@ -54,9 +54,10 @@ function NotificationCenter() {
   });
   const dupMut = useMutation({
     mutationFn: (id: string) => notificationsService.duplicate(id),
-    onSuccess: () => {
+    onSuccess: (duplicated) => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Notification duplicated");
+      nav({ to: "/notifications/$id", params: { id: duplicated.id } });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to duplicate communication");
@@ -136,11 +137,37 @@ function NotificationCenter() {
                       {format(new Date(n.createdAt), "dd MMM HH:mm")}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`View ${n.title}`}
+                          onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          <span>View</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Duplicate ${n.title}`}
+                          disabled={dupMut.isPending}
+                          onClick={() => dupMut.mutate(n.id)}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          <span>Duplicate</span>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`More actions for ${n.title}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
@@ -153,8 +180,9 @@ function NotificationCenter() {
                           >
                             <XCircle className="mr-2 h-4 w-4" /> Cancel
                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -21,6 +21,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    if (res.status === 401 && path !== "/auth/login") {
+      sessionService.clearSession();
+
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
+    }
+
     const errorPayload = await tryParseErrorPayload(res);
     throw new Error(errorPayload?.message ?? `API ${res.status}: ${res.statusText}`);
   }

@@ -38,6 +38,11 @@ Provide a controlled import path for the minimum org and device data required by
 - `GET /devices`
 - `POST /communications/{communicationId}/audience-preview`
 
+### Current Delivery Status
+- `On Hold - Post-Go-Live`
+- This contract is intentionally documented but is not currently treated as a blocker for the first live release.
+- Resume this work only when real organization targeting, real audience preview accuracy, or device inventory onboarding becomes a release-critical need.
+
 ### Scope
 The current baseline ingestion contract supports:
 - `sites`
@@ -65,8 +70,10 @@ The Phase 1 ingestion payload is JSON.
 
 Supporting artifacts:
 - Example payload: `backend/examples/phase1-baseline.example.json`
+- Template payload: `backend/examples/phase1-baseline.template.json`
 - JSON schema: `backend/examples/phase1-baseline.schema.json`
 - Import script: `backend/src/scripts/import-phase1-baseline.ts`
+- Mapping guide: `docs/phase-1-baseline-mapping-guide.md`
 
 ### Import Command
 Development import:

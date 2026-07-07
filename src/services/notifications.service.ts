@@ -35,7 +35,13 @@ type ApiAudiencePreview = AudiencePreview;
 type CreateNotificationInput = Omit<
   Notification,
   "id" | "createdAt" | "createdBy" | "recipientsCount" | "ackCount" | "status"
-> & { scheduleLater?: boolean; templateId?: string };
+> & {
+  scheduleLater?: boolean;
+  templateId?: string;
+  communicationType?: ApiCommunicationDetail["communicationType"];
+};
+
+type UpdateNotificationInput = Partial<CreateNotificationInput>;
 
 export const notificationsService = {
   async list(): Promise<Notification[]> {
@@ -59,20 +65,17 @@ export const notificationsService = {
   },
   async create(input: CreateNotificationInput): Promise<Notification> {
     const detail = await apiClient.post<ApiCommunicationDetail>("/communications", {
-      communicationType: inferCommunicationType(input.category),
-      priority: input.priority === "Emergency" ? "Critical" : input.priority,
-      category: input.category,
+      ...buildCreatePayload(input),
       templateId: input.templateId ?? null,
-      title: input.title,
-      body: input.message,
-      channelSelections: input.channels.map(mapChannelToApi),
-      targets: buildTargetsFromNotification(input),
-      workflowId: input.requireAck ? "11111111-1111-1111-1111-111111111111" : null,
-      windowsAgentPresentation:
-        input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null,
-      deliveryStrategy: null,
     });
 
+    return mapDetailToNotification(detail);
+  },
+  async update(id: string, input: UpdateNotificationInput): Promise<Notification> {
+    const detail = await apiClient.patch<ApiCommunicationDetail>(
+      `/communications/${id}`,
+      buildUpdatePayload(input),
+    );
     return mapDetailToNotification(detail);
   },
   async cancel(id: string): Promise<void> {
@@ -192,7 +195,57 @@ function inferCommunicationType(category: Notification["category"]): ApiCommunic
   }
 }
 
-function buildTargetsFromNotification(input: CreateNotificationInput) {
+function buildCreatePayload(input: CreateNotificationInput) {
+  return {
+    communicationType: input.communicationType ?? inferCommunicationType(input.category),
+    priority: input.priority === "Emergency" ? "Critical" : input.priority,
+    category: input.category,
+    title: input.title,
+    body: input.message,
+    channelSelections: input.channels.map(mapChannelToApi),
+    targets: buildTargetsFromNotification(input),
+    workflowId: input.requireAck ? "11111111-1111-1111-1111-111111111111" : null,
+    windowsAgentPresentation:
+      input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null,
+    deliveryStrategy: null,
+  };
+}
+
+function buildUpdatePayload(input: UpdateNotificationInput) {
+  const payload: Record<string, unknown> = {};
+
+  if (input.category) {
+    payload.category = input.category;
+  }
+
+  if (input.title !== undefined) {
+    payload.title = input.title;
+  }
+
+  if (input.message !== undefined) {
+    payload.body = input.message;
+  }
+
+  if (input.channels) {
+    payload.channelSelections = input.channels.map(mapChannelToApi);
+    payload.windowsAgentPresentation =
+      input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null;
+  } else if (input.priority === "Emergency") {
+    payload.windowsAgentPresentation = "Modal";
+  }
+
+  if (input.targetType) {
+    payload.targets = buildTargetsFromNotification(input);
+  }
+
+  if (input.requireAck !== undefined) {
+    payload.workflowId = input.requireAck ? "11111111-1111-1111-1111-111111111111" : null;
+  }
+
+  return payload;
+}
+
+function buildTargetsFromNotification(input: UpdateNotificationInput) {
   switch (input.targetType) {
     case "All":
       return [{ targetType: "All", targetValue: "*" }];

@@ -1,6 +1,7 @@
 import type { User } from "@/types";
 
 const STORAGE_KEY = "mti_alert_session";
+const SESSION_CHANGE_EVENT = "mti-alert-session-change";
 
 export type StoredAuthSession = {
   sessionToken: string;
@@ -26,6 +27,7 @@ export const sessionService = {
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
   },
   clearSession() {
     if (typeof window === "undefined") {
@@ -33,5 +35,19 @@ export const sessionService = {
     }
 
     localStorage.removeItem(STORAGE_KEY);
+    window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
+  },
+  subscribe(onChange: () => void) {
+    if (typeof window === "undefined") {
+      return () => undefined;
+    }
+
+    window.addEventListener("storage", onChange);
+    window.addEventListener(SESSION_CHANGE_EVENT, onChange);
+
+    return () => {
+      window.removeEventListener("storage", onChange);
+      window.removeEventListener(SESSION_CHANGE_EVENT, onChange);
+    };
   },
 };

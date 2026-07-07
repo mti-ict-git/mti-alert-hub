@@ -20,6 +20,8 @@
     "backend:import:baseline:dev:rollback": "tsx backend/src/scripts/import-phase1-baseline.ts --rollback",
     "backend:import:baseline": "node backend/dist/scripts/import-phase1-baseline.js",
     "backend:import:baseline:rollback": "node backend/dist/scripts/import-phase1-baseline.js --rollback",
+    "backend:generate:baseline-from-mock:dev": "tsx backend/src/scripts/generate-phase1-baseline-from-mock.ts",
+    "backend:generate:baseline-from-mock": "node backend/dist/scripts/generate-phase1-baseline-from-mock.js",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

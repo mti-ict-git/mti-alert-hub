@@ -228,6 +228,11 @@ Provide the reference data used by authoring, filtering, and targeting.
 - add scope-aware filtering
 - define HR sync ingestion boundary, even if sync execution is deferred
 
+### Go-Live Fast Track Decision
+- For the first live release, the HR or organization baseline ingestion path is not a blocking requirement.
+- This work is now treated as `On Hold - Post-Go-Live` unless the team decides that real target-resolution accuracy is required before release.
+- Empty-state organization and device reads are acceptable for first release validation as long as the release scope does not depend on real audience preview counts.
+
 ### Dependencies
 - milestone 2 must be complete
 
@@ -422,6 +427,7 @@ Finalize the backend foundation so Phase 1 can be considered implementation-read
 ### Current Stabilization Notes
 - LDAP group admission parsing now supports full DN values without unsafe comma-splitting, plus `;`-separated and JSON-array formats for multiple groups.
 - A baseline import path now exists for org, employee, and device data so audience preview can be validated without waiting for a future continuous sync implementation.
+- That baseline import path is currently held for post-go-live use and should not delay release preparation unless real organization targeting becomes a release-critical dependency.
 
 ### Exit Criteria
 - Phase 1 backend foundation is stable enough to begin Phase 2 planning or implementation

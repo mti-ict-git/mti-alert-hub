@@ -48,6 +48,7 @@ function mapTemplate(template: ApiTemplate): Template {
   return {
     id: template.id,
     name: template.name,
+    communicationType: template.communicationType,
     category: inferCategory(template.communicationType),
     priority: template.defaultPriority === "Critical" ? "Emergency" : template.defaultPriority,
     defaultMessage: template.defaultBody ?? template.defaultTitle ?? template.name,

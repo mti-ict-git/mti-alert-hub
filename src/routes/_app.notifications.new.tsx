@@ -18,7 +18,7 @@ import { WhatsAppPreview } from "@/components/notifications/WhatsAppPreview";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
 import { notificationsService } from "@/services/notifications.service";
 import { templatesService } from "@/services/templates.service";
-import type { Category, Channel, Priority, TargetType } from "@/types";
+import type { Category, Channel, Priority, TargetType, Template } from "@/types";
 import { DEPARTMENTS, SECTIONS, SITES } from "@/data/reference";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
@@ -45,6 +45,10 @@ function CreateNotificationPage() {
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/notifications/new" });
   const { data: templates = [] } = useQuery({ queryKey: ["templates"], queryFn: templatesService.list });
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === search.template),
+    [search.template, templates],
+  );
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -75,6 +79,19 @@ function CreateNotificationPage() {
     setRequireAck(t.requireAck);
   }, [search.template, templates]);
 
+  useEffect(() => {
+    if (!selectedTemplate) {
+      return;
+    }
+
+    const allowedTargetTypes = getAllowedAuthoringTargetTypes(selectedTemplate);
+    if (!allowedTargetTypes.includes(targetType)) {
+      const nextTargetType = allowedTargetTypes[0] ?? "All";
+      setTargetType(nextTargetType);
+      resetTargetSelections(nextTargetType);
+    }
+  }, [selectedTemplate, targetType]);
+
   // Critical authoring uses stronger defaults.
   useEffect(() => {
     if (priority === "Emergency" || priority === "Critical") {
@@ -85,10 +102,28 @@ function CreateNotificationPage() {
 
   const isEmergency = priority === "Emergency" || priority === "Critical";
   const availableSections = useMemo(() => (department ? SECTIONS[department] ?? [] : []), [department]);
+  const allowedTargetTypes = useMemo(
+    () => (selectedTemplate ? getAllowedAuthoringTargetTypes(selectedTemplate) : TARGET_TYPES),
+    [selectedTemplate],
+  );
 
   const toggleChannel = (c: Channel) => {
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   };
+
+  function resetTargetSelections(nextTargetType: TargetType) {
+    if (nextTargetType !== "Site") {
+      setSite("");
+    }
+
+    if (nextTargetType !== "Department" && nextTargetType !== "Section") {
+      setDepartment("");
+    }
+
+    if (nextTargetType !== "Section") {
+      setSection("");
+    }
+  }
 
   const createMut = useMutation({
     mutationFn: notificationsService.create,
@@ -114,6 +149,7 @@ function CreateNotificationPage() {
     createMut.mutate({
       title,
       message,
+      communicationType: selectedTemplate?.communicationType,
       priority,
       category,
       templateId: search.template,
@@ -181,13 +217,26 @@ function CreateNotificationPage() {
 
             <div className="space-y-2">
               <Label>Target Type</Label>
-              <RadioGroup value={targetType} onValueChange={(v) => setTargetType(v as TargetType)} className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {TARGET_TYPES.map((t) => (
+              <RadioGroup
+                value={targetType}
+                onValueChange={(value) => {
+                  const nextTargetType = value as TargetType;
+                  setTargetType(nextTargetType);
+                  resetTargetSelections(nextTargetType);
+                }}
+                className="grid grid-cols-2 gap-2 md:grid-cols-3"
+              >
+                {allowedTargetTypes.map((t) => (
                   <Label key={t} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
                     <RadioGroupItem value={t} /> {t}
                   </Label>
                 ))}
               </RadioGroup>
+              {selectedTemplate?.allowedTargetTypes?.length ? (
+                <p className="text-xs text-muted-foreground">
+                  Template policy allows: {allowedTargetTypes.join(", ")}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -316,4 +365,12 @@ function CreateNotificationPage() {
       </Dialog>
     </div>
   );
+}
+
+function getAllowedAuthoringTargetTypes(template: Template): TargetType[] {
+  const allowedTargetTypes = template.allowedTargetTypes?.filter((targetType): targetType is TargetType =>
+    TARGET_TYPES.includes(targetType),
+  );
+
+  return allowedTargetTypes && allowedTargetTypes.length > 0 ? allowedTargetTypes : TARGET_TYPES;
 }

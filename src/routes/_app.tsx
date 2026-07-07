@@ -1,14 +1,24 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { authService } from "@/services/auth.service";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_app")({
-  beforeLoad: () => {
-    // Mock guard. TODO(backend): verify server session/JWT instead of localStorage.
-    if (typeof window !== "undefined" && !authService.getCurrentUser()) {
+  async beforeLoad() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!authService.getCurrentUser()) {
+      throw redirect({ to: "/login" });
+    }
+
+    const user = await authService.validateSession();
+    if (!user) {
       throw redirect({ to: "/login" });
     }
   },
@@ -16,6 +26,24 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && typeof window !== "undefined" && !user) {
+      navigate({ to: "/login" });
+    }
+  }, [mounted, navigate, user]);
+
+  if (!mounted || !user) {
+    return null;
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">

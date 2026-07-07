@@ -23,6 +23,7 @@ This document records unresolved product and technical questions. No implementat
 - Question: What exact boundaries apply to the hybrid organization source model between external systems and MTI-managed overrides?
 - Why it matters: This changes CRUD ownership, sync workflows, and data freshness rules.
 - Current safe assumption: basic org data comes from scheduled HR batch sync, while MTI Alert may hold limited local adjustments.
+- Current delivery note: this area is explicitly deferred for the first live release and is not treated as a release blocker unless real organization targeting becomes mandatory before go-live.
 
 ### OQ-4. WhatsApp Provider Selection
 - Question: Which WhatsApp provider or gateway will be used for production?

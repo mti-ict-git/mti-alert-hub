@@ -30,9 +30,21 @@ export function Topbar() {
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="h-4 w-4" />
         </Button>
+        <Button
+          variant="ghost"
+          className="hidden gap-2 md:inline-flex"
+          aria-label="Sign out"
+          onClick={async () => {
+            await logout();
+            navigate({ to: "/login" });
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign out</span>
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2">
+            <Button variant="ghost" className="gap-2" aria-label="Open account menu">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <UserIcon className="h-4 w-4" />
               </div>

@@ -32,6 +32,7 @@ Supporting references may also exist under `docs/`, such as:
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
 - `docs/integration-contracts.md`
+- `docs/go-live-checklist.md`
 - `docs/template-policy-schema.md`
 
 ## Repository Structure
@@ -90,8 +91,10 @@ Use these when preparing Phase 1 organization, employee, and device baseline dat
 
 Reference files:
 - `backend/examples/phase1-baseline.example.json`
+- `backend/examples/phase1-baseline.template.json`
 - `backend/examples/phase1-baseline.schema.json`
 - `docs/integration-contracts.md`
+- `docs/phase-1-baseline-mapping-guide.md`
 
 ### For AI Agents
 1. `AGENTS.md`
