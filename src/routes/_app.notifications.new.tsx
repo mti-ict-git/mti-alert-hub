@@ -17,9 +17,9 @@ import {
 import { WhatsAppPreview } from "@/components/notifications/WhatsAppPreview";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
 import { notificationsService } from "@/services/notifications.service";
+import { referenceService } from "@/services/reference.service";
 import { templatesService } from "@/services/templates.service";
 import type { Category, Channel, Priority, TargetType, Template } from "@/types";
-import { DEPARTMENTS, SECTIONS, SITES } from "@/data/reference";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
 import { toast } from "sonner";
@@ -31,7 +31,7 @@ const CHANNELS: { key: Channel; label: string }[] = [
   { key: "DigitalSignage", label: "Digital Signage" },
 ];
 
-const TARGET_TYPES: TargetType[] = ["All", "Site", "Department", "Section"];
+const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee"];
 
 interface Search { template?: string }
 
@@ -45,6 +45,14 @@ function CreateNotificationPage() {
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/notifications/new" });
   const { data: templates = [] } = useQuery({ queryKey: ["templates"], queryFn: templatesService.list });
+  const { data: organizationReference } = useQuery({
+    queryKey: ["organization-reference"],
+    queryFn: referenceService.getOrganizationReference,
+  });
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employee-reference"],
+    queryFn: referenceService.listEmployees,
+  });
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === search.template),
     [search.template, templates],
@@ -56,14 +64,20 @@ function CreateNotificationPage() {
   const [category, setCategory] = useState<Category>("General");
   const [targetType, setTargetType] = useState<TargetType>("All");
   const [site, setSite] = useState<string>("");
+  const [area, setArea] = useState<string>("");
   const [department, setDepartment] = useState<string>("");
   const [section, setSection] = useState<string>("");
+  const [employeeId, setEmployeeId] = useState<string>("");
   const [channels, setChannels] = useState<Channel[]>(["DesktopAgent"]);
   const [requireAck, setRequireAck] = useState(false);
   const [scheduleLater, setScheduleLater] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [instruction, setInstruction] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const sites = organizationReference?.sites ?? [];
+  const areas = organizationReference?.areas ?? [];
+  const departments = organizationReference?.departments ?? [];
+  const sections = organizationReference?.sections ?? [];
 
   // Prefill from template
   useEffect(() => {
@@ -101,7 +115,41 @@ function CreateNotificationPage() {
   }, [priority]);
 
   const isEmergency = priority === "Emergency" || priority === "Critical";
-  const availableSections = useMemo(() => (department ? SECTIONS[department] ?? [] : []), [department]);
+  const availableAreas = useMemo(
+    () => areas.filter((item) => !site || item.siteId === site),
+    [areas, site],
+  );
+  const availableDepartments = useMemo(
+    () => departments.filter((item) => !site || item.siteId === site),
+    [departments, site],
+  );
+  const availableSections = useMemo(
+    () => sections.filter((item) => !department || item.departmentId === department),
+    [department, sections],
+  );
+  const availableEmployees = useMemo(
+    () =>
+      employees.filter((item) => {
+        if (site && item.siteId !== site) {
+          return false;
+        }
+
+        if (area && item.areaId !== area) {
+          return false;
+        }
+
+        if (department && item.departmentId !== department) {
+          return false;
+        }
+
+        if (section && item.sectionId !== section) {
+          return false;
+        }
+
+        return true;
+      }),
+    [area, department, employees, section, site],
+  );
   const allowedTargetTypes = useMemo(
     () => (selectedTemplate ? getAllowedAuthoringTargetTypes(selectedTemplate) : TARGET_TYPES),
     [selectedTemplate],
@@ -116,12 +164,20 @@ function CreateNotificationPage() {
       setSite("");
     }
 
+    if (nextTargetType !== "Area") {
+      setArea("");
+    }
+
     if (nextTargetType !== "Department" && nextTargetType !== "Section") {
       setDepartment("");
     }
 
     if (nextTargetType !== "Section") {
       setSection("");
+    }
+
+    if (nextTargetType !== "Employee") {
+      setEmployeeId("");
     }
   }
 
@@ -155,8 +211,10 @@ function CreateNotificationPage() {
       templateId: search.template,
       targetType,
       targetSite: site || undefined,
+      targetArea: area || undefined,
       targetDepartment: department || undefined,
       targetSection: section || undefined,
+      targetEmployeeId: employeeId || undefined,
       channels,
       requireAck,
       instruction,
@@ -165,7 +223,14 @@ function CreateNotificationPage() {
     });
   }
 
-  const canSubmit = title && message && channels.length > 0;
+  const hasRequiredTargetSelection =
+    targetType === "All" ||
+    (targetType === "Site" && Boolean(site)) ||
+    (targetType === "Area" && Boolean(area)) ||
+    (targetType === "Department" && Boolean(department)) ||
+    (targetType === "Section" && Boolean(section)) ||
+    (targetType === "Employee" && Boolean(employeeId));
+  const canSubmit = title && message && channels.length > 0 && hasRequiredTargetSelection;
 
   return (
     <div>
@@ -239,26 +304,99 @@ function CreateNotificationPage() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Target Site</Label>
-                <Select value={site} onValueChange={setSite} disabled={targetType === "All"}>
+                <Select
+                  value={site}
+                  onValueChange={(value) => {
+                    setSite(value);
+                    setArea("");
+                  }}
+                  disabled={targetType !== "Site" && targetType !== "Area"}
+                >
                   <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
-                  <SelectContent>{SITES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {sites.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.code} - {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>Target Area</Label>
+                <Select
+                  value={area}
+                  onValueChange={setArea}
+                  disabled={targetType !== "Area"}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
+                  <SelectContent>
+                    {availableAreas.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2">
                 <Label>Target Department</Label>
-                <Select value={department} onValueChange={(v) => { setDepartment(v); setSection(""); }} disabled={targetType === "All"}>
+                <Select
+                  value={department}
+                  onValueChange={(value) => {
+                    setDepartment(value);
+                    setSection("");
+                  }}
+                  disabled={targetType !== "Department" && targetType !== "Section"}
+                >
                   <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                  <SelectContent>{DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {availableDepartments.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Target Section</Label>
-                <Select value={section} onValueChange={setSection} disabled={!department}>
+                <Select
+                  value={section}
+                  onValueChange={setSection}
+                  disabled={targetType !== "Section" || !department}
+                >
                   <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
-                  <SelectContent>{availableSections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {availableSections.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Target Employee</Label>
+                <Select
+                  value={employeeId}
+                  onValueChange={setEmployeeId}
+                  disabled={targetType !== "Employee"}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                  <SelectContent>
+                    {availableEmployees.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.employeeNumber} - {item.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             </div>

@@ -361,6 +361,7 @@ Implement communication authoring state and draft lifecycle behavior.
 - non-draft mutation attempts are rejected with correct error behavior
 - locked template fields are rejected at API layer
 - communication list filters behave correctly
+- targeted runtime verification on `2026-07-08` confirmed create, get, update, duplicate, and locked-field rejection against the live database-backed runtime
 
 ### Exit Criteria
 - backend can fully replace mock communication draft services
@@ -398,6 +399,7 @@ Implement target resolution and publish preview behavior for drafts.
 - out-of-scope targets are rejected or filtered correctly
 - preview payload matches OpenAPI
 - critical templates produce sensible preview warnings and channel plan outputs
+- targeted runtime verification on `2026-07-08` confirmed saved-group and direct-device previews return expected recipients after the `audience_groups` baseline tables were added
 
 ### Exit Criteria
 - frontend can perform preview and confirmation flow without mock logic
@@ -428,6 +430,11 @@ Finalize the backend foundation so Phase 1 can be considered implementation-read
 - LDAP group admission parsing now supports full DN values without unsafe comma-splitting, plus `;`-separated and JSON-array formats for multiple groups.
 - A baseline import path now exists for org, employee, and device data so audience preview can be validated without waiting for a future continuous sync implementation.
 - That baseline import path is currently held for post-go-live use and should not delay release preparation unless real organization targeting becomes a release-critical dependency.
+- The notification authoring UI now consumes backend templates, organization references, employee references, draft CRUD, and audience preview endpoints instead of static targeting reference fixtures.
+- The employee directory, device monitor, and dashboard overview now consume backend employee and device read endpoints for list and summary behavior.
+- Employee create or edit and device test-notification actions remain intentionally unavailable because their backend contracts are not part of the current Phase 1 slice.
+- Saved-group audience preview now depends on the `audience_groups` and `audience_group_members` baseline tables added during Phase 1 closeout.
+- Local browser-automation verification is partially limited by the current tool environment for cross-port localhost requests, so final Phase 1 closeout relies on frontend build success plus direct runtime verification from the frontend origin to the backend verification runtime.
 
 ### Exit Criteria
 - Phase 1 backend foundation is stable enough to begin Phase 2 planning or implementation

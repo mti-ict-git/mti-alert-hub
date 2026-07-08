@@ -1,4 +1,4 @@
-import { Pool, type QueryResultRow } from "pg";
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 
 import type { BackendEnv } from "../../app/config/env.js";
 import type { Logger } from "../../shared/observability/logger.js";
@@ -7,7 +7,7 @@ import {
   resolvePostgresConnectionConfig,
 } from "./postgres-connection-config.js";
 
-export type DatabaseClient = {
+type QueryableDatabaseClient = {
   query<T extends QueryResultRow>(sql: string, params?: unknown[]): Promise<T[]>;
   maybeQuery<T extends QueryResultRow>(
     tableName: string,
@@ -16,6 +16,12 @@ export type DatabaseClient = {
   ): Promise<T[]>;
   tableExists(tableName: string): Promise<boolean>;
   ping(): Promise<void>;
+};
+
+export type TransactionClient = QueryableDatabaseClient;
+
+export type DatabaseClient = QueryableDatabaseClient & {
+  withTransaction<T>(run: (client: TransactionClient) => Promise<T>): Promise<T>;
 };
 
 export type DatabaseBootstrap = {
@@ -32,9 +38,11 @@ export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBoot
     connectionString: redactPostgresConnectionConfig(connectionConfig),
   });
 
-  const client: DatabaseClient = {
+  const createQueryableClient = (
+    queryExecutor: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+  ): QueryableDatabaseClient => ({
     async query<T extends QueryResultRow>(sql: string, params: unknown[] = []) {
-      const result = await pool.query<T>(sql, params);
+      const result = await queryExecutor.query<T>(sql, params);
       return result.rows;
     },
     async maybeQuery<T extends QueryResultRow>(
@@ -47,7 +55,7 @@ export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBoot
         return [];
       }
 
-      const result = await pool.query<T>(sql, params);
+      const result = await queryExecutor.query<T>(sql, params);
       return result.rows;
     },
     async tableExists(tableName: string) {
@@ -72,7 +80,26 @@ export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBoot
       return exists;
     },
     async ping() {
-      await pool.query("select 1");
+      await queryExecutor.query("select 1");
+    },
+  });
+
+  const client: DatabaseClient = {
+    ...createQueryableClient(pool),
+    async withTransaction<T>(run: (transactionClient: TransactionClient) => Promise<T>) {
+      const transaction = await pool.connect();
+      try {
+        await transaction.query("begin");
+        const transactionClient = createQueryableClient(transaction);
+        const result = await run(transactionClient);
+        await transaction.query("commit");
+        return result;
+      } catch (error) {
+        await transaction.query("rollback");
+        throw error;
+      } finally {
+        transaction.release();
+      }
     },
   };
 

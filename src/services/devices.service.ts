@@ -1,27 +1,58 @@
-// TODO(backend): GET /api/devices with websocket updates for status.
+import { apiClient } from "@/services/api-client";
+import { referenceService } from "@/services/reference.service";
 import type { Device } from "@/types";
-import { mockDelay } from "@/lib/mock-delay";
-import { devices as seed } from "@/data/devices";
 
-const store: Device[] = [...seed];
+type ApiDevice = {
+  id: string;
+  primaryEmployeeId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname: string;
+  siteId: string;
+  areaId?: string | null;
+  locationLabel?: string | null;
+  ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
+  agentVersion?: string | null;
+  lastHeartbeatAt?: string | null;
+  lastConnectionAt?: string | null;
+  status: "Online" | "Offline" | "Stale";
+};
+
+type DeviceListResponse = {
+  items: ApiDevice[];
+};
 
 export const devicesService = {
   async list(): Promise<Device[]> {
-    await mockDelay();
-    // Simulate a mild status flap for realism
-    store.forEach((d, i) => {
-      if (Math.random() < 0.05) {
-        d.status = d.status === "Online" ? "Offline" : "Online";
-        d.lastSeen = new Date().toISOString();
-      } else if (d.status === "Online" && i % 2 === 0) {
-        d.lastSeen = new Date().toISOString();
-      }
-    });
-    return [...store];
+    const [response, organizationReference, employees] = await Promise.all([
+      apiClient.get<DeviceListResponse>("/devices?page=1&pageSize=200"),
+      referenceService.getOrganizationReference(),
+      referenceService.listEmployees(),
+    ]);
+
+    const sitesById = new Map(organizationReference.sites.map((item) => [item.id, item.name]));
+    const areasById = new Map(organizationReference.areas.map((item) => [item.id, item.name]));
+    const employeesById = new Map(employees.map((item) => [item.id, item.fullName]));
+
+    return response.items.map((item) => ({
+      id: item.id,
+      deviceId: item.deviceIdentifier ?? item.id,
+      hostname: item.hostname,
+      siteId: item.siteId,
+      siteName: sitesById.get(item.siteId) ?? item.siteId,
+      areaId: item.areaId ?? null,
+      areaName: item.areaId ? areasById.get(item.areaId) ?? item.areaId : null,
+      locationLabel: item.locationLabel ?? null,
+      ownershipMode: item.ownershipMode,
+      primaryEmployeeId: item.primaryEmployeeId ?? null,
+      primaryEmployeeName: item.primaryEmployeeId
+        ? employeesById.get(item.primaryEmployeeId) ?? item.primaryEmployeeId
+        : null,
+      agentVersion: item.agentVersion ?? null,
+      status: item.status,
+      lastSeen: item.lastHeartbeatAt ?? item.lastConnectionAt ?? null,
+    }));
   },
   async sendTest(id: string): Promise<void> {
-    await mockDelay(300);
-    // TODO(backend): POST /api/devices/:id/test-notification
-    return;
+    throw new Error(`Device test notification is not implemented for device ${id}.`);
   },
 };

@@ -46,7 +46,9 @@ function DashboardPage() {
     (n) => n.priority === "Emergency" && (n.status === "Sent" || n.status === "Sending"),
   ).length;
   const onlineDevices = devices.filter((d) => d.status === "Online").length;
-  const whatsAppRecipients = employees.filter((e) => e.fieldOfficer && e.status === "Active").length;
+  const whatsAppRecipients = employees.filter(
+    (e) => e.status === "Active" && e.preferredChannels.includes("WhatsApp"),
+  ).length;
   const totalRcp = notifications.reduce((s, n) => s + n.recipientsCount, 0);
   const totalAck = notifications.reduce((s, n) => s + n.ackCount, 0);
   const ackRate = totalRcp ? Math.round((totalAck / totalRcp) * 100) : 0;
@@ -160,7 +162,11 @@ function DashboardPage() {
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {n.category} · {n.targetType}
-                      {n.targetSite ? ` · ${n.targetSite}` : ""} · {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                      {n.targetSite
+                        ? ` · ${n.targetSite}`
+                        : n.targetArea
+                          ? ` · ${n.targetArea}`
+                          : ""} · {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
                     </div>
                   </div>
                   <div className="text-right text-xs text-muted-foreground">

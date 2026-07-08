@@ -201,6 +201,11 @@ Key columns:
 - `valid_from`
 - `valid_until`
 - `is_active`
+- `publish_request_json`
+- `requested_by_user_identifier`
+- `requested_by_username`
+- `requested_at`
+- `cancelled_at`
 - `created_at`
 - `updated_at`
 
@@ -270,6 +275,7 @@ Resolved snapshot of recipients at publish time.
 Key columns:
 - `id`
 - `communication_id`
+- `communication_schedule_id`
 - `recipient_type` such as `Device`, `Employee`, `ContactEndpoint`
 - `device_id` nullable
 - `employee_id` nullable
@@ -283,6 +289,10 @@ Key columns:
 - `recipient_name_snapshot`
 - `response_state`
 - `ack_state`
+- `template_version_snapshot`
+- `workflow_reference_id`
+- `workflow_snapshot_json`
+- `template_policy_snapshot_json`
 - `created_at`
 
 ## Workflow Tables
@@ -331,14 +341,18 @@ Channel-specific delivery jobs created after publish.
 Key columns:
 - `id`
 - `communication_id`
+- `communication_schedule_id`
 - `communication_recipient_id`
 - `channel`
 - `delivery_strategy`
 - `template_policy_snapshot_json`
 - `job_status`
+- `retry_limit`
+- `attempt_count`
 - `queued_at`
 - `started_at`
 - `completed_at`
+- `next_retry_at`
 - `last_error_message`
 
 ### delivery_attempts

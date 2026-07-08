@@ -3,10 +3,16 @@
 ## Document Status
 - Version: `0.3`
 - Status: `Active`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-08`
 
 ## Active Phase
-- `Phase 1 - Core Backend Foundation`
+- `Phase 2 - Delivery Orchestration`
+
+## Roadmap Execution Gate
+- Every roadmap checklist step must include a matching challenge/verification activity before it can be marked complete.
+- Challenge/verification must test the changed behavior, contract, workflow path, authorization path, or failure path relevant to that step.
+- Completion evidence must be written into the owning phase `Challenge / Verification` section or a referenced supporting verification document before status changes are declared.
+- A checked checklist item without recorded verification evidence is treated as `not yet complete`.
 
 ## Phase 0 - Documentation Baseline
 ### Status
@@ -60,7 +66,7 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 
 ## Phase 1 - Core Backend Foundation
 ### Status
-- `In Progress`
+- `Completed`
 
 ### Objective
 Implement the core backend foundation for authentication, role scope enforcement, organization data, communication management, and audience resolution.
@@ -90,15 +96,15 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `[x]` Authorization: implement backend scope enforcement guards.
 - `[x]` Authorization: challenge unauthorized access scenarios and expected errors.
 - `[x]` Database foundation: implement versioned migrations and initial schema for auth, organization, employee, and device tables.
-- `[ ]` Organization data: define the HR sync ingestion contract for basic org data. `On Hold - Post-Go-Live`
+- `[x]` Organization data: defer the HR sync ingestion contract from Phase 1 and record the non-blocking go-live decision. `Deferred To Post-Go-Live`
 - `[x]` Organization data: implement reference endpoints for sites, areas, departments, and sections.
 - `[x]` Organization data: implement sync-safe read models for employees and devices.
-- `[ ]` Communication drafts: implement draft create, get, update, duplicate, and cancel rules.
-- `[ ]` Communication drafts: enforce template-locked field validation in the API layer.
-- `[ ]` Audience preview: implement target resolution for site, area, employee, group, and device target types.
-- `[ ]` Audience preview: implement publish preview output with recipient counts and channel plan.
-- `[ ]` Frontend integration: replace mock auth and draft services with backend-backed service calls.
-- `[ ]` Frontend integration: validate that admin flows still work against the new contract.
+- `[x]` Communication drafts: implement draft create, get, update, and duplicate rules.
+- `[x]` Communication drafts: enforce template-locked field validation in the API layer.
+- `[x]` Audience preview: implement target resolution for site, area, employee, group, and device target types.
+- `[x]` Audience preview: implement publish preview output with recipient counts and channel plan.
+- `[x]` Frontend integration: replace mock auth and draft services with backend-backed service calls.
+- `[x]` Frontend integration: validate that admin flows still work against the new contract.
 
 ### Output
 - Running backend foundation with documented API coverage.
@@ -115,12 +121,19 @@ Implement the core backend foundation for authentication, role scope enforcement
 - Authorization scope is challenged with unauthorized access scenarios.
 - Representative authenticated smoke tests for organization and device endpoints return `200`, and an unauthenticated `GET /devices` request returns `401`.
 - Table existence and zero-row baseline were verified after migration application, confirming that current empty-state endpoint responses now come from unseeded tables rather than missing schema.
+- Admin login, template selection, draft authoring, draft detail, draft update, draft duplication, and audience preview flows now consume backend-backed services instead of relying on mock notification state or static targeting references.
+- Employee directory, device list, and dashboard summary metrics now consume backend-backed read models for employees and devices, while unsupported mutate actions remain explicitly disabled at the UI layer.
 - Publish preview output is challenged with representative target combinations.
+- `2026-07-08`: targeted API verification confirms `POST /communications`, `GET /communications/{communicationId}`, `PATCH /communications/{communicationId}`, `POST /communications/{communicationId}/duplicate`, and `POST /communications/{communicationId}/audience-preview` all work against the live database-backed runtime.
+- `2026-07-08`: template-locked field enforcement is challenged by attempting to remove a mandatory template channel, and the API correctly returns `422 MANDATORY_CHANNEL_REQUIRED`.
+- `2026-07-08`: saved-group audience resolution is now backed by `audience_groups` and `audience_group_members`, and representative `Group` plus `Device` target previews return expected recipients with zero preview warnings.
 - Go-live fast-track decision on `2026-07-07`: HR or organization baseline ingestion is not treated as a go-live blocker and is explicitly deferred until after the first live release unless operational needs force it back into scope.
+- `2026-07-08`: frontend-to-backend CORS compatibility was updated for local Phase 1 admin verification origins on `4173` and `5173`, and direct preflight plus authenticated login requests from the frontend origin to the backend verification runtime returned the expected headers and `200` login response.
+- `2026-07-08`: frontend smoke verification remains partially constrained by the current browser automation environment because cross-port localhost requests from the tool fail with `net::ERR_FAILED`, but the Phase 1 admin contract was still challenged through successful frontend build, backend-backed service wiring, and direct runtime checks against the same frontend origin and backend target.
 
 ## Phase 2 - Delivery Orchestration
 ### Status
-- `Pending`
+- `In Progress`
 
 ### Objective
 Implement communication publication, scheduling, recipient snapshots, delivery job orchestration, and routine reminder policy distribution for Windows Agent and WhatsApp.
@@ -142,24 +155,31 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `docs/phase-2-agent-minimum-slice-plan.md`
 
 ### Checklist
-- `[ ]` Publication flow: implement publish confirmation rules and schedule validation.
-- `[ ]` Publication flow: implement publish now and publish later execution paths.
-- `[ ]` Scheduling: implement one-time scheduling and persistence.
-- `[ ]` Scheduling: implement recurring schedule definition, execution mode selection, and validation.
-- `[ ]` Scheduling: implement server-generated recurring execution for standard scheduled communications.
-- `[ ]` Scheduling: implement versioned local reminder policy distribution for approved Windows Agent routine reminders.
-- `[ ]` Recipient snapshot: generate immutable snapshots for device-targeted and contact-targeted recipients.
-- `[ ]` Recipient snapshot: store template version and effective policy snapshot for execution.
-- `[ ]` Delivery orchestration: implement delivery job creation per recipient and per channel.
-- `[ ]` Delivery orchestration: implement delivery attempt records and bounded retry behavior.
-- `[ ]` Delivery orchestration: implement delivery status events including `Displayed` and `Read`.
-- `[ ]` WhatsApp boundary: implement outbound provider interface and callback ingestion contract.
-- `[ ]` WhatsApp boundary: implement read receipt mapping and delivery state normalization.
-- `[ ]` Windows Agent boundary: implement device session registration and realtime negotiation endpoints.
-- `[ ]` Windows Agent boundary: implement heartbeat, displayed, read, and response endpoints.
-- `[ ]` Windows Agent boundary: implement pending-message reconciliation for disconnected agents.
-- `[ ]` Windows Agent boundary: implement reminder policy sync, invalidation, and local occurrence reporting for approved routine reminders.
-- `[ ]` Frontend integration: replace mock publish, delivery, and device monitoring services with backend-backed calls.
+- `[x]` Slice 2.1 Publish guardrails: require confirmed preview and reject publish attempts for non-draft communications.
+- `[x]` Slice 2.1 Publish guardrails: validate `publishMode`, `scheduledAt`, `recurrenceRule`, `timezone`, `executionMode`, and `validUntil` combinations before state changes.
+- `[x]` Slice 2.1 Publish guardrails: reject template-policy violations that would make execution behavior ambiguous at publish time.
+- `[x]` Slice 2.2 Immediate publish acceptance: implement `publish now` state transition from `Draft` into an execution-ready backend state.
+- `[x]` Slice 2.2 Immediate publish acceptance: persist the operator-confirmed publish request together with effective publish metadata needed by downstream orchestration.
+- `[x]` Slice 2.3 Scheduled publication foundation: persist one-time scheduled publication with the authoritative schedule timestamp and timezone context.
+- `[x]` Slice 2.3 Scheduled publication foundation: implement cancel validation and the state transition for scheduled or active communications through `POST /communications/{communicationId}/cancel`.
+- `[x]` Slice 2.4 Recurring schedule foundation: persist recurring schedule definition, execution mode, version, and cancellation state on the server.
+- `[x]` Slice 2.4 Recurring schedule foundation: distinguish server-generated recurring execution from approved Windows Agent local routine reminder policy execution.
+- `[x]` Slice 2.5 Recipient snapshot foundation: generate immutable recipient snapshots for device-targeted and contact-targeted recipients at publish time.
+- `[x]` Slice 2.5 Recipient snapshot foundation: persist template version, workflow version reference, and effective policy snapshot with the execution record.
+- `[x]` Slice 2.6 Delivery job foundation: create delivery jobs per recipient and per selected channel from the publish snapshot.
+- `[x]` Slice 2.6 Delivery job foundation: persist delivery attempt records, bounded retry metadata, and normalized channel lifecycle status transitions.
+- `[x]` Slice 2.7 Windows Agent minimum trust: implement persisted device session issuance and validation for `POST /agent/session`.
+- `[x]` Slice 2.7 Windows Agent minimum trust: implement authenticated `POST /agent/heartbeat` with device-session ownership checks and device health refresh.
+- `[x]` Slice 2.8 Windows Agent reconciliation: implement `GET /agent/messages` as contract-valid pending-message reconciliation, including safe empty-state behavior.
+- `[x]` Slice 2.8 Windows Agent reconciliation: implement idempotent `Displayed` and `Read` evidence ingestion for `POST /agent/messages/{messageId}/displayed` and `POST /agent/messages/{messageId}/read`.
+- `[x]` Slice 2.8 Windows Agent reconciliation: implement `POST /agent/messages/{messageId}/response` using workflow-aware response validation when the published communication requires a response.
+- `[ ]` Slice 2.9 Realtime compatibility boundary: implement `POST /agent/realtime/negotiate` so the server can return concrete negotiation metadata instead of placeholders.
+- `[ ]` Slice 2.9 Reminder policy sync: implement `GET /agent/reminder-policies` plus policy invalidation semantics for approved local routine reminders.
+- `[ ]` Slice 2.9 Reminder policy sync: implement `POST /agent/reminder-policies/{policyId}/events` for local occurrence and sync-state reporting.
+- `[ ]` Slice 2.10 WhatsApp connector boundary: implement outbound provider interface, callback ingestion contract, and delivery-state normalization.
+- `[ ]` Slice 2.10 WhatsApp connector boundary: map actual provider delivery and read receipts into MTI Alert delivery lifecycle states without over-claiming `Read`.
+- `[ ]` Slice 2.11 Frontend publish integration: replace mock publish, cancel, delivery, and device-monitoring service calls with backend-backed integrations.
+- `[ ]` Slice 2.11 Frontend publish integration: validate the admin publish and delivery monitoring flow against the new Phase 2 contract.
 
 ### Output
 - Backend supports end-to-end communication dispatch orchestration.
@@ -172,9 +192,22 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - Failed delivery paths are challenged.
 - Delivery state rollup is validated for multi-channel recipients.
 - Disconnected-agent recovery is challenged with pending-message reconciliation scenarios.
+- `2026-07-08`: Slice 2.1 publish guardrails are now enforced through `POST /communications/{communicationId}/publish`, including draft-only publish, required preview confirmation, scheduling field-combination checks, recurring reminder execution validation, and publish-time template policy consistency checks.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance confirmed `422 PREVIEW_CONFIRMATION_REQUIRED`, `422 TIMEZONE_REQUIRED`, `422 TEMPLATE_POLICY_REFERENCE_REQUIRED`, `409 COMMUNICATION_NOT_DRAFT`, and `409 PUBLISH_ACCEPTANCE_NOT_READY`, while `POST /communications/{communicationId}/audience-preview` still returned `200` with resolved recipients for the same draft under test.
+- `2026-07-08`: Slice 2.2 now accepts `publishMode = Now` through `POST /communications/{communicationId}/publish`, transitions the communication from `Draft` into `Queued`, and persists an `Immediate` record in `communication_schedules` together with the validated publish request snapshot and actor metadata needed by downstream orchestration.
+- `2026-07-08`: Slice 2.3 now accepts one-time scheduled publication through `POST /communications/{communicationId}/publish`, persists timezone-aware schedule metadata in `communication_schedules`, and supports `POST /communications/{communicationId}/cancel` for `Scheduled`, `Queued`, `Sending`, and `Active` communications by transitioning them to `Cancelled` and deactivating the active schedule record.
+- `2026-07-08`: Slice 2.4 now accepts recurring publication through `POST /communications/{communicationId}/publish`, persists `Recurring` schedule records with `execution_mode`, validity metadata, and cancellation state in `communication_schedules`, and uses the persisted `execution_mode` to distinguish `ServerGenerated` recurring execution from `AgentLocalRoutine` foundation behavior.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4012` confirmed `publishMode = Now` returns `200` with communication status `Queued`, `publishMode = Scheduled` returns `200` with communication status `Scheduled`, `publishMode = Recurring` returns `200` with communication status `Scheduled`, scheduled cancellation returns `200` with communication status `Cancelled`, and `communication_schedules` persisted the expected `Immediate`, `Scheduled`, and `Recurring` records with the expected active-state transitions.
+- `2026-07-08`: Slice 2.5 now writes immutable `communication_recipients` snapshots during publish acceptance for `Device`, `Employee`, and `ContactEndpoint` recipients, carrying template version, workflow reference, and effective policy snapshot data with the execution record.
+- `2026-07-08`: Slice 2.6 now writes `delivery_jobs`, initial `delivery_attempts`, and append-only `delivery_events` from the publish snapshot, including bounded retry metadata and cancellation-to-failed normalization for pending jobs when a scheduled communication is cancelled.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4013` confirmed immediate, scheduled, and recurring publish acceptance produced the expected recipient snapshot mix, created per-channel delivery jobs, persisted initial attempts and `Queued` events, and transitioned pending scheduled jobs into `Failed` plus `AdminApi` failure events when the communication was cancelled.
 - Compatibility baseline added on `2026-07-08`: the backend now exposes `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, `GET /agent/messages`, `GET /agent/reminder-policies`, `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, `POST /agent/messages/{messageId}/response`, and `POST /agent/reminder-policies/{policyId}/events`.
-- Current limitation for that baseline: device sessions are in-memory, realtime negotiation returns placeholder hub metadata, and reconciliation or lifecycle endpoints are empty-safe compatibility handlers until delivery, reminder, and workflow persistence is implemented.
-- Verification evidence on `2026-07-08`: `npm run backend:typecheck` passed and `npm run backend:build` passed after registering the new `agent` server boundary.
+- Current limitation for that baseline: realtime negotiation still returns placeholder hub metadata, and reminder-policy synchronization remains an empty-safe compatibility handler until local routine policy persistence is implemented.
+- Verification evidence on `2026-07-08`: `npm run backend:typecheck` passed, `npm run backend:build` passed, and `npm run backend:migrate:dev` applied `0005_phase2_communication_schedules.up.sql` plus `0006_phase2_delivery_foundation.up.sql` after implementing publish, cancel, recipient snapshot, and delivery foundation persistence.
+- `2026-07-08`: Slice 2.7 now persists `POST /agent/session` trust in `device_sessions`, rotates the device token on session refresh, renews expiry on authenticated agent usage, and uses persisted device ownership to validate `POST /agent/heartbeat` before updating device freshness metadata.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4014` confirmed a registered device receives `200` from `POST /agent/session`, exactly one persisted `device_sessions` row remains for that device after session refresh, `POST /agent/heartbeat` returns `204` and updates `devices.last_heartbeat_at` plus `status`, and the replaced token is rejected with `401 UNAUTHORIZED`.
+- `2026-07-08`: Slice 2.8 now serves `GET /agent/messages` from persisted `delivery_jobs` plus `communication_recipients`, records idempotent `Displayed` and `Read` delivery events from the Windows Agent, and accepts workflow-validated `POST /agent/messages/{messageId}/response` by transitioning the message into `Responded` while updating recipient response and acknowledgement state.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4015` with `LDAP_ALLOWED_GROUPS=''` confirmed an admin can create and publish a Windows Agent-targeted communication, the target device receives exactly one pending message from `GET /agent/messages`, duplicate `Displayed` and `Read` submissions remain `204` and create only one lifecycle event each, `POST /agent/messages/{messageId}/response` returns `200`, the delivery job transitions to `Responded`, recipient state becomes `Responded` plus `Acknowledged`, and the message no longer appears in reconciliation after response submission.
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status

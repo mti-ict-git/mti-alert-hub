@@ -35,13 +35,14 @@ export async function createBackendApp() {
   const deviceReadService = new DeviceReadService(database.client);
   const agentService = new AgentService(database.client, agentSessionStore, env, logger);
   const communicationTemplateService = new CommunicationTemplateService(database.client);
-  const communicationDraftService = new CommunicationDraftService(
-    database.client,
-    communicationTemplateService,
-  );
   const audiencePreviewService = new AudiencePreviewService(
     database.client,
     communicationTemplateService,
+  );
+  const communicationDraftService = new CommunicationDraftService(
+    database.client,
+    communicationTemplateService,
+    audiencePreviewService,
   );
   const authService = new AuthService(
     ldapAuthenticator,

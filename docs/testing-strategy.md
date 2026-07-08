@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.1`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-08`
 - Owner: `Engineering / QA`
 
 ## Purpose
@@ -17,6 +17,12 @@ This document defines how `MTI Alert` work should be verified so roadmap progres
 
 ## Core Verification Rule
 No meaningful backend or workflow change is complete until verification evidence is recorded for the changed area.
+
+## Checklist Closure Rule
+No checklist step in `docs/implementation-roadmap.md` may be marked complete until:
+- the implemented step has been challenged or verified against its intended behavior
+- the evidence is recorded in the owning phase `Challenge / Verification` section or a referenced verification artifact
+- any remaining verification gap or external blocker is stated explicitly
 
 Minimum evidence should include one or more of:
 - build or typecheck passed

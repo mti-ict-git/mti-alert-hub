@@ -1,6 +1,11 @@
-import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
+import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
+import type {
+  ChannelPlanItem,
+  ExecutionAudienceResolution,
+} from "./audience-preview-service.js";
+import { AudiencePreviewService } from "./audience-preview-service.js";
 import type {
   Channel,
   CommunicationTemplatePolicy,
@@ -66,6 +71,24 @@ type UpdateCommunicationDraftInput = {
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   deliveryStrategy?: DeliveryStrategy | null;
+};
+
+type PublishMode = "Now" | "Scheduled" | "Recurring";
+type ScheduleExecutionMode = "ServerGenerated" | "AgentLocalRoutine";
+
+type PublishCommunicationInput = {
+  publishMode: PublishMode;
+  scheduledAt?: string | null;
+  recurrenceRule?: string | null;
+  timezone?: string | null;
+  executionMode?: ScheduleExecutionMode | null;
+  validUntil?: string | null;
+  confirmedPreview: boolean;
+};
+
+type PublicationActor = {
+  userIdentifier: string;
+  username: string;
 };
 
 type ListCommunicationOptions = {
@@ -136,6 +159,7 @@ export class CommunicationDraftService {
   constructor(
     private readonly database: DatabaseClient,
     private readonly templateService: CommunicationTemplateService,
+    private readonly audiencePreviewService: AudiencePreviewService,
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
@@ -392,6 +416,206 @@ export class CommunicationDraftService {
     return this.getCommunicationDetail(duplicatedId);
   }
 
+  async publishCommunication(
+    communicationId: string,
+    input: PublishCommunicationInput,
+    actor: PublicationActor,
+  ) {
+    const existing = await this.getCommunicationDetailRow(communicationId);
+    if (!existing) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    assertDraftStatus(existing.status, "published");
+
+    const targets = await this.listTargets(communicationId);
+    validateTargets(targets);
+
+    const channelSelections = normalizeChannelArray(existing.channelSelections);
+    validateChannelSelections(channelSelections);
+    validatePublishRequest(existing, input, channelSelections);
+
+    const template = await this.resolveActiveTemplatePolicy(existing);
+    validatePublishTemplatePolicy({
+      communication: existing,
+      template,
+      targets,
+      channelSelections,
+    });
+    const executionAudience = await this.audiencePreviewService.resolveExecutionAudience(
+      communicationId,
+    );
+    const workflowSnapshot = existing.workflowId
+      ? await this.getWorkflowSummary(existing.workflowId)
+      : null;
+    const templatePolicySnapshot = buildTemplatePolicySnapshot({
+      communication: existing,
+      template,
+      workflow: workflowSnapshot,
+      selectedChannels: executionAudience.selectedChannels,
+      channelPlan: executionAudience.channelPlan,
+    });
+
+    const acceptedAt = new Date().toISOString();
+    await this.database.withTransaction(async (transaction) => {
+      await deactivateActiveSchedules(transaction, communicationId, acceptedAt);
+
+      if (input.publishMode === "Now") {
+        await transaction.query(
+          `
+            update public.communications
+            set
+              status = 'Queued',
+              published_at = $2::timestamptz,
+              scheduled_at = null,
+              cancelled_at = null
+            where id::text = $1
+          `,
+          [communicationId, acceptedAt],
+        );
+
+        const scheduleId = await insertCommunicationSchedule(transaction, {
+          communicationId,
+          scheduleType: "Immediate",
+          scheduledAt: null,
+          recurrenceRule: null,
+          timezone: null,
+          executionMode: null,
+          validFrom: acceptedAt,
+          validUntil: null,
+          publishRequest: input,
+          actor,
+          requestedAt: acceptedAt,
+        });
+
+        await persistPublishExecutionFoundation(transaction, {
+          communicationId,
+          communicationScheduleId: scheduleId,
+          acceptedAt,
+          recipients: executionAudience,
+          communication: existing,
+          workflowSnapshot,
+          templatePolicySnapshot,
+        });
+
+        return;
+      }
+
+      if (input.publishMode === "Scheduled") {
+        await transaction.query(
+          `
+            update public.communications
+            set
+              status = 'Scheduled',
+              scheduled_at = $2::timestamptz,
+              cancelled_at = null
+            where id::text = $1
+          `,
+          [communicationId, input.scheduledAt ?? null],
+        );
+
+        const scheduleId = await insertCommunicationSchedule(transaction, {
+          communicationId,
+          scheduleType: "Scheduled",
+          scheduledAt: input.scheduledAt ?? null,
+          recurrenceRule: null,
+          timezone: input.timezone ?? null,
+          executionMode: null,
+          validFrom: input.scheduledAt ?? null,
+          validUntil: null,
+          publishRequest: input,
+          actor,
+          requestedAt: acceptedAt,
+        });
+
+        await persistPublishExecutionFoundation(transaction, {
+          communicationId,
+          communicationScheduleId: scheduleId,
+          acceptedAt,
+          recipients: executionAudience,
+          communication: existing,
+          workflowSnapshot,
+          templatePolicySnapshot,
+        });
+
+        return;
+      }
+
+      await transaction.query(
+        `
+          update public.communications
+          set
+            status = 'Scheduled',
+            scheduled_at = $2::timestamptz,
+            cancelled_at = null
+          where id::text = $1
+        `,
+        [communicationId, input.scheduledAt ?? null],
+      );
+
+      const scheduleId = await insertCommunicationSchedule(transaction, {
+        communicationId,
+        scheduleType: "Recurring",
+        scheduledAt: input.scheduledAt ?? null,
+        recurrenceRule: input.recurrenceRule ?? null,
+        timezone: input.timezone ?? null,
+        executionMode: input.executionMode ?? null,
+        validFrom: input.scheduledAt ?? acceptedAt,
+        validUntil: input.validUntil ?? null,
+        publishRequest: input,
+        actor,
+        requestedAt: acceptedAt,
+      });
+
+      await persistPublishExecutionFoundation(transaction, {
+        communicationId,
+        communicationScheduleId: scheduleId,
+        acceptedAt,
+        recipients: executionAudience,
+        communication: existing,
+        workflowSnapshot,
+        templatePolicySnapshot,
+      });
+    });
+
+    return this.getCommunicationDetail(communicationId);
+  }
+
+  async cancelCommunication(communicationId: string) {
+    const existing = await this.getCommunicationDetailRow(communicationId);
+    if (!existing) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    assertCancelableStatus(existing.status);
+    const cancelledAt = new Date().toISOString();
+
+    await this.database.withTransaction(async (transaction) => {
+      await deactivateActiveSchedules(transaction, communicationId, cancelledAt);
+      await markDeliveryJobsCancelled(transaction, communicationId, cancelledAt);
+      await transaction.query(
+        `
+          update public.communications
+          set
+            status = 'Cancelled',
+            cancelled_at = $2::timestamptz
+          where id::text = $1
+        `,
+        [communicationId, cancelledAt],
+      );
+    });
+
+    return this.getCommunicationDetail(communicationId);
+  }
+
   private async serializeCommunicationDetail(detail: CommunicationDetailRow) {
     const [targets, workflow] = await Promise.all([
       this.listTargets(detail.id),
@@ -465,6 +689,33 @@ export class CommunicationDraftService {
     );
 
     return rows;
+  }
+
+  private async resolveActiveTemplatePolicy(detail: CommunicationDetailRow) {
+    if (!detail.templateId) {
+      if (detail.deliveryStrategy === "TemplatePolicy") {
+        throw new AppError({
+          statusCode: 422,
+          code: "TEMPLATE_POLICY_REFERENCE_REQUIRED",
+          message:
+            "A communication using TemplatePolicy delivery strategy must reference an active template.",
+        });
+      }
+
+      return null;
+    }
+
+    const template = await this.templateService.findTemplateById(detail.templateId);
+    if (template) {
+      return template;
+    }
+
+    throw new AppError({
+      statusCode: 409,
+      code: "TEMPLATE_POLICY_UNAVAILABLE",
+      message:
+        "The referenced communication template is not currently available for publish-time policy validation.",
+    });
   }
 
   private async replaceTargets(communicationId: string, targets: TargetRule[]) {
@@ -789,7 +1040,7 @@ function dedupeChannels(channels: Channel[]) {
   return [...new Set(channels)];
 }
 
-function assertDraftStatus(status: CommunicationStatus) {
+function assertDraftStatus(status: CommunicationStatus, action = "updated") {
   if (status === "Draft") {
     return;
   }
@@ -797,8 +1048,790 @@ function assertDraftStatus(status: CommunicationStatus) {
   throw new AppError({
     statusCode: 409,
     code: "COMMUNICATION_NOT_DRAFT",
-    message: "Only draft communications may be updated.",
+    message: `Only draft communications may be ${action}.`,
   });
+}
+
+function assertCancelableStatus(status: CommunicationStatus) {
+  if (["Scheduled", "Queued", "Sending", "Active"].includes(status)) {
+    return;
+  }
+
+  throw new AppError({
+    statusCode: 409,
+    code: "COMMUNICATION_CANNOT_BE_CANCELLED",
+    message: "Only scheduled or active communications may be cancelled.",
+  });
+}
+
+function validatePublishRequest(
+  communication: CommunicationDetailRow,
+  input: PublishCommunicationInput,
+  channelSelections: Channel[],
+) {
+  if (input.confirmedPreview !== true) {
+    throw new AppError({
+      statusCode: 422,
+      code: "PREVIEW_CONFIRMATION_REQUIRED",
+      message: "Publish requests must confirm the latest audience preview before continuing.",
+    });
+  }
+
+  const scheduledAt = parseOptionalIsoDate(input.scheduledAt, "scheduledAt");
+  const validUntil = parseOptionalIsoDate(input.validUntil, "validUntil");
+  const recurrenceRule = normalizeNullableText(input.recurrenceRule ?? null);
+  const timezone = normalizeNullableText(input.timezone ?? null);
+  const now = new Date();
+
+  switch (input.publishMode) {
+    case "Now": {
+      assertPublishFieldAbsent(scheduledAt, "scheduledAt", input.publishMode);
+      assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
+      assertPublishFieldAbsent(timezone, "timezone", input.publishMode);
+      assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
+      assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
+      return;
+    }
+    case "Scheduled": {
+      if (!scheduledAt) {
+        throw new AppError({
+          statusCode: 422,
+          code: "SCHEDULED_AT_REQUIRED",
+          message: "Scheduled publish mode requires a scheduledAt timestamp.",
+        });
+      }
+      if (scheduledAt <= now) {
+        throw new AppError({
+          statusCode: 422,
+          code: "SCHEDULED_AT_IN_PAST",
+          message: "Scheduled publish mode requires a future scheduledAt timestamp.",
+        });
+      }
+      if (!timezone) {
+        throw new AppError({
+          statusCode: 422,
+          code: "TIMEZONE_REQUIRED",
+          message: "Scheduled publish mode requires a timezone value.",
+        });
+      }
+      assertValidTimeZone(timezone);
+      assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
+      assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
+      assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
+      return;
+    }
+    case "Recurring": {
+      if (communication.communicationType !== "Reminder") {
+        throw new AppError({
+          statusCode: 422,
+          code: "RECURRING_ONLY_FOR_REMINDERS",
+          message: "Recurring publication is currently supported only for reminder communications.",
+        });
+      }
+      if (!recurrenceRule) {
+        throw new AppError({
+          statusCode: 422,
+          code: "RECURRENCE_RULE_REQUIRED",
+          message: "Recurring publish mode requires a recurrenceRule value.",
+        });
+      }
+      if (!timezone) {
+        throw new AppError({
+          statusCode: 422,
+          code: "TIMEZONE_REQUIRED",
+          message: "Recurring publish mode requires a timezone value.",
+        });
+      }
+      if (!input.executionMode) {
+        throw new AppError({
+          statusCode: 422,
+          code: "EXECUTION_MODE_REQUIRED",
+          message: "Recurring publish mode requires an executionMode value.",
+        });
+      }
+      assertValidTimeZone(timezone);
+      if (scheduledAt && scheduledAt <= now) {
+        throw new AppError({
+          statusCode: 422,
+          code: "SCHEDULED_AT_IN_PAST",
+          message: "Recurring publish mode requires scheduledAt to be in the future when provided.",
+        });
+      }
+      if (validUntil) {
+        const effectiveStart = scheduledAt ?? now;
+        if (validUntil <= effectiveStart) {
+          throw new AppError({
+            statusCode: 422,
+            code: "VALID_UNTIL_INVALID",
+            message: "validUntil must be later than the recurring schedule start.",
+          });
+        }
+      }
+      if (
+        input.executionMode === "AgentLocalRoutine" &&
+        !channelSelections.includes("WindowsAgent")
+      ) {
+        throw new AppError({
+          statusCode: 422,
+          code: "WINDOWS_AGENT_CHANNEL_REQUIRED",
+          message:
+            "AgentLocalRoutine execution mode requires the WindowsAgent channel to remain selected.",
+        });
+      }
+      return;
+    }
+  }
+}
+
+function validatePublishTemplatePolicy(options: {
+  communication: CommunicationDetailRow;
+  template: CommunicationTemplatePolicy | null;
+  targets: TargetRule[];
+  channelSelections: Channel[];
+}) {
+  const { communication, template, targets, channelSelections } = options;
+
+  if (communication.requiresResponse && !communication.workflowId) {
+    throw new AppError({
+      statusCode: 422,
+      code: "WORKFLOW_REQUIRED",
+      message: "A workflow is required for this communication before publishing.",
+    });
+  }
+
+  if (!template) {
+    return;
+  }
+
+  validateAllowedTargetTypes(template, targets);
+  validateMandatoryChannels(template, channelSelections);
+  validateTemplateLockedField("priority", template, communication.priority, template.defaultPriority);
+  validateTemplateLockedField(
+    "workflowId",
+    template,
+    communication.workflowId,
+    template.defaultWorkflowId,
+  );
+  validateTemplateLockedField(
+    "deliveryStrategy",
+    template,
+    communication.deliveryStrategy,
+    template.defaultDeliveryStrategy,
+  );
+  validateTemplateLockedField(
+    "windowsAgentPresentation",
+    template,
+    communication.windowsAgentPresentation,
+    template.defaultWindowsAgentPresentation,
+  );
+
+  if (template.lockedFields.includes("channelSelections")) {
+    const allowedChannels = new Set([...template.mandatoryChannels, ...template.optionalChannels]);
+    const hasUnsupportedChannel = channelSelections.some((channel) => !allowedChannels.has(channel));
+    if (hasUnsupportedChannel) {
+      throw new AppError({
+        statusCode: 422,
+        code: "TEMPLATE_CHANNEL_OVERRIDE_REJECTED",
+        message: "The selected channels override a template-locked channel policy.",
+      });
+    }
+  }
+
+  if (
+    template.dualPathRule?.enabled &&
+    template.dualPathRule.mode === "DesktopFirstShortDelayWhatsApp" &&
+    channelSelections.includes("WhatsApp") &&
+    !channelSelections.includes("WindowsAgent")
+  ) {
+    throw new AppError({
+      statusCode: 422,
+      code: "DUAL_PATH_WINDOWS_AGENT_REQUIRED",
+      message:
+        "Desktop-first dual-path execution requires the WindowsAgent channel when WhatsApp follow-up is selected.",
+    });
+  }
+}
+
+function assertPublishFieldAbsent(value: unknown, field: string, publishMode: PublishMode) {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  throw new AppError({
+    statusCode: 422,
+    code: "PUBLISH_FIELD_NOT_ALLOWED",
+    message: `${field} is not allowed when publishMode is ${publishMode}.`,
+  });
+}
+
+function parseOptionalIsoDate(value: string | null | undefined, field: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AppError({
+      statusCode: 422,
+      code: "INVALID_DATE_TIME",
+      message: `${field} must be a valid ISO 8601 date-time value.`,
+    });
+  }
+
+  return parsed;
+}
+
+function assertValidTimeZone(timezone: string) {
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    throw new AppError({
+      statusCode: 422,
+      code: "INVALID_TIMEZONE",
+      message: "timezone must be a valid IANA time zone identifier.",
+    });
+  }
+}
+
+async function insertCommunicationSchedule(
+  transaction: TransactionClient,
+  options: {
+    communicationId: string;
+    scheduleType: "Immediate" | "Scheduled" | "Recurring";
+    scheduledAt: string | null;
+    recurrenceRule: string | null;
+    timezone: string | null;
+    executionMode: ScheduleExecutionMode | null;
+    validFrom: string | null;
+    validUntil: string | null;
+    publishRequest: PublishCommunicationInput;
+    actor: PublicationActor;
+    requestedAt: string;
+  },
+) {
+  const rows = await transaction.query<{ id: string }>(
+    `
+      insert into public.communication_schedules (
+        communication_id,
+        schedule_type,
+        scheduled_at,
+        recurrence_rule,
+        timezone,
+        execution_mode,
+        valid_from,
+        valid_until,
+        publish_request_json,
+        requested_by_user_identifier,
+        requested_by_username,
+        requested_at
+      )
+      values (
+        $1::uuid,
+        $2,
+        $3::timestamptz,
+        $4,
+        $5,
+        $6,
+        $7::timestamptz,
+        $8::timestamptz,
+        $9::jsonb,
+        $10,
+        $11,
+        $12::timestamptz
+      )
+      returning id::text as id
+    `,
+    [
+      options.communicationId,
+      options.scheduleType,
+      options.scheduledAt,
+      options.recurrenceRule,
+      options.timezone,
+      options.executionMode,
+      options.validFrom,
+      options.validUntil,
+      JSON.stringify(options.publishRequest),
+      options.actor.userIdentifier,
+      options.actor.username,
+      options.requestedAt,
+    ],
+  );
+
+  const scheduleId = rows[0]?.id;
+  if (!scheduleId) {
+    throw new AppError({
+      statusCode: 500,
+      code: "COMMUNICATION_SCHEDULE_CREATE_FAILED",
+      message: "The publish schedule could not be persisted.",
+    });
+  }
+
+  return scheduleId;
+}
+
+function buildTemplatePolicySnapshot(options: {
+  communication: CommunicationDetailRow;
+  template: CommunicationTemplatePolicy | null;
+  workflow: WorkflowSummary | null;
+  selectedChannels: Channel[];
+  channelPlan: ChannelPlanItem[];
+}) {
+  return {
+    templateId: options.template?.id ?? options.communication.templateId,
+    templateVersion: options.communication.templateVersion,
+    workflowId: options.communication.workflowId,
+    workflow: options.workflow,
+    communicationType: options.communication.communicationType,
+    priority: options.communication.priority,
+    requiresResponse: options.communication.requiresResponse,
+    windowsAgentPresentation: options.communication.windowsAgentPresentation,
+    deliveryStrategy: options.communication.deliveryStrategy,
+    criticalBehaviorMode: options.template?.criticalBehaviorMode ?? null,
+    defaultChannels: options.template?.defaultChannels ?? [],
+    mandatoryChannels: options.template?.mandatoryChannels ?? [],
+    optionalChannels: options.template?.optionalChannels ?? [],
+    allowedTargetTypes: options.template?.allowedTargetTypes ?? [],
+    lockedFields: options.template?.lockedFields ?? [],
+    editableFields: options.template?.editableFields ?? [],
+    dualPathRule: options.template?.dualPathRule ?? null,
+    selectedChannels: options.selectedChannels,
+    channelPlan: options.channelPlan,
+  };
+}
+
+async function persistPublishExecutionFoundation(
+  transaction: TransactionClient,
+  options: {
+    communicationId: string;
+    communicationScheduleId: string;
+    acceptedAt: string;
+    recipients: ExecutionAudienceResolution;
+    communication: CommunicationDetailRow;
+    workflowSnapshot: WorkflowSummary | null;
+    templatePolicySnapshot: ReturnType<typeof buildTemplatePolicySnapshot>;
+  },
+) {
+  const recipientSeeds = buildRecipientSeeds({
+    recipients: options.recipients,
+    communication: options.communication,
+  });
+
+  for (const recipient of recipientSeeds) {
+    const recipientRows = await transaction.query<{ id: string }>(
+      `
+        insert into public.communication_recipients (
+          communication_id,
+          communication_schedule_id,
+          recipient_type,
+          device_id,
+          employee_id,
+          channel_endpoint,
+          site_id,
+          area_id,
+          site_name_snapshot,
+          area_name_snapshot,
+          department_name_snapshot,
+          section_name_snapshot,
+          recipient_name_snapshot,
+          response_state,
+          ack_state,
+          template_version_snapshot,
+          workflow_reference_id,
+          workflow_snapshot_json,
+          template_policy_snapshot_json
+        )
+        values (
+          $1::uuid,
+          $2::uuid,
+          $3,
+          $4::uuid,
+          $5::uuid,
+          $6,
+          $7::uuid,
+          $8::uuid,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13,
+          $14,
+          $15,
+          $16,
+          $17::uuid,
+          $18::jsonb,
+          $19::jsonb
+        )
+        returning id::text as id
+      `,
+      [
+        options.communicationId,
+        options.communicationScheduleId,
+        recipient.recipientType,
+        recipient.deviceId,
+        recipient.employeeId,
+        recipient.channelEndpoint,
+        recipient.siteId,
+        recipient.areaId,
+        recipient.siteName,
+        recipient.areaName,
+        recipient.departmentName,
+        recipient.sectionName,
+        recipient.recipientName,
+        options.communication.requiresResponse ? "AwaitingResponse" : "NotRequired",
+        "Pending",
+        options.communication.templateVersion,
+        options.communication.workflowId,
+        JSON.stringify(options.workflowSnapshot),
+        JSON.stringify(options.templatePolicySnapshot),
+      ],
+    );
+
+    const communicationRecipientId = recipientRows[0]?.id;
+    if (!communicationRecipientId) {
+      throw new AppError({
+        statusCode: 500,
+        code: "COMMUNICATION_RECIPIENT_CREATE_FAILED",
+        message: "The recipient execution snapshot could not be persisted.",
+      });
+    }
+
+    for (const job of recipient.jobs) {
+      const jobSnapshot = {
+        ...options.templatePolicySnapshot,
+        channel: job.channel,
+        channelPlan: job.channelPlan,
+        channelEndpoint: recipient.channelEndpoint,
+      };
+
+      const deliveryJobRows = await transaction.query<{ id: string }>(
+        `
+          insert into public.delivery_jobs (
+            communication_id,
+            communication_schedule_id,
+            communication_recipient_id,
+            channel,
+            delivery_strategy,
+            template_policy_snapshot_json,
+            job_status,
+            retry_limit,
+            attempt_count,
+            queued_at
+          )
+          values (
+            $1::uuid,
+            $2::uuid,
+            $3::uuid,
+            $4,
+            $5,
+            $6::jsonb,
+            'Pending',
+            $7,
+            1,
+            $8::timestamptz
+          )
+          returning id::text as id
+        `,
+        [
+          options.communicationId,
+          options.communicationScheduleId,
+          communicationRecipientId,
+          job.channel,
+          options.communication.deliveryStrategy,
+          JSON.stringify(jobSnapshot),
+          job.retryLimit,
+          options.acceptedAt,
+        ],
+      );
+
+      const deliveryJobId = deliveryJobRows[0]?.id;
+      if (!deliveryJobId) {
+        throw new AppError({
+          statusCode: 500,
+          code: "DELIVERY_JOB_CREATE_FAILED",
+          message: "The delivery job foundation could not be persisted.",
+        });
+      }
+
+      await transaction.query(
+        `
+          insert into public.delivery_attempts (
+            delivery_job_id,
+            attempt_number,
+            attempt_status,
+            attempted_at,
+            response_payload_json
+          )
+          values (
+            $1::uuid,
+            1,
+            'Pending',
+            $2::timestamptz,
+            $3::jsonb
+          )
+        `,
+        [
+          deliveryJobId,
+          options.acceptedAt,
+          JSON.stringify({
+            seededAt: options.acceptedAt,
+            foundation: "Phase2Slice26",
+          }),
+        ],
+      );
+
+      await transaction.query(
+        `
+          insert into public.delivery_events (
+            delivery_job_id,
+            event_type,
+            event_source,
+            event_payload_json,
+            occurred_at
+          )
+          values (
+            $1::uuid,
+            'Queued',
+            'System',
+            $2::jsonb,
+            $3::timestamptz
+          )
+        `,
+        [
+          deliveryJobId,
+          JSON.stringify({
+            communicationRecipientId,
+            channel: job.channel,
+            strategy: job.channelPlan.strategy,
+            plannedDelaySeconds: job.channelPlan.plannedDelaySeconds,
+          }),
+          options.acceptedAt,
+        ],
+      );
+    }
+  }
+}
+
+function buildRecipientSeeds(options: {
+  recipients: ExecutionAudienceResolution;
+  communication: CommunicationDetailRow;
+}) {
+  const channelPlanByChannel = new Map(
+    options.recipients.channelPlan.map((item) => [item.channel, item]),
+  );
+
+  return options.recipients.recipients.flatMap((recipient) => {
+    const recipientName = resolveRecipientName(recipient);
+    const seeds: Array<{
+      recipientType: "Device" | "Employee" | "ContactEndpoint";
+      deviceId: string | null;
+      employeeId: string | null;
+      channelEndpoint: string | null;
+      siteId: string | null;
+      areaId: string | null;
+      siteName: string | null;
+      areaName: string | null;
+      departmentName: string | null;
+      sectionName: string | null;
+      recipientName: string | null;
+      jobs: Array<{
+        channel: Channel;
+        retryLimit: number;
+        channelPlan: ChannelPlanItem;
+      }>;
+    }> = [];
+
+    if (
+      recipient.recipientType === "Device" &&
+      options.recipients.selectedChannels.includes("WindowsAgent") &&
+      recipient.availableChannels.includes("WindowsAgent")
+    ) {
+      const channelPlan = channelPlanByChannel.get("WindowsAgent");
+      if (channelPlan) {
+        seeds.push({
+          recipientType: "Device",
+          deviceId: recipient.deviceId,
+          employeeId: recipient.employeeId,
+          channelEndpoint:
+            recipient.deviceIdentifier ?? recipient.hostname ?? recipient.deviceId ?? null,
+          siteId: recipient.siteId,
+          areaId: recipient.areaId,
+          siteName: recipient.siteName,
+          areaName: recipient.areaName,
+          departmentName: recipient.departmentName,
+          sectionName: recipient.sectionName,
+          recipientName,
+          jobs: [
+            {
+              channel: "WindowsAgent",
+              retryLimit: determineRetryLimit("WindowsAgent"),
+              channelPlan,
+            },
+          ],
+        });
+      }
+    }
+
+    if (
+      recipient.recipientType === "Employee" &&
+      options.recipients.selectedChannels.includes("WindowsAgent") &&
+      recipient.availableChannels.includes("WindowsAgent")
+    ) {
+      const channelPlan = channelPlanByChannel.get("WindowsAgent");
+      if (channelPlan) {
+        seeds.push({
+          recipientType: "Employee",
+          deviceId: recipient.deviceId,
+          employeeId: recipient.employeeId,
+          channelEndpoint: recipient.employeeNumber ?? recipient.employeeId ?? null,
+          siteId: recipient.siteId,
+          areaId: recipient.areaId,
+          siteName: recipient.siteName,
+          areaName: recipient.areaName,
+          departmentName: recipient.departmentName,
+          sectionName: recipient.sectionName,
+          recipientName,
+          jobs: [
+            {
+              channel: "WindowsAgent",
+              retryLimit: determineRetryLimit("WindowsAgent"),
+              channelPlan,
+            },
+          ],
+        });
+      }
+    }
+
+    for (const contactChannel of ["WhatsApp", "Email"] as const) {
+      if (
+        !options.recipients.selectedChannels.includes(contactChannel) ||
+        !recipient.availableChannels.includes(contactChannel)
+      ) {
+        continue;
+      }
+
+      const channelEndpoint =
+        contactChannel === "WhatsApp" ? recipient.whatsappNumber : recipient.email;
+      const channelPlan = channelPlanByChannel.get(contactChannel);
+      if (!channelEndpoint || !channelPlan) {
+        continue;
+      }
+
+      seeds.push({
+        recipientType: "ContactEndpoint",
+        deviceId: null,
+        employeeId: recipient.employeeId,
+        channelEndpoint,
+        siteId: recipient.siteId,
+        areaId: recipient.areaId,
+        siteName: recipient.siteName,
+        areaName: recipient.areaName,
+        departmentName: recipient.departmentName,
+        sectionName: recipient.sectionName,
+        recipientName,
+        jobs: [
+          {
+            channel: contactChannel,
+            retryLimit: determineRetryLimit(contactChannel),
+            channelPlan,
+          },
+        ],
+      });
+    }
+
+    return seeds;
+  });
+}
+
+function resolveRecipientName(recipient: ExecutionAudienceResolution["recipients"][number]) {
+  return (
+    recipient.fullName ??
+    recipient.hostname ??
+    recipient.deviceIdentifier ??
+    recipient.employeeNumber ??
+    recipient.employeeId ??
+    recipient.deviceId
+  );
+}
+
+function determineRetryLimit(channel: Channel) {
+  switch (channel) {
+    case "WindowsAgent":
+      return 3;
+    case "WhatsApp":
+      return 2;
+    case "Email":
+    case "DigitalSignage":
+      return 1;
+  }
+}
+
+async function deactivateActiveSchedules(
+  transaction: TransactionClient,
+  communicationId: string,
+  cancelledAt: string,
+) {
+  await transaction.query(
+    `
+      update public.communication_schedules
+      set
+        is_active = false,
+        cancelled_at = coalesce(cancelled_at, $2::timestamptz)
+      where communication_id::text = $1
+        and is_active = true
+    `,
+    [communicationId, cancelledAt],
+  );
+}
+
+async function markDeliveryJobsCancelled(
+  transaction: TransactionClient,
+  communicationId: string,
+  cancelledAt: string,
+) {
+  const jobRows = await transaction.query<{ id: string }>(
+    `
+      update public.delivery_jobs
+      set
+        job_status = 'Failed',
+        completed_at = coalesce(completed_at, $2::timestamptz),
+        last_error_message = coalesce(
+          last_error_message,
+          'Cancelled by operator before delivery execution completed.'
+        )
+      where communication_id::text = $1
+        and job_status = 'Pending'
+      returning id::text as id
+    `,
+    [communicationId, cancelledAt],
+  );
+
+  for (const job of jobRows) {
+    await transaction.query(
+      `
+        insert into public.delivery_events (
+          delivery_job_id,
+          event_type,
+          event_source,
+          event_payload_json,
+          occurred_at
+        )
+        values (
+          $1::uuid,
+          'Failed',
+          'AdminApi',
+          $2::jsonb,
+          $3::timestamptz
+        )
+      `,
+      [
+        job.id,
+        JSON.stringify({
+          reason: "CommunicationCancelled",
+        }),
+        cancelledAt,
+      ],
+    );
+  }
 }
 
 async function assertWorkflowExists(database: DatabaseClient, workflowId: string) {

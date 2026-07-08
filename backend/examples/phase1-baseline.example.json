@@ -72,5 +72,12 @@
       "osVersion": "Windows 11",
       "status": "Online"
     }
+  ],
+  "audienceGroups": [
+    {
+      "name": "IT Operators",
+      "description": "Baseline group for Phase 1 audience preview verification.",
+      "employeeNumbers": ["EMP-1001"]
+    }
   ]
 }

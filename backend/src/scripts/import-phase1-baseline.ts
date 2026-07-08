@@ -27,6 +27,7 @@ async function main() {
     sections: 0,
     employees: 0,
     devices: 0,
+    audienceGroups: 0,
   };
 
   const client = await pool.connect();

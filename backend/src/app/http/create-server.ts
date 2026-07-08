@@ -142,7 +142,14 @@ export function createHttpServer(options: CreateServerOptions) {
 function applyCorsHeaders(
   request: IncomingMessage,
   response: ServerResponse,
-  allowedOrigins: string[] = ["http://localhost:8081", "http://127.0.0.1:8081"],
+  allowedOrigins: string[] = [
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ],
 ) {
   const requestOrigin = request.headers.origin;
   const allowOrigin = requestOrigin && allowedOrigins.includes(requestOrigin)

@@ -34,7 +34,7 @@ For any non-trivial task, follow this order:
 2. Read the source documents referenced by that phase
 3. Confirm scope, constraints, and open questions
 4. Implement only the checklist items for that phase
-5. Run verification/debugging for the changed area
+5. Run challenge/verification for the changed area and capture explicit evidence for the checklist item being executed
 6. Update roadmap and related docs before declaring completion
 
 ## Mandatory Documents
@@ -90,6 +90,7 @@ Every meaningful implementation must include explicit verification evidence, suc
 - workflow path tested
 - edge case or failure path challenged
 
+Checklist items in `docs/implementation-roadmap.md` must not be marked complete unless their challenge/verification evidence is recorded.
 Do not mark work complete without verification notes.
 
 ## Response Behavior For Agents
@@ -116,5 +117,6 @@ A task is done only if:
 - implementation is complete
 - relevant docs are updated
 - verification has passed
+- the executed roadmap checklist step has recorded challenge/verification evidence
 - roadmap/checklist reflects reality
 <!-- LOVABLE:END -->

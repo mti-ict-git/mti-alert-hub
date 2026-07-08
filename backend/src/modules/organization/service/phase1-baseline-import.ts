@@ -90,6 +90,15 @@ export const phase1BaselineImportSchema = z.object({
       }),
     )
     .default([]),
+  audienceGroups: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        description: z.string().trim().optional(),
+        employeeNumbers: z.array(z.string().trim().min(1)).default([]),
+      }),
+    )
+    .default([]),
 });
 
 export type Phase1BaselineImportPayload = z.infer<typeof phase1BaselineImportSchema>;
@@ -101,6 +110,7 @@ export type Phase1BaselineImportStats = {
   sections: number;
   employees: number;
   devices: number;
+  audienceGroups: number;
 };
 
 export async function importPhase1Baseline(
@@ -114,6 +124,7 @@ export async function importPhase1Baseline(
     sections: 0,
     employees: 0,
     devices: 0,
+    audienceGroups: 0,
   };
 
   for (const site of payload.sites) {
@@ -144,6 +155,11 @@ export async function importPhase1Baseline(
   for (const device of payload.devices) {
     await upsertDevice(client, device);
     stats.devices += 1;
+  }
+
+  for (const audienceGroup of payload.audienceGroups) {
+    await upsertAudienceGroup(client, audienceGroup);
+    stats.audienceGroups += 1;
   }
 
   return stats;
@@ -404,6 +420,54 @@ async function upsertDevice(
       device.status,
     ],
   );
+}
+
+async function upsertAudienceGroup(
+  client: PoolClient,
+  audienceGroup: Phase1BaselineImportPayload["audienceGroups"][number],
+) {
+  const result = await client.query<{ id: string }>(
+    `
+      insert into public.audience_groups (
+        name,
+        description
+      )
+      values ($1, $2)
+      on conflict (name)
+      do update set
+        description = excluded.description
+      returning id::text as id
+    `,
+    [audienceGroup.name, audienceGroup.description ?? null],
+  );
+
+  const audienceGroupId = result.rows[0]?.id;
+  if (!audienceGroupId) {
+    throw new Error(`Audience group "${audienceGroup.name}" could not be stored.`);
+  }
+
+  await client.query(
+    `
+      delete from public.audience_group_members
+      where audience_group_id::text = $1
+    `,
+    [audienceGroupId],
+  );
+
+  for (const employeeNumber of audienceGroup.employeeNumbers) {
+    const employeeId = await requireEmployeeIdByNumber(client, employeeNumber);
+    await client.query(
+      `
+        insert into public.audience_group_members (
+          audience_group_id,
+          employee_id
+        )
+        values ($1::uuid, $2::uuid)
+        on conflict (audience_group_id, employee_id) do nothing
+      `,
+      [audienceGroupId, employeeId],
+    );
+  }
 }
 
 async function requireSiteIdByCode(client: PoolClient, siteCode: string) {

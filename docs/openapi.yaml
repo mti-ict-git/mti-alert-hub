@@ -13,8 +13,8 @@ info:
     - future delivery, response, dashboard, and Windows Agent integration contracts
 
     Phase note:
-    - `Phase 1` is the current implementation focus for backend foundation.
-    - Operations marked with `x-implementation-phase` greater than `Phase 1`
+    - `Phase 2` is the current implementation focus for delivery orchestration.
+    - Operations marked with `x-implementation-phase` greater than `Phase 2`
       remain documented for downstream alignment, especially for the Windows Agent.
 servers:
   - url: https://api.example.com
@@ -262,6 +262,15 @@ paths:
     post:
       tags: [Communications]
       summary: Publish or schedule a communication
+      description: |
+        Validates publish guardrails and accepts supported publication modes.
+
+        Current Phase 2 note:
+        - `publishMode = Now` is accepted into an execution-ready backend state.
+        - `publishMode = Scheduled` is accepted into a scheduled backend state with persisted timezone context.
+        - `publishMode = Recurring` is accepted into a recurring schedule foundation with persisted execution mode and validity metadata.
+        - Publish acceptance now also writes immutable recipient snapshots, queued delivery job foundations, initial delivery attempts, and queue lifecycle events for the accepted execution record.
+        - Materialized Windows Agent reminder policies and downstream delivery orchestration remain implemented in later Phase 2 slices.
       operationId: publishCommunication
       x-implementation-phase: Phase 2
       parameters:
@@ -294,6 +303,8 @@ paths:
     post:
       tags: [Communications]
       summary: Cancel a scheduled or active communication
+      description: |
+        Cancels an accepted scheduled communication or an execution-ready communication before downstream delivery orchestration finishes.
       operationId: cancelCommunication
       x-implementation-phase: Phase 2
       parameters:
@@ -572,6 +583,13 @@ paths:
     post:
       tags: [Agent]
       summary: Create or refresh a Windows Agent session
+      description: |
+        Creates a persisted device session for a known Windows Agent device.
+
+        Current Phase 2 note:
+        - Session trust is device-centric and stored in `device_sessions`.
+        - Refreshing a session rotates the opaque token and invalidates the previous device token.
+        - `employeeNumber` and `activeUserIdentifier` are optional metadata and do not replace device trust.
       operationId: createAgentSession
       x-implementation-phase: Phase 2
       security: []
@@ -599,6 +617,7 @@ paths:
     post:
       tags: [Agent]
       summary: Negotiate a realtime Windows Agent connection
+      description: Requires a valid persisted agent session and rejects requests that try to negotiate for a different device identifier.
       operationId: negotiateAgentRealtimeConnection
       x-implementation-phase: Phase 2
       security:
@@ -618,6 +637,8 @@ paths:
                 $ref: "#/components/schemas/AgentRealtimeNegotiationResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
 
@@ -625,6 +646,12 @@ paths:
     post:
       tags: [Agent]
       summary: Report device heartbeat
+      description: |
+        Updates Windows Agent liveness for the device bound to the current persisted session.
+
+        Current Phase 2 note:
+        - The bearer token must resolve to the same device as the `deviceIdentifier` in the payload.
+        - Successful heartbeat updates `lastHeartbeatAt` and refreshes persisted device status metadata.
       operationId: reportAgentHeartbeat
       x-implementation-phase: Phase 2
       security:
@@ -640,6 +667,8 @@ paths:
           description: Heartbeat accepted
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
 
@@ -647,6 +676,12 @@ paths:
     get:
       tags: [Agent]
       summary: Fetch pending messages for the Windows Agent
+      description: |
+        Returns persisted Windows Agent delivery jobs that still require device reconciliation.
+
+        Current Phase 2 note:
+        - Results come from `delivery_jobs` and `communication_recipients`, not placeholder memory state.
+        - The response remains valid when no pending messages exist.
       operationId: listPendingAgentMessages
       x-implementation-phase: Phase 2
       security:
@@ -725,6 +760,7 @@ paths:
     post:
       tags: [Agent]
       summary: Mark a Windows Agent message as displayed
+      description: Records authoritative `Displayed` evidence for the calling device and keeps duplicate submissions idempotent.
       operationId: markAgentMessageDisplayed
       x-implementation-phase: Phase 2
       security:
@@ -753,6 +789,7 @@ paths:
     post:
       tags: [Agent]
       summary: Mark a Windows Agent message as read
+      description: Records authoritative `Read` evidence for the calling device and keeps duplicate submissions idempotent.
       operationId: markAgentMessageRead
       x-implementation-phase: Phase 2
       security:
@@ -781,8 +818,14 @@ paths:
     post:
       tags: [Agent]
       summary: Submit a response from the Windows Agent
+      description: |
+        Validates the persisted workflow snapshot for the message and records a Windows Agent response.
+
+        Current Phase 2 note:
+        - Only messages that require a response and carry a workflow snapshot can be answered.
+        - A successful response transitions the delivery job to `Responded` and updates recipient response state.
       operationId: submitAgentMessageResponse
-      x-implementation-phase: Phase 3
+      x-implementation-phase: Phase 2
       security:
         - AgentSessionAuth: []
       parameters:
@@ -1279,6 +1322,7 @@ components:
 
     PublishCommunicationRequest:
       type: object
+      required: [publishMode, confirmedPreview]
       properties:
         publishMode:
           type: string
@@ -1304,7 +1348,6 @@ components:
         confirmedPreview:
           type: boolean
           description: Indicates the operator confirmed the preview and channel plan before publishing.
-          nullable: true
 
     TargetRule:
       type: object

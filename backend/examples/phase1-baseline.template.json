@@ -72,5 +72,12 @@
       "osVersion": "Windows 11",
       "status": "Online"
     }
+  ],
+  "audienceGroups": [
+    {
+      "name": "Group Name",
+      "description": "Optional saved audience group description",
+      "employeeNumbers": ["EMP001"]
+    }
   ]
 }

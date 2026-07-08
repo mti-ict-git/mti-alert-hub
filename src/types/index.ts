@@ -42,15 +42,17 @@ export interface Employee {
   id: string;
   employeeId: string;
   name: string;
-  department: string;
-  section: string;
-  position: string;
-  site: string;
-  phone: string;
-  email: string;
-  adUsername: string;
-  hasPc: boolean;
-  fieldOfficer: boolean;
+  siteId?: string | null;
+  siteName?: string | null;
+  areaId?: string | null;
+  areaName?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  preferredChannels: Channel[];
   status: EmployeeStatus;
 }
 
@@ -58,13 +60,17 @@ export interface Device {
   id: string;
   deviceId: string;
   hostname: string;
-  username: string;
-  employeeId: string;
-  employeeName: string;
-  ipAddress: string;
-  agentVersion: string;
+  siteId: string;
+  siteName?: string | null;
+  areaId?: string | null;
+  areaName?: string | null;
+  locationLabel?: string | null;
+  ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
+  primaryEmployeeId?: string | null;
+  primaryEmployeeName?: string | null;
+  agentVersion?: string | null;
   status: DeviceStatus;
-  lastSeen: string;
+  lastSeen?: string | null;
 }
 
 export interface Notification {
@@ -75,8 +81,11 @@ export interface Notification {
   category: Category;
   targetType: TargetType;
   targetSite?: string;
+  targetArea?: string;
   targetDepartment?: string;
   targetSection?: string;
+  targetEmployeeId?: string;
+  templateId?: string | null;
   channels: Channel[];
   requireAck: boolean;
   scheduledAt?: string | null;

@@ -9,7 +9,8 @@ For the current MVP, the primary channels are:
 The platform is designed around one unified communication model for alerts, reminders, operational notices, news, articles, and knowledge updates.
 
 ## Current Status
-- `Phase 1 - Core Backend Foundation` is the active implementation phase.
+- `Phase 1 - Core Backend Foundation` is completed.
+- `Phase 2 - Delivery Orchestration` is now the active implementation phase.
 - The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
 - Backend implementation continues in phases through the roadmap under `docs/`.
 - Versioned backend migrations now exist under `backend/migrations/` for the Phase 1 foundation schema.

@@ -33,8 +33,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DEPARTMENTS, SECTIONS, SITES } from "@/data/reference";
 import { notificationsService } from "@/services/notifications.service";
+import { referenceService } from "@/services/reference.service";
 import type { Category, Channel, Notification, TargetType } from "@/types";
 import { format } from "date-fns";
 import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Users } from "lucide-react";
@@ -54,8 +54,20 @@ function NotificationDetailPage() {
     queryKey: ["audience-preview", id],
     queryFn: () => notificationsService.audiencePreview(id),
   });
+  const { data: organizationReference } = useQuery({
+    queryKey: ["organization-reference"],
+    queryFn: referenceService.getOrganizationReference,
+  });
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employee-reference"],
+    queryFn: referenceService.listEmployees,
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [draftForm, setDraftForm] = useState<EditDraftForm | null>(null);
+  const sites = organizationReference?.sites ?? [];
+  const areas = organizationReference?.areas ?? [];
+  const departments = organizationReference?.departments ?? [];
+  const sections = organizationReference?.sections ?? [];
   const updateDraftMutation = useMutation({
     mutationFn: (payload: EditDraftForm) =>
       {
@@ -69,8 +81,10 @@ function NotificationDetailPage() {
           category: payload.category,
           targetType: payload.targetType,
           targetSite: payload.targetSite || undefined,
+          targetArea: payload.targetArea || undefined,
           targetDepartment: payload.targetDepartment || undefined,
           targetSection: payload.targetSection || undefined,
+          targetEmployeeId: payload.targetEmployeeId || undefined,
           channels: payload.channels,
           requireAck: payload.requireAck,
           instruction: payload.instruction,
@@ -92,8 +106,45 @@ function NotificationDetailPage() {
   });
   const previewRecipients = audiencePreview?.recipients ?? [];
   const availableSections = useMemo(
-    () => (draftForm?.targetDepartment ? SECTIONS[draftForm.targetDepartment] ?? [] : []),
-    [draftForm?.targetDepartment],
+    () => sections.filter((item) => !draftForm?.targetDepartment || item.departmentId === draftForm.targetDepartment),
+    [draftForm?.targetDepartment, sections],
+  );
+  const availableAreas = useMemo(
+    () => areas.filter((item) => !draftForm?.targetSite || item.siteId === draftForm.targetSite),
+    [areas, draftForm?.targetSite],
+  );
+  const availableDepartments = useMemo(
+    () => departments.filter((item) => !draftForm?.targetSite || item.siteId === draftForm.targetSite),
+    [departments, draftForm?.targetSite],
+  );
+  const availableEmployees = useMemo(
+    () =>
+      employees.filter((item) => {
+        if (draftForm?.targetSite && item.siteId !== draftForm.targetSite) {
+          return false;
+        }
+
+        if (draftForm?.targetArea && item.areaId !== draftForm.targetArea) {
+          return false;
+        }
+
+        if (draftForm?.targetDepartment && item.departmentId !== draftForm.targetDepartment) {
+          return false;
+        }
+
+        if (draftForm?.targetSection && item.sectionId !== draftForm.targetSection) {
+          return false;
+        }
+
+        return true;
+      }),
+    [
+      draftForm?.targetArea,
+      draftForm?.targetDepartment,
+      draftForm?.targetSection,
+      draftForm?.targetSite,
+      employees,
+    ],
   );
   const ackCounts = {
     Safe: recipients.filter((r) => r.ackStatus === "Safe").length,
@@ -114,8 +165,10 @@ function NotificationDetailPage() {
       category: n.category,
       targetType: normalizeEditableTargetType(n.targetType),
       targetSite: n.targetSite ?? "",
+      targetArea: n.targetArea ?? "",
       targetDepartment: n.targetDepartment ?? "",
       targetSection: n.targetSection ?? "",
+      targetEmployeeId: n.targetEmployeeId ?? "",
       channels: n.channels.filter(isEditableChannel),
       requireAck: n.requireAck,
       instruction: n.instruction ?? "",
@@ -127,7 +180,7 @@ function NotificationDetailPage() {
     <div>
       <PageHeader
         title={n.title}
-        description={`${n.category} · ${n.targetType}${n.targetSite ? ` · ${n.targetSite}` : ""}`}
+        description={buildNotificationDescription(n)}
         actions={
           <>
             {isDraft && (
@@ -336,11 +389,13 @@ function NotificationDetailPage() {
                       setDraftForm({
                         ...draftForm,
                         targetType: value as EditableTargetType,
-                        targetSite: value === "Site" ? draftForm.targetSite : "",
+                        targetSite: value === "Site" || value === "Area" ? draftForm.targetSite : "",
+                        targetArea: value === "Area" ? draftForm.targetArea : "",
                         targetDepartment: value === "Department" || value === "Section"
                           ? draftForm.targetDepartment
                           : "",
                         targetSection: value === "Section" ? draftForm.targetSection : "",
+                        targetEmployeeId: value === "Employee" ? draftForm.targetEmployeeId : "",
                       })
                     }
                     className="grid grid-cols-2 gap-2"
@@ -358,20 +413,45 @@ function NotificationDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Target Site</Label>
                   <Select
                     value={draftForm.targetSite}
-                    onValueChange={(value) => setDraftForm({ ...draftForm, targetSite: value })}
-                    disabled={draftForm.targetType !== "Site"}
+                    onValueChange={(value) =>
+                      setDraftForm({ ...draftForm, targetSite: value, targetArea: "" })
+                    }
+                    disabled={draftForm.targetType !== "Site" && draftForm.targetType !== "Area"}
                   >
                     <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
                     <SelectContent>
-                      {SITES.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}
+                      {sites.map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.code} - {site.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Target Area</Label>
+                  <Select
+                    value={draftForm.targetArea}
+                    onValueChange={(value) => setDraftForm({ ...draftForm, targetArea: value })}
+                    disabled={draftForm.targetType !== "Area"}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
+                    <SelectContent>
+                      {availableAreas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Target Department</Label>
                   <Select
@@ -383,8 +463,8 @@ function NotificationDetailPage() {
                   >
                     <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                     <SelectContent>
-                      {DEPARTMENTS.map((department) => (
-                        <SelectItem key={department} value={department}>{department}</SelectItem>
+                      {availableDepartments.map((department) => (
+                        <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -399,7 +479,24 @@ function NotificationDetailPage() {
                     <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
                     <SelectContent>
                       {availableSections.map((section) => (
-                        <SelectItem key={section} value={section}>{section}</SelectItem>
+                        <SelectItem key={section.id} value={section.id}>{section.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Employee</Label>
+                  <Select
+                    value={draftForm.targetEmployeeId}
+                    onValueChange={(value) => setDraftForm({ ...draftForm, targetEmployeeId: value })}
+                    disabled={draftForm.targetType !== "Employee"}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                    <SelectContent>
+                      {availableEmployees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.employeeNumber} - {employee.fullName}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -469,6 +566,7 @@ function NotificationDetailPage() {
                 !draftForm.title.trim() ||
                 !draftForm.message.trim() ||
                 draftForm.channels.length === 0 ||
+                !hasRequiredTargetSelection(draftForm) ||
                 updateDraftMutation.isPending
               }
             >
@@ -490,7 +588,7 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-type EditableTargetType = "All" | "Site" | "Department" | "Section";
+type EditableTargetType = "All" | "Site" | "Area" | "Department" | "Section" | "Employee";
 
 type EditDraftForm = {
   title: string;
@@ -498,14 +596,23 @@ type EditDraftForm = {
   category: Category;
   targetType: EditableTargetType;
   targetSite: string;
+  targetArea: string;
   targetDepartment: string;
   targetSection: string;
+  targetEmployeeId: string;
   channels: Channel[];
   requireAck: boolean;
   instruction: string;
 };
 
-const EDITABLE_TARGET_TYPES: EditableTargetType[] = ["All", "Site", "Department", "Section"];
+const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
+  "All",
+  "Site",
+  "Area",
+  "Department",
+  "Section",
+  "Employee",
+];
 const EDITABLE_CHANNELS: Array<{ key: Channel; label: string }> = [
   { key: "DesktopAgent", label: "Desktop Agent" },
   { key: "WhatsApp", label: "WhatsApp" },
@@ -514,7 +621,13 @@ const EDITABLE_CHANNELS: Array<{ key: Channel; label: string }> = [
 ];
 
 function normalizeEditableTargetType(targetType: Notification["targetType"]): EditableTargetType {
-  if (targetType === "Site" || targetType === "Department" || targetType === "Section") {
+  if (
+    targetType === "Site" ||
+    targetType === "Area" ||
+    targetType === "Department" ||
+    targetType === "Section" ||
+    targetType === "Employee"
+  ) {
     return targetType;
   }
 
@@ -523,4 +636,50 @@ function normalizeEditableTargetType(targetType: Notification["targetType"]): Ed
 
 function isEditableChannel(channel: Notification["channels"][number]): channel is Channel {
   return EDITABLE_CHANNELS.some((candidate) => candidate.key === channel);
+}
+
+function hasRequiredTargetSelection(form: EditDraftForm) {
+  if (form.targetType === "All") {
+    return true;
+  }
+
+  if (form.targetType === "Site") {
+    return Boolean(form.targetSite);
+  }
+
+  if (form.targetType === "Area") {
+    return Boolean(form.targetArea);
+  }
+
+  if (form.targetType === "Department") {
+    return Boolean(form.targetDepartment);
+  }
+
+  if (form.targetType === "Section") {
+    return Boolean(form.targetSection);
+  }
+
+  if (form.targetType === "Employee") {
+    return Boolean(form.targetEmployeeId);
+  }
+
+  return false;
+}
+
+function buildNotificationDescription(notification: Notification) {
+  const parts = [notification.category, notification.targetType];
+
+  if (notification.targetSite) {
+    parts.push(notification.targetSite);
+  } else if (notification.targetArea) {
+    parts.push(notification.targetArea);
+  } else if (notification.targetDepartment) {
+    parts.push(notification.targetDepartment);
+  } else if (notification.targetSection) {
+    parts.push(notification.targetSection);
+  } else if (notification.targetEmployeeId) {
+    parts.push(notification.targetEmployeeId);
+  }
+
+  return parts.join(" · ");
 }

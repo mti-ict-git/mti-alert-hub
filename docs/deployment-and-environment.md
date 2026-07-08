@@ -130,7 +130,7 @@ Examples:
 - dry-run validation before shared-environment execution
 
 Current implementation baseline:
-- Phase 1 now includes a baseline import script for `sites`, `areas`, `departments`, `sections`, `employees`, and `devices`.
+- Phase 1 now includes a baseline import script for `sites`, `areas`, `departments`, `sections`, `employees`, `devices`, and saved `audienceGroups`.
 - Development command: `npm run backend:import:baseline:dev -- "<path-to-json>"`
 - Development rollback command: `npm run backend:import:baseline:dev:rollback -- "<path-to-json>"`
 - Built command: `npm run backend:import:baseline -- "<path-to-json>"`
@@ -202,6 +202,18 @@ Latest verification evidence:
 - `2026-07-07`: table existence verification confirmed `schema_migrations`, `users`, `user_scopes`, `sites`, `areas`, `departments`, `sections`, `employees`, and `devices` now exist.
 - `2026-07-07`: authenticated smoke requests to `GET /reference/organization`, `GET /reference/sites`, `GET /reference/areas`, `GET /reference/departments`, `GET /reference/sections`, `GET /employees`, and `GET /devices` returned `200`.
 - `2026-07-07`: unauthenticated `GET /devices` returned `401`.
+- `2026-07-08`: `backend/migrations/0002_phase1_communications.up.sql`, `0003_phase2_agent_sessions.up.sql`, and `0004_phase1_audience_groups.up.sql` were applied successfully to `ictMTIAlertHub`.
+- `2026-07-08`: `backend/migrations/0005_phase2_communication_schedules.up.sql` was applied successfully to `ictMTIAlertHub`.
+- `2026-07-08`: `backend/migrations/0006_phase2_delivery_foundation.up.sql` was applied successfully to `ictMTIAlertHub`.
+- `2026-07-08`: `backend/examples/phase1-baseline.example.json` baseline import completed successfully with `sites`, `areas`, `departments`, `sections`, `employees`, `devices`, and `audienceGroups`.
+- `2026-07-08`: targeted authenticated runtime checks confirmed `POST /communications`, `GET /communications/{communicationId}`, `PATCH /communications/{communicationId}`, `POST /communications/{communicationId}/duplicate`, and `POST /communications/{communicationId}/audience-preview` against the live backend runtime.
+- `2026-07-08`: representative `Group` and `Device` audience previews returned expected recipients with zero preview warnings.
+- `2026-07-08`: local frontend-origin compatibility was rechecked with `OPTIONS` and `POST /auth/login` requests from `Origin: http://127.0.0.1:4173`, confirming the backend returns the required CORS headers and a `200` login response.
+- `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4011` with `LDAP_ALLOWED_GROUPS=''` confirmed the new publish guardrails for `POST /communications/{communicationId}/publish`, including `422 PREVIEW_CONFIRMATION_REQUIRED`, `422 TIMEZONE_REQUIRED`, `422 TEMPLATE_POLICY_REFERENCE_REQUIRED`, `409 COMMUNICATION_NOT_DRAFT`, and `409 PUBLISH_ACCEPTANCE_NOT_READY`.
+- `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4012` with `LDAP_ALLOWED_GROUPS=''` confirmed `POST /communications/{communicationId}/publish` now accepts `Now` into `Queued`, accepts `Scheduled` into `Scheduled`, accepts `Recurring` into recurring schedule foundation persistence, writes the expected `communication_schedules` records, and allows `POST /communications/{communicationId}/cancel` to transition a scheduled communication into `Cancelled`.
+- `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4013` with `LDAP_ALLOWED_GROUPS=''` confirmed publish now writes `communication_recipients`, `delivery_jobs`, `delivery_attempts`, and `delivery_events`, including mixed `Device`, `Employee`, and `ContactEndpoint` snapshots, per-channel pending jobs, initial queued attempts, and cancellation-driven `Failed` events for scheduled jobs.
+- `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4014` confirmed `POST /agent/session` persists exactly one active `device_sessions` record for the refreshed device token, `POST /agent/heartbeat` returns `204` and updates `devices.last_heartbeat_at` plus `status`, and the replaced token is rejected with `401 UNAUTHORIZED`.
+- `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4015` with `LDAP_ALLOWED_GROUPS=''` confirmed the full Windows Agent reconciliation path through `POST /auth/login`, `POST /communications`, `POST /communications/{communicationId}/publish`, `POST /agent/session`, `GET /agent/messages`, `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, and `POST /agent/messages/{messageId}/response`, including idempotent duplicate lifecycle submissions and the final `Responded` plus `Acknowledged` persistence state.
 
 ## Operational Dependencies
 ### Enterprise Identity

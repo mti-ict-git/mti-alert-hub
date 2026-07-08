@@ -23,6 +23,8 @@ type EmployeeRecipientRow = {
   employeeId: string;
   employeeNumber: string;
   fullName: string;
+  siteId: string | null;
+  areaId: string | null;
   siteName: string | null;
   areaName: string | null;
   departmentName: string | null;
@@ -35,13 +37,36 @@ type EmployeeRecipientRow = {
 
 type DeviceRecipientRow = {
   deviceId: string;
+  deviceIdentifier: string | null;
+  hostname: string | null;
   employeeId: string | null;
   employeeNumber: string | null;
   fullName: string | null;
+  siteId: string | null;
+  areaId: string | null;
   siteName: string | null;
   areaName: string | null;
   departmentName: string | null;
   sectionName: string | null;
+};
+
+export type ResolvedCommunicationRecipient = {
+  recipientType: "Employee" | "Device";
+  deviceId: string | null;
+  deviceIdentifier: string | null;
+  hostname: string | null;
+  employeeId: string | null;
+  employeeNumber: string | null;
+  fullName: string | null;
+  siteId: string | null;
+  areaId: string | null;
+  siteName: string | null;
+  areaName: string | null;
+  departmentName: string | null;
+  sectionName: string | null;
+  whatsappNumber: string | null;
+  email: string | null;
+  availableChannels: Channel[];
 };
 
 type RecipientPreview = {
@@ -57,10 +82,20 @@ type RecipientPreview = {
   availableChannels: Channel[];
 };
 
-type ChannelPlanItem = {
+export type ChannelPlanItem = {
   channel: Channel;
   strategy: "Mandatory" | "Optional" | "DelayedFollowUp";
   plannedDelaySeconds: number | null;
+};
+
+export type ExecutionAudienceResolution = {
+  communicationId: string;
+  priority: "Info" | "Warning" | "Critical";
+  template: CommunicationTemplatePolicy | null;
+  selectedChannels: Channel[];
+  channelPlan: ChannelPlanItem[];
+  previewWarnings: string[];
+  recipients: ResolvedCommunicationRecipient[];
 };
 
 export class AudiencePreviewService {
@@ -70,6 +105,25 @@ export class AudiencePreviewService {
   ) {}
 
   async previewCommunicationAudience(communicationId: string) {
+    const resolution = await this.resolveExecutionAudience(communicationId);
+    return {
+      totalRecipients: resolution.recipients.length,
+      deviceRecipients: resolution.selectedChannels.includes("WindowsAgent")
+        ? resolution.recipients.filter((recipient) =>
+            recipient.availableChannels.includes("WindowsAgent"),
+          ).length
+        : 0,
+      whatsappRecipients: resolution.selectedChannels.includes("WhatsApp")
+        ? resolution.recipients.filter((recipient) => recipient.availableChannels.includes("WhatsApp"))
+            .length
+        : 0,
+      previewWarnings: resolution.previewWarnings,
+      channelPlan: resolution.channelPlan,
+      recipients: resolution.recipients.map(mapRecipientPreview),
+    };
+  }
+
+  async resolveExecutionAudience(communicationId: string): Promise<ExecutionAudienceResolution> {
     const communication = await this.getCommunication(communicationId);
     if (!communication) {
       throw new AppError({
@@ -102,14 +156,10 @@ export class AudiencePreviewService {
     });
 
     return {
-      totalRecipients: recipientList.length,
-      deviceRecipients: selectedChannels.includes("WindowsAgent")
-        ? recipientList.filter((recipient) => recipient.availableChannels.includes("WindowsAgent"))
-            .length
-        : 0,
-      whatsappRecipients: selectedChannels.includes("WhatsApp")
-        ? recipientList.filter((recipient) => recipient.availableChannels.includes("WhatsApp")).length
-        : 0,
+      communicationId: communication.id,
+      priority: communication.priority,
+      template,
+      selectedChannels,
       previewWarnings,
       channelPlan: buildChannelPlan(selectedChannels, template),
       recipients: recipientList,
@@ -149,21 +199,16 @@ export class AudiencePreviewService {
   }
 
   private async resolveRecipients(targets: CommunicationTargetRow[]) {
-    const recipients = new Map<string, RecipientPreview>();
+    const recipients = new Map<string, ResolvedCommunicationRecipient>();
     const warnings: string[] = [];
 
     for (const target of targets) {
-      if (target.targetType === "Group") {
-        warnings.push(
-          `Group target "${target.targetValue}" is not yet backed by organization data and was skipped in preview.`,
-        );
-        continue;
-      }
-
       const [employeeRecipients, deviceRecipients] = await Promise.all([
-        shouldResolveEmployees(target.targetType)
-          ? this.queryEmployeesByTarget(target)
-          : Promise.resolve([] as EmployeeRecipientRow[]),
+        target.targetType === "Group"
+          ? this.queryEmployeesByGroup(target.targetValue)
+          : shouldResolveEmployees(target.targetType)
+            ? this.queryEmployeesByTarget(target)
+            : Promise.resolve([] as EmployeeRecipientRow[]),
         shouldResolveDevices(target.targetType)
           ? this.queryDevicesByTarget(target)
           : Promise.resolve([] as DeviceRecipientRow[]),
@@ -193,6 +238,8 @@ export class AudiencePreviewService {
           e.id::text as "employeeId",
           e.employee_number::text as "employeeNumber",
           e.full_name::text as "fullName",
+          e.site_id::text as "siteId",
+          e.area_id::text as "areaId",
           s.name::text as "siteName",
           a.name::text as "areaName",
           d.name::text as "departmentName",
@@ -220,9 +267,13 @@ export class AudiencePreviewService {
       `
         select
           dev.id::text as "deviceId",
+          dev.device_identifier::text as "deviceIdentifier",
+          dev.hostname::text as hostname,
           e.id::text as "employeeId",
           e.employee_number::text as "employeeNumber",
           e.full_name::text as "fullName",
+          dev.site_id::text as "siteId",
+          dev.area_id::text as "areaId",
           s.name::text as "siteName",
           a.name::text as "areaName",
           d.name::text as "departmentName",
@@ -237,6 +288,39 @@ export class AudiencePreviewService {
         order by s.name asc nulls last, dev.hostname asc
       `,
       scope.params,
+    );
+  }
+
+  private async queryEmployeesByGroup(groupValue: string) {
+    const trimmedValue = groupValue.trim();
+    return this.database.maybeQuery<EmployeeRecipientRow>(
+      "audience_group_members",
+      `
+        select
+          e.id::text as "employeeId",
+          e.employee_number::text as "employeeNumber",
+          e.full_name::text as "fullName",
+          e.site_id::text as "siteId",
+          e.area_id::text as "areaId",
+          s.name::text as "siteName",
+          a.name::text as "areaName",
+          d.name::text as "departmentName",
+          sec.name::text as "sectionName",
+          e.phone_number::text as "whatsappNumber",
+          e.email::text as email,
+          e.has_windows_agent as "hasWindowsAgent",
+          e.has_whatsapp as "hasWhatsApp"
+        from public.audience_group_members agm
+        inner join public.audience_groups ag on ag.id = agm.audience_group_id
+        inner join public.employees e on e.id = agm.employee_id
+        left join public.sites s on s.id = e.site_id
+        left join public.areas a on a.id = e.area_id
+        left join public.departments d on d.id = e.department_id
+        left join public.sections sec on sec.id = e.section_id
+        where (ag.id::text = $1 or ag.name::text ilike $2)
+        order by e.full_name asc
+      `,
+      [trimmedValue, `%${trimmedValue}%`],
     );
   }
 }
@@ -337,14 +421,14 @@ function buildNamedScope(options: {
 }
 
 function shouldResolveEmployees(targetType: TargetType) {
-  return ["All", "Site", "Area", "Department", "Section", "Employee", "Role"].includes(targetType);
+  return ["All", "Site", "Area", "Department", "Section", "Employee", "Role", "Group"].includes(targetType);
 }
 
 function shouldResolveDevices(targetType: TargetType) {
   return ["All", "Site", "Area", "Device"].includes(targetType);
 }
 
-function mapEmployeeRecipient(employee: EmployeeRecipientRow): RecipientPreview {
+function mapEmployeeRecipient(employee: EmployeeRecipientRow): ResolvedCommunicationRecipient {
   const availableChannels: Channel[] = [];
   if (employee.hasWindowsAgent) {
     availableChannels.push("WindowsAgent");
@@ -359,35 +443,62 @@ function mapEmployeeRecipient(employee: EmployeeRecipientRow): RecipientPreview 
   return {
     recipientType: "Employee",
     deviceId: null,
+    deviceIdentifier: null,
+    hostname: null,
     employeeId: employee.employeeId,
     employeeNumber: employee.employeeNumber,
     fullName: employee.fullName,
+    siteId: employee.siteId,
+    areaId: employee.areaId,
     siteName: employee.siteName,
     areaName: employee.areaName,
     departmentName: employee.departmentName,
     sectionName: employee.sectionName,
+    whatsappNumber: employee.whatsappNumber,
+    email: employee.email,
     availableChannels,
   };
 }
 
-function mapDeviceRecipient(device: DeviceRecipientRow): RecipientPreview {
+function mapDeviceRecipient(device: DeviceRecipientRow): ResolvedCommunicationRecipient {
   return {
     recipientType: "Device",
     deviceId: device.deviceId,
+    deviceIdentifier: device.deviceIdentifier,
+    hostname: device.hostname,
     employeeId: device.employeeId,
     employeeNumber: device.employeeNumber,
     fullName: device.fullName,
+    siteId: device.siteId,
+    areaId: device.areaId,
     siteName: device.siteName,
     areaName: device.areaName,
     departmentName: device.departmentName,
     sectionName: device.sectionName,
+    whatsappNumber: null,
+    email: null,
     availableChannels: ["WindowsAgent"],
+  };
+}
+
+function mapRecipientPreview(recipient: ResolvedCommunicationRecipient): RecipientPreview {
+  return {
+    recipientType: recipient.recipientType,
+    deviceId: recipient.deviceId,
+    employeeId: recipient.employeeId,
+    employeeNumber: recipient.employeeNumber,
+    fullName: recipient.fullName,
+    siteName: recipient.siteName,
+    areaName: recipient.areaName,
+    departmentName: recipient.departmentName,
+    sectionName: recipient.sectionName,
+    availableChannels: recipient.availableChannels,
   };
 }
 
 function buildCoverageWarnings(options: {
   selectedChannels: Channel[];
-  recipients: RecipientPreview[];
+  recipients: ResolvedCommunicationRecipient[];
   unsupportedTargetWarnings: string[];
 }) {
   const warnings = [...options.unsupportedTargetWarnings];

@@ -55,6 +55,7 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-10. Template Policy Depth
 - Question: Should template version snapshots be stored only at communication level, or also materialized into delivery job policy snapshots for execution auditability?
 - Why it matters: This affects debugging, audit traceability, and schema complexity.
+- Current safe assumption: communication-level `templateVersion` remains authoritative, and publish execution also materializes effective policy snapshots onto delivery records when channel behavior depends on that policy.
 
 ### OQ-11. Local Routine Reminder Missed-Run Semantics
 - Question: When a Windows Agent wakes up after sleep, prolonged offline time, or clock drift, should locally executed routine reminders skip missed occurrences, emit one catch-up reminder, or replay multiple missed windows?

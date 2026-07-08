@@ -208,6 +208,7 @@ function buildPayload(input: {
     sections: sectionRecords,
     employees: employeeRecords,
     devices: deviceRecords,
+    audienceGroups: [],
   };
 }
 

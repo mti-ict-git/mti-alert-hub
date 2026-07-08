@@ -100,6 +100,7 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
     requireAck: false,
     scheduledAt: item.scheduledAt ?? null,
     status: mapStatusFromApi(item.status),
+    templateId: item.templateId ?? null,
     createdBy: "System",
     createdAt: item.scheduledAt ?? new Date().toISOString(),
     recipientsCount: 0,
@@ -117,14 +118,18 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     category: normalizeCategory(item.category),
     targetType: mapTargetTypeFromApi(primaryTarget?.targetType),
     targetSite: primaryTarget?.targetType === "Site" ? primaryTarget.targetValue : undefined,
+    targetArea: primaryTarget?.targetType === "Area" ? primaryTarget.targetValue : undefined,
     targetDepartment:
       primaryTarget?.targetType === "Department" ? primaryTarget.targetValue : undefined,
     targetSection: primaryTarget?.targetType === "Section" ? primaryTarget.targetValue : undefined,
+    targetEmployeeId:
+      primaryTarget?.targetType === "Employee" ? primaryTarget.targetValue : undefined,
     channels: item.channelSelections.map(mapChannelFromApi),
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     scheduledAt: item.scheduledAt ?? null,
     instruction: item.workflow?.id ? "Response workflow configured by template or operator." : "",
     status: mapStatusFromApi(item.status),
+    templateId: item.templateId ?? null,
     createdBy: "System",
     createdAt: item.createdAt ?? item.updatedAt ?? new Date().toISOString(),
     recipientsCount: 0,
@@ -173,11 +178,11 @@ function mapTargetTypeFromApi(targetType?: string): Notification["targetType"] {
   switch (targetType) {
     case "All":
     case "Site":
+    case "Area":
     case "Department":
     case "Section":
-      return targetType;
     case "Employee":
-      return "Individual";
+      return targetType;
     default:
       return "Custom";
   }
@@ -251,10 +256,15 @@ function buildTargetsFromNotification(input: UpdateNotificationInput) {
       return [{ targetType: "All", targetValue: "*" }];
     case "Site":
       return [{ targetType: "Site", targetValue: input.targetSite ?? "*" }];
+    case "Area":
+      return [{ targetType: "Area", targetValue: input.targetArea ?? "*" }];
     case "Department":
       return [{ targetType: "Department", targetValue: input.targetDepartment ?? "*" }];
     case "Section":
       return [{ targetType: "Section", targetValue: input.targetSection ?? "*" }];
+    case "Employee":
+    case "Individual":
+      return [{ targetType: "Employee", targetValue: input.targetEmployeeId ?? "*" }];
     default:
       return [{ targetType: "Group", targetValue: "custom-selection" }];
   }

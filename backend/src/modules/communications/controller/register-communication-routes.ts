@@ -34,6 +34,7 @@ const deliveryStrategySchema = z.enum([
   "PrimaryFallback",
   "TemplatePolicy",
 ]);
+const scheduleExecutionModeSchema = z.enum(["ServerGenerated", "AgentLocalRoutine"]);
 
 const communicationListQuerySchema = baseListQuerySchema.extend({
   status: z
@@ -82,6 +83,16 @@ const updateCommunicationSchema = z
     message: "At least one draft field must be provided.",
     path: [],
   });
+
+const publishCommunicationSchema = z.object({
+  publishMode: z.enum(["Now", "Scheduled", "Recurring"]),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
+  recurrenceRule: z.string().trim().optional().nullable(),
+  timezone: z.string().trim().optional().nullable(),
+  executionMode: scheduleExecutionModeSchema.optional().nullable(),
+  validUntil: z.string().datetime({ offset: true }).optional().nullable(),
+  confirmedPreview: z.boolean(),
+});
 
 type RegisterCommunicationRoutesOptions = {
   communicationDraftService: CommunicationDraftService;
@@ -178,6 +189,38 @@ export function registerCommunicationRoutes(
         return {
           statusCode: 200,
           body: await options.audiencePreviewService.previewCommunicationAudience(
+            params.communicationId ?? "",
+          ),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/communications/{communicationId}/publish",
+      requiresAuth: true,
+      async handler({ params, json, auth }) {
+        const payload = validateWithSchema(publishCommunicationSchema, await json());
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.publishCommunication(
+            params.communicationId ?? "",
+            payload,
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+            },
+          ),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/communications/{communicationId}/cancel",
+      requiresAuth: true,
+      async handler({ params }) {
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.cancelCommunication(
             params.communicationId ?? "",
           ),
         };

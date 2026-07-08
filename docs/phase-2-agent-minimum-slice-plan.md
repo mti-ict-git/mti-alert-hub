@@ -2,8 +2,8 @@
 
 ## Document Status
 - Version: `0.1`
-- Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Status: `Active Reference`
+- Last Updated: `2026-07-08`
 - Audience: `Backend Engineers`, `Tech Leads`, `AI Builders`
 
 ## Purpose
@@ -17,11 +17,11 @@ It is intended to:
 - define verification evidence before claiming the slice is usable
 
 ## Planning Position
-The repository roadmap still marks `Phase 1 - Core Backend Foundation` as the active implementation phase in `docs/implementation-roadmap.md`.
+The repository roadmap now marks `Phase 2 - Delivery Orchestration` as the active implementation phase in `docs/implementation-roadmap.md`.
 
-This document does **not** change that status.
+This document does **not** replace the roadmap checklist.
 
-Instead, it acts as a `Phase 2 planning artifact` so the team can prepare and execute the first Windows Agent server boundary increment once Phase 1 closure is acceptable.
+Instead, it acts as the supporting execution artifact for the Windows Agent-related Phase 2 slices, especially the minimum trust, heartbeat, reconciliation, and delivery-evidence increments.
 
 ## Source Of Truth
 This plan is derived from:
@@ -240,8 +240,8 @@ Verification:
 
 Current implementation note:
 - backend route scaffolding for the `/agent` surface already exists
-- the current session foundation now supports persisted `device_sessions` when the `0003_phase2_agent_sessions` migration is applied
-- until that migration is applied in a target environment, the backend keeps a compatibility fallback to in-memory agent sessions so local validation does not fail immediately on startup
+- the current session foundation persists `device_sessions` through `0003_phase2_agent_sessions.up.sql`
+- session refresh rotates the device token so the previously issued token no longer remains trusted
 
 ### Slice 2. Heartbeat
 Deliver:
@@ -369,13 +369,13 @@ The following questions still affect implementation and should be treated carefu
 The `server` workstream should publish to the `agent` workstream:
 - actual request and response samples for implemented `/agent` endpoints
 - exact auth header expectation for `AgentSessionAuth`
-- known temporary limitations such as empty-state `GET /agent/messages`
+- known temporary limitations such as placeholder realtime negotiation and still-empty reminder policy sync
 - any clarified error codes or idempotency behavior
 
 The `agent` workstream should avoid assuming:
 - realtime is available before `POST /agent/realtime/negotiate` is implemented
 - reminder sync exists before the policy endpoints are delivered
-- workflow response submission is available before Phase 3 response handling starts
+- advanced reporting and dashboard response rollups are available before Phase 3 monitoring work starts
 
 ## Recommended Definition Of Done For This Plan
 This minimum slice is ready to hand off as implemented when:
@@ -396,6 +396,6 @@ Once this plan is accepted, the next practical server step is:
 If the team wants the smallest possible first proof:
 - start with `POST /agent/session`
 - then `POST /agent/heartbeat`
-- then `GET /agent/messages` with an empty but contract-valid response
+- then `GET /agent/messages` with a published device-targeted Windows Agent message
 
 That sequence creates the earliest stable integration point for the separate Windows Agent workstream.
