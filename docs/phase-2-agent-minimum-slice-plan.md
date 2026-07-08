@@ -238,6 +238,11 @@ Verification:
 - unknown or rejected device returns documented failure
 - response shape matches `AgentSessionResponse`
 
+Current implementation note:
+- backend route scaffolding for the `/agent` surface already exists
+- the current session foundation now supports persisted `device_sessions` when the `0003_phase2_agent_sessions` migration is applied
+- until that migration is applied in a target environment, the backend keeps a compatibility fallback to in-memory agent sessions so local validation does not fail immediately on startup
+
 ### Slice 2. Heartbeat
 Deliver:
 - `POST /agent/heartbeat`

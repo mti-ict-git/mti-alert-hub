@@ -18,8 +18,17 @@ This document defines the conceptual database schema for the `MTI Alert` server 
 ## Implementation Baseline
 - Versioned database migrations are now part of the backend foundation.
 - The first applied migration is `backend/migrations/0001_phase1_foundation.up.sql`.
-- That migration currently covers the implemented Phase 1 foundation tables for admin users, user scopes, organization references, employees, and devices.
-- Communication, workflow, delivery, and reporting tables remain part of the conceptual schema and should be added through later migrations as their modules are implemented.
+- The second migration is `backend/migrations/0002_phase1_communications.up.sql`.
+- The third migration is `backend/migrations/0003_phase2_agent_sessions.up.sql`.
+- The currently implemented migration baseline covers:
+  - admin users and scopes
+  - organization references
+  - employees
+  - devices
+  - communication templates and workflows
+  - communication drafts and target rules
+  - device session persistence
+- Delivery tracking, reminder policy, workflow response persistence, and reporting tables remain part of the conceptual schema and should be added through later migrations as their modules are implemented.
 
 ## Core Tables
 ### users
