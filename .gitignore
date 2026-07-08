@@ -16,6 +16,7 @@ dist-ssr
 .nitro
 *.local
 .env
+MTI.Alert.Agent/
 
 # Wrangler / Cloudflare
 .wrangler/

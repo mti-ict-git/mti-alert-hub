@@ -147,7 +147,7 @@ function applyCorsHeaders(
   const requestOrigin = request.headers.origin;
   const allowOrigin = requestOrigin && allowedOrigins.includes(requestOrigin)
     ? requestOrigin
-    : allowedOrigins[0];
+    : (allowedOrigins[0] ?? "http://localhost:8081");
 
   response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Origin", allowOrigin);

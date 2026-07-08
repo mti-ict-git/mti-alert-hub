@@ -139,6 +139,7 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `docs/template-policy-schema.md`
 - `docs/windows-agent-client-specification.md`
 - `docs/backend-module-breakdown.md`
+- `docs/phase-2-agent-minimum-slice-plan.md`
 
 ### Checklist
 - `[ ]` Publication flow: implement publish confirmation rules and schedule validation.
@@ -171,6 +172,9 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - Failed delivery paths are challenged.
 - Delivery state rollup is validated for multi-channel recipients.
 - Disconnected-agent recovery is challenged with pending-message reconciliation scenarios.
+- Compatibility baseline added on `2026-07-08`: the backend now exposes `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, `GET /agent/messages`, `GET /agent/reminder-policies`, `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, `POST /agent/messages/{messageId}/response`, and `POST /agent/reminder-policies/{policyId}/events`.
+- Current limitation for that baseline: device sessions are in-memory, realtime negotiation returns placeholder hub metadata, and reconciliation or lifecycle endpoints are empty-safe compatibility handlers until delivery, reminder, and workflow persistence is implemented.
+- Verification evidence on `2026-07-08`: `npm run backend:typecheck` passed and `npm run backend:build` passed after registering the new `agent` server boundary.
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status

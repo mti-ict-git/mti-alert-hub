@@ -1,6 +1,9 @@
 import { loadEnv } from "../config/env.js";
 import { createHttpServer } from "../http/create-server.js";
 import { bootstrapDatabase } from "../../infrastructure/db/connection.js";
+import { registerAgentRoutes } from "../../modules/agent/controller/register-agent-routes.js";
+import { AgentService } from "../../modules/agent/service/agent-service.js";
+import { AgentSessionStore } from "../../modules/agent/service/agent-session-store.js";
 import { registerAuthRoutes } from "../../modules/auth/controller/register-auth-routes.js";
 import { AdminSessionStore } from "../../modules/auth/service/admin-session-store.js";
 import { AuthService } from "../../modules/auth/service/auth-service.js";
@@ -26,9 +29,11 @@ export async function createBackendApp() {
   await database.client.ping();
   const accessProfileService = new AccessProfileService();
   const adminSessionStore = new AdminSessionStore();
+  const agentSessionStore = new AgentSessionStore(database.client);
   const ldapAuthenticator = new LdapAuthenticator(env, logger);
   const organizationReadService = new OrganizationReadService(database.client);
   const deviceReadService = new DeviceReadService(database.client);
+  const agentService = new AgentService(database.client, agentSessionStore, env, logger);
   const communicationTemplateService = new CommunicationTemplateService(database.client);
   const communicationDraftService = new CommunicationDraftService(
     database.client,
@@ -62,6 +67,9 @@ export async function createBackendApp() {
       }),
       ...registerDeviceRoutes({
         deviceReadService,
+      }),
+      ...registerAgentRoutes({
+        agentService,
       }),
       ...registerCommunicationRoutes({
         communicationDraftService,
