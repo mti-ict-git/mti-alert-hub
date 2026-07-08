@@ -28,7 +28,7 @@ This document defines the conceptual database schema for the `MTI Alert` server 
   - communication templates and workflows
   - communication drafts and target rules
   - device session persistence
-- Delivery tracking, reminder policy, workflow response persistence, and reporting tables remain part of the conceptual schema and should be added through later migrations as their modules are implemented.
+- Delivery tracking, reminder policy, and realtime compatibility persistence are now implemented through the current Phase 2 migrations. Reporting-oriented rollups remain conceptual and should be added through later migrations as their modules are implemented.
 
 ## Core Tables
 ### users
@@ -413,6 +413,8 @@ Recommended event types include:
 - `last_seen_at`
 - `disconnected_at`
 - `status`
+- `created_at`
+- `updated_at`
 
 ### policy_settings
 Stores configurable operational thresholds and retry policies.

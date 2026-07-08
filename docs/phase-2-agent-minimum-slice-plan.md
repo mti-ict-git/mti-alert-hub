@@ -327,6 +327,9 @@ Avoid bundling unrelated schema work into the same migration set, such as:
 - dashboard materialization
 - WhatsApp callback support
 
+Current delivery note:
+- WhatsApp callback and provider work remain deferred for the first Windows Agent go-live release and should not block the agent handoff path.
+
 ## Open Questions That Still Matter
 The following questions still affect implementation and should be treated carefully:
 
@@ -369,12 +372,12 @@ The following questions still affect implementation and should be treated carefu
 The `server` workstream should publish to the `agent` workstream:
 - actual request and response samples for implemented `/agent` endpoints
 - exact auth header expectation for `AgentSessionAuth`
-- known temporary limitations such as placeholder realtime negotiation and still-empty reminder policy sync
+- known temporary limitations such as session-token-backed `SSE` realtime transport, active-message-set push semantics, and device-bound-only local routine reminder sync
 - any clarified error codes or idempotency behavior
 
 The `agent` workstream should avoid assuming:
-- realtime is available before `POST /agent/realtime/negotiate` is implemented
-- reminder sync exists before the policy endpoints are delivered
+- the current `SSE` hub slice already implies the final production transport or scaling model
+- reminder sync supports non-device-bound Windows Agent recipients before later orchestration slices expand targeting
 - advanced reporting and dashboard response rollups are available before Phase 3 monitoring work starts
 
 ## Recommended Definition Of Done For This Plan

@@ -43,6 +43,18 @@ type CreateNotificationInput = Omit<
 
 type UpdateNotificationInput = Partial<CreateNotificationInput>;
 
+type PublishNotificationInput =
+  | {
+      publishMode: "Now";
+      confirmedPreview: boolean;
+    }
+  | {
+      publishMode: "Scheduled";
+      scheduledAt: string;
+      timezone: string;
+      confirmedPreview: boolean;
+    };
+
 export const notificationsService = {
   async list(): Promise<Notification[]> {
     const response = await apiClient.get<ApiListResponse>("/communications");
@@ -78,9 +90,13 @@ export const notificationsService = {
     );
     return mapDetailToNotification(detail);
   },
-  async cancel(id: string): Promise<void> {
-    void id;
-    throw new Error("Cancel communication belum tersedia di backend fase ini.");
+  async publish(id: string, input: PublishNotificationInput): Promise<Notification> {
+    const detail = await apiClient.post<ApiCommunicationDetail>(`/communications/${id}/publish`, input);
+    return mapDetailToNotification(detail);
+  },
+  async cancel(id: string): Promise<Notification> {
+    const detail = await apiClient.post<ApiCommunicationDetail>(`/communications/${id}/cancel`);
+    return mapDetailToNotification(detail);
   },
   async duplicate(id: string): Promise<Notification | undefined> {
     const detail = await apiClient.post<ApiCommunicationDetail>(`/communications/${id}/duplicate`);

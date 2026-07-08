@@ -7,6 +7,14 @@ import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { AgentService } from "../service/agent-service.js";
 
 const deviceStatusSchema = z.enum(["Online", "Offline", "Stale"]);
+const reminderEventTypeSchema = z.enum([
+  "Triggered",
+  "Displayed",
+  "Read",
+  "Dismissed",
+  "Snoozed",
+  "Responded",
+]);
 
 const agentSessionRequestSchema = z.object({
   deviceIdentifier: z.string().trim().min(1),
@@ -40,7 +48,7 @@ const agentResponseRequestSchema = z.object({
 });
 
 const agentReminderEventRequestSchema = z.object({
-  eventType: z.string().trim().min(1),
+  eventType: reminderEventTypeSchema,
   occurredAt: z.string().trim().min(1),
   activeUserIdentifier: z.string().trim().optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
@@ -75,6 +83,35 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
         return {
           statusCode: 200,
           body: await options.agentService.negotiateRealtime(sessionToken, payload),
+        };
+      },
+    },
+    {
+      method: "GET",
+      path: "/agent/realtime-hub",
+      allowAnonymous: true,
+      async handler({ request, response, url }) {
+        const sessionToken = requireAgentSessionToken(request.headers.authorization);
+        const connectionId = url.searchParams.get("connectionId") ?? "";
+        const deviceIdentifier = url.searchParams.get("deviceIdentifier") ?? "";
+
+        if (!connectionId.trim() || !deviceIdentifier.trim()) {
+          throw new AppError({
+            statusCode: 422,
+            code: "VALIDATION_ERROR",
+            message: "connectionId and deviceIdentifier are required.",
+          });
+        }
+
+        await options.agentService.openRealtimeStream({
+          sessionToken,
+          connectionId,
+          deviceIdentifier,
+          request,
+          response,
+        });
+        return {
+          statusCode: 200,
         };
       },
     },

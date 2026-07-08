@@ -13,6 +13,7 @@ This document records unresolved product and technical questions. No implementat
 - Question: Which concrete server technology will implement the SignalR-style realtime contract for the Windows Agent?
 - Why it matters: This affects framework choice, scaling behavior, deployment topology, and C# client compatibility.
 - Current safe assumption: MVP uses a hub-based push model compatible with a C# Windows Agent.
+- Current delivery note: the first compatible hub slice now uses `SSE` for the initial Windows Agent go-live path, while the longer-term production technology choice, scaling model, and dedicated hub-token strategy remain open.
 
 ### OQ-2. Windows Agent Authentication Strategy
 - Question: How should the C# agent authenticate to the server and bind a device to an employee?
@@ -28,6 +29,7 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-4. WhatsApp Provider Selection
 - Question: Which WhatsApp provider or gateway will be used for production?
 - Why it matters: Template rules, webhook payloads, retry behavior, and message cost visibility depend on provider capabilities.
+- Current delivery note: this is explicitly deferred for the first Windows Agent go-live release and is not a release blocker until the desktop client path is live.
 
 ### OQ-5. Response Workflow Limits
 - Question: How far should template-driven response policy go in MVP?

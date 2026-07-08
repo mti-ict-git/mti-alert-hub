@@ -43,6 +43,7 @@ export async function createBackendApp() {
     database.client,
     communicationTemplateService,
     audiencePreviewService,
+    agentService,
   );
   const authService = new AuthService(
     ldapAuthenticator,

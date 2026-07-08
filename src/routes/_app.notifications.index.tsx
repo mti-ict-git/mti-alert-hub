@@ -175,7 +175,7 @@ function NotificationCenter() {
                             <Copy className="mr-2 h-4 w-4" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            disabled={n.status !== "Scheduled"}
+                            disabled={!["Scheduled", "Queued", "Sending", "Active"].includes(n.status)}
                             onClick={() => cancelMut.mutate(n.id)}
                           >
                             <XCircle className="mr-2 h-4 w-4" /> Cancel

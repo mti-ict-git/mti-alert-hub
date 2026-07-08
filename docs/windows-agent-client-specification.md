@@ -159,6 +159,15 @@ The client should:
 ### Current Open Point
 The exact backend technology for the SignalR-style server implementation is not yet locked. The client should therefore be built around a hub-based realtime model, not around a server-specific assumption beyond the published contract.
 
+### Current Implementation Baseline
+The current server baseline for the first go-live slice uses:
+- `POST /agent/realtime/negotiate` to return `transport = SSE`
+- `GET /agent/realtime-hub` as the concrete realtime stream endpoint
+- `Authorization: Bearer <sessionToken>` on the stream request
+- `connectionUrl` query parameters supplied by the server for `connectionId` and `deviceIdentifier`
+
+The client should treat this as the current working transport, while keeping the hub abstraction isolated enough to tolerate a later move to a different server technology.
+
 ## Authentication And Session Model
 ### Current Direction
 The current safe direction is:
@@ -189,7 +198,7 @@ Recommended client startup sequence:
 2. Call `POST /agent/session`.
 3. Receive session token and device metadata.
 4. Call `POST /agent/realtime/negotiate`.
-5. Establish realtime connection using returned hub metadata.
+5. Establish the `SSE` realtime stream using returned hub metadata and the current agent session token.
 6. Start heartbeat cycle.
 7. Call `GET /agent/messages` to reconcile any pending messages after startup or reconnect.
 8. Call `GET /agent/reminder-policies` to refresh locally executable reminder policies.
@@ -221,6 +230,17 @@ Threshold values such as heartbeat interval or stale timeout are expected to be 
 ## Message Retrieval Model
 ### Primary Mode
 Messages are expected to arrive through realtime push.
+
+### Current Stream Events
+The current hub baseline emits:
+- `connected`
+- `messages.snapshot`
+- `messages.available`
+
+The client should:
+- process `messages.snapshot` as the current server view after connect
+- process `messages.available` as a prompt to ingest or refresh pending messages
+- keep local deduplication in place because the server may emit the full active message set for a device instead of only the newest message
 
 ### Recovery Mode
 The client must support recovery by querying:

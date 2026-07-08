@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { AppError } from "../../../shared/errors/app-error.js";
 import type { Logger } from "../../../shared/observability/logger.js";
@@ -79,6 +80,38 @@ type DeliveryEventRow = {
   eventPayload: unknown;
 };
 
+type ReminderEventType =
+  | "Triggered"
+  | "Displayed"
+  | "Read"
+  | "Dismissed"
+  | "Snoozed"
+  | "Responded";
+
+type AgentReminderPolicyRow = {
+  policyId: string;
+  communicationId: string;
+  scheduleVersion: number;
+  recurrenceRule: string;
+  timezone: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  title: string;
+  body: string;
+  windowsAgentPresentation: WindowsAgentPresentation | null;
+  requiresResponse: boolean;
+  workflowId: string | null;
+  updatedAt: string;
+};
+
+type OwnedReminderPolicyRow = {
+  policyId: string;
+  deviceId: string;
+  communicationId: string;
+  isActive: boolean;
+  validUntil: string | null;
+};
+
 type CreateAgentSessionInput = {
   deviceIdentifier: string;
   employeeNumber?: string | null;
@@ -111,13 +144,30 @@ type MessageResponseInput = {
 };
 
 type ReminderEventInput = {
-  eventType: string;
+  eventType: ReminderEventType;
   occurredAt: string;
   activeUserIdentifier?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
+type ActiveRealtimeConnection = {
+  deviceId: string;
+  connectionId: string;
+  response: ServerResponse;
+  keepAliveTimer: ReturnType<typeof setInterval>;
+};
+
+type RealtimeStreamInput = {
+  sessionToken: string;
+  deviceIdentifier: string;
+  connectionId: string;
+  request: IncomingMessage;
+  response: ServerResponse;
+};
+
 export class AgentService {
+  private readonly realtimeConnections = new Map<string, ActiveRealtimeConnection>();
+
   constructor(
     private readonly database: DatabaseClient,
     private readonly sessionStore: AgentSessionStore,
@@ -178,11 +228,70 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     await this.ensureSessionOwnsDevice(session, input.deviceIdentifier);
 
+    const connectionIdentifier = randomUUID();
+    await this.database.withTransaction(async (transaction) => {
+      await transaction.query(
+        `
+          update public.device_realtime_connections
+          set
+            status = 'Expired',
+            disconnected_at = coalesce(disconnected_at, now()),
+            last_seen_at = now()
+          where device_id = $1::uuid
+            and status = 'Connected'
+        `,
+        [session.device.id],
+      );
+      await transaction.query(
+        `
+          insert into public.device_realtime_connections (
+            device_id,
+            connection_identifier,
+            status
+          )
+          values (
+            $1::uuid,
+            $2,
+            'Connected'
+          )
+        `,
+        [session.device.id, connectionIdentifier],
+      );
+    });
+
     return {
-      connectionUrl: this.buildRealtimeUrl(),
-      accessToken: randomUUID(),
-      transport: "SignalR",
+      connectionUrl: this.buildRealtimeUrl(connectionIdentifier, input.deviceIdentifier),
+      accessToken: session.sessionToken,
+      connectionId: connectionIdentifier,
+      transport: "SSE",
     };
+  }
+
+  async openRealtimeStream(input: RealtimeStreamInput) {
+    const session = await this.requireSession(input.sessionToken, { renew: true });
+    await this.ensureSessionOwnsDevice(session, input.deviceIdentifier);
+    await this.requireActiveRealtimeConnection(session.device.id, input.connectionId);
+
+    this.registerRealtimeStream({
+      connectionId: input.connectionId,
+      deviceId: session.device.id,
+      request: input.request,
+      response: input.response,
+    });
+
+    await this.touchRealtimeConnection(session.device.id, input.connectionId);
+    this.writeRealtimeEvent(input.response, "connected", {
+      connectionId: input.connectionId,
+      deviceId: session.device.id,
+      connectedAt: new Date().toISOString(),
+      transport: "SSE",
+    });
+
+    const pendingMessages = await this.listPendingMessagesByDeviceId(session.device.id);
+    this.writeRealtimeEvent(input.response, "messages.snapshot", {
+      items: pendingMessages.items,
+      nextCursor: pendingMessages.nextCursor,
+    });
   }
 
   async reportHeartbeat(sessionToken: string, input: HeartbeatInput) {
@@ -213,65 +322,102 @@ export class AgentService {
 
   async listPendingMessages(sessionToken: string, since?: string | null) {
     const session = await this.requireSession(sessionToken, { renew: true });
+    return this.listPendingMessagesByDeviceId(session.device.id, since);
+  }
+
+  async notifyPendingMessagesForDevices(deviceIds: string[]) {
+    const uniqueDeviceIds = [...new Set(deviceIds.filter((deviceId) => deviceId.trim().length > 0))];
+    await Promise.all(
+      uniqueDeviceIds.map(async (deviceId) => {
+        const connection = this.findConnectionForDevice(deviceId);
+        if (!connection) {
+          return;
+        }
+
+        const pendingMessages = await this.listPendingMessagesByDeviceId(deviceId);
+        this.writeRealtimeEvent(connection.response, "messages.available", {
+          items: pendingMessages.items,
+          nextCursor: pendingMessages.nextCursor,
+        });
+        await this.touchRealtimeConnection(deviceId, connection.connectionId);
+      }),
+    );
+  }
+
+  async listReminderPolicies(sessionToken: string, since?: string | null) {
+    const session = await this.requireSession(sessionToken, { renew: true });
     if (since) {
       this.ensureOptionalIsoDate(since, "since");
     }
 
     const params: unknown[] = [session.device.id];
     const sinceClause = since
-      ? `and dj.updated_at >= $${params.push(since)}::timestamptz`
+      ? `and arp.updated_at >= $${params.push(since)}::timestamptz`
       : "";
-    const rows = await this.database.query<AgentMessageRow>(
+    const rows = await this.database.query<AgentReminderPolicyRow>(
       `
         select
-          dj.id::text as "messageId",
-          c.id::text as "communicationId",
-          c.title::text as title,
-          c.body::text as body,
-          c.priority::text as priority,
-          c.windows_agent_presentation::text as "windowsAgentPresentation",
+          arp.id::text as "policyId",
+          arp.communication_id::text as "communicationId",
+          arp.schedule_version as "scheduleVersion",
+          arp.recurrence_rule::text as "recurrenceRule",
+          arp.timezone::text as timezone,
+          coalesce(arp.valid_from, cs.valid_from)::text as "validFrom",
+          arp.valid_until::text as "validUntil",
+          arp.title_snapshot::text as title,
+          arp.body_snapshot::text as body,
+          arp.windows_agent_presentation::text as "windowsAgentPresentation",
           c.requires_response as "requiresResponse",
-          cr.template_version_snapshot as "templateVersion",
-          cr.workflow_snapshot_json as "workflowSnapshot",
-          dj.template_policy_snapshot_json as "templatePolicySnapshot",
-          dj.updated_at::text as "updatedAt"
-        from public.delivery_jobs dj
-        inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
-        inner join public.communications c on c.id = dj.communication_id
-        where dj.channel = 'WindowsAgent'
-          and cr.device_id = $1::uuid
-          and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed', 'Read')
+          c.workflow_id::text as "workflowId",
+          arp.updated_at::text as "updatedAt"
+        from public.agent_reminder_policies arp
+        inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
+        inner join public.communications c on c.id = arp.communication_id
+        where arp.device_id = $1::uuid
+          and arp.is_active = true
+          and coalesce(arp.valid_until, 'infinity'::timestamptz) > now()
           ${sinceClause}
-        order by coalesce(dj.queued_at, dj.created_at) asc, dj.created_at asc
+        order by arp.updated_at asc, arp.created_at asc
       `,
       params,
     );
 
-    return {
-      items: rows.map((row) => ({
-        messageId: row.messageId,
-        communicationId: row.communicationId,
-        title: row.title,
-        body: row.body,
-        priority: row.priority,
-        windowsAgentPresentation: row.windowsAgentPresentation,
-        requiresResponse: row.requiresResponse,
-        templateVersion: row.templateVersion,
-        workflow: parseWorkflowSnapshot(row.workflowSnapshot),
-        criticalBehaviorMode: parseCriticalBehaviorMode(row.templatePolicySnapshot),
-      })),
-      nextCursor: rows.at(-1)?.updatedAt ?? null,
-    };
-  }
-
-  async listReminderPolicies(sessionToken: string, since?: string | null) {
-    await this.requireSession(sessionToken, { renew: true });
-    if (since) {
-      this.ensureOptionalIsoDate(since, "since");
+    if (rows.length > 0) {
+      await this.database.query(
+        `
+          update public.agent_reminder_policies
+          set last_synced_at = now()
+          where id = any($1::uuid[])
+        `,
+        [rows.map((row) => row.policyId)],
+      );
     }
 
+    const workflowCache = new Map<string, WorkflowSnapshot | null>();
+
     return {
-      items: [],
+      items: await Promise.all(
+        rows.map(async (row) => {
+          const workflow = row.workflowId
+            ? await this.getWorkflowSnapshotCached(workflowCache, row.workflowId)
+            : null;
+
+          return {
+            policyId: row.policyId,
+            communicationId: row.communicationId,
+            scheduleVersion: row.scheduleVersion,
+            recurrenceRule: row.recurrenceRule,
+            timezone: row.timezone,
+            validFrom: row.validFrom,
+            validUntil: row.validUntil,
+            title: row.title,
+            body: row.body,
+            windowsAgentPresentation: row.windowsAgentPresentation,
+            requiresResponse: row.requiresResponse,
+            workflow,
+          };
+        }),
+      ),
     };
   }
 
@@ -387,7 +533,7 @@ export class AgentService {
   }
 
   async reportReminderEvent(sessionToken: string, policyId: string, input: ReminderEventInput) {
-    await this.requireSession(sessionToken, { renew: true });
+    const session = await this.requireSession(sessionToken, { renew: true });
     if (!policyId.trim()) {
       throw new AppError({
         statusCode: 422,
@@ -397,6 +543,43 @@ export class AgentService {
     }
 
     this.ensureIsoDate(input.occurredAt, "occurredAt");
+    assertReminderEventType(input.eventType);
+    const policy = await this.requireOwnedReminderPolicy(session, policyId);
+
+    await this.database.query(
+      `
+        insert into public.agent_reminder_events (
+          agent_reminder_policy_id,
+          device_id,
+          event_type,
+          occurred_at,
+          active_user_identifier,
+          metadata_json
+        )
+        values (
+          $1::uuid,
+          $2::uuid,
+          $3,
+          $4::timestamptz,
+          $5,
+          $6::jsonb
+        )
+        on conflict (
+          agent_reminder_policy_id,
+          device_id,
+          event_type,
+          occurred_at
+        ) do nothing
+      `,
+      [
+        policy.policyId,
+        session.device.id,
+        input.eventType,
+        input.occurredAt,
+        input.activeUserIdentifier ?? null,
+        JSON.stringify(input.metadata ?? null),
+      ],
+    );
 
     this.logger.info("agent.reminder.event_recorded", {
       policyId,
@@ -535,6 +718,287 @@ export class AgentService {
     );
 
     return rows[0];
+  }
+
+  private async requireOwnedReminderPolicy(session: AgentSession, policyId: string) {
+    const rows = await this.database.query<OwnedReminderPolicyRow>(
+      `
+        select
+          arp.id::text as "policyId",
+          arp.device_id::text as "deviceId",
+          arp.communication_id::text as "communicationId",
+          arp.is_active as "isActive",
+          arp.valid_until::text as "validUntil"
+        from public.agent_reminder_policies arp
+        where arp.id::text = $1
+          and arp.device_id = $2::uuid
+        limit 1
+      `,
+      [policyId, session.device.id],
+    );
+
+    const policy = rows[0];
+    if (!policy) {
+      throw new AppError({
+        statusCode: 404,
+        code: "REMINDER_POLICY_NOT_FOUND",
+        message: "The reminder policy was not found for this device.",
+      });
+    }
+
+    if (!policy.isActive || isExpiredReminderPolicy(policy.validUntil)) {
+      throw new AppError({
+        statusCode: 409,
+        code: "REMINDER_POLICY_INACTIVE",
+        message: "The reminder policy is no longer active for this device.",
+      });
+    }
+
+    return policy;
+  }
+
+  private registerRealtimeStream(options: {
+    connectionId: string;
+    deviceId: string;
+    request: IncomingMessage;
+    response: ServerResponse;
+  }) {
+    const existingConnection = this.realtimeConnections.get(options.connectionId);
+    if (existingConnection) {
+      clearInterval(existingConnection.keepAliveTimer);
+      existingConnection.response.end();
+      this.realtimeConnections.delete(options.connectionId);
+    }
+
+    options.response.statusCode = 200;
+    options.response.setHeader("content-type", "text/event-stream; charset=utf-8");
+    options.response.setHeader("cache-control", "no-cache, no-transform");
+    options.response.setHeader("connection", "keep-alive");
+    options.response.setHeader("x-accel-buffering", "no");
+    options.response.flushHeaders?.();
+    options.response.write(": connected\n\n");
+
+    const keepAliveTimer = setInterval(() => {
+      if (options.response.writableEnded) {
+        return;
+      }
+
+      options.response.write(`: keepalive ${Date.now()}\n\n`);
+      void this.touchRealtimeConnection(options.deviceId, options.connectionId);
+    }, 15000);
+
+    this.realtimeConnections.set(options.connectionId, {
+      connectionId: options.connectionId,
+      deviceId: options.deviceId,
+      response: options.response,
+      keepAliveTimer,
+    });
+
+    const closeConnection = () => {
+      const activeConnection = this.realtimeConnections.get(options.connectionId);
+      if (!activeConnection) {
+        return;
+      }
+
+      clearInterval(activeConnection.keepAliveTimer);
+      this.realtimeConnections.delete(options.connectionId);
+      void this.markRealtimeConnectionClosed(options.deviceId, options.connectionId);
+    };
+
+    options.request.on("close", closeConnection);
+    options.response.on("close", closeConnection);
+  }
+
+  private findConnectionForDevice(deviceId: string) {
+    for (const connection of this.realtimeConnections.values()) {
+      if (connection.deviceId === deviceId && !connection.response.writableEnded) {
+        return connection;
+      }
+    }
+
+    return null;
+  }
+
+  private writeRealtimeEvent(
+    response: ServerResponse,
+    eventName: "connected" | "messages.snapshot" | "messages.available",
+    payload: unknown,
+  ) {
+    if (response.writableEnded) {
+      return;
+    }
+
+    response.write(`event: ${eventName}\n`);
+    response.write(`data: ${JSON.stringify(payload)}\n\n`);
+  }
+
+  private async listPendingMessagesByDeviceId(deviceId: string, since?: string | null) {
+    if (since) {
+      this.ensureOptionalIsoDate(since, "since");
+    }
+
+    const params: unknown[] = [deviceId];
+    const sinceClause = since
+      ? `and dj.updated_at >= $${params.push(since)}::timestamptz`
+      : "";
+    const rows = await this.database.query<AgentMessageRow>(
+      `
+        select
+          dj.id::text as "messageId",
+          c.id::text as "communicationId",
+          c.title::text as title,
+          c.body::text as body,
+          c.priority::text as priority,
+          c.windows_agent_presentation::text as "windowsAgentPresentation",
+          c.requires_response as "requiresResponse",
+          cr.template_version_snapshot as "templateVersion",
+          cr.workflow_snapshot_json as "workflowSnapshot",
+          dj.template_policy_snapshot_json as "templatePolicySnapshot",
+          dj.updated_at::text as "updatedAt"
+        from public.delivery_jobs dj
+        inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+        inner join public.communications c on c.id = dj.communication_id
+        where dj.channel = 'WindowsAgent'
+          and cr.device_id = $1::uuid
+          and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed', 'Read')
+          ${sinceClause}
+        order by coalesce(dj.queued_at, dj.created_at) asc, dj.created_at asc
+      `,
+      params,
+    );
+
+    return {
+      items: rows.map((row) => ({
+        messageId: row.messageId,
+        communicationId: row.communicationId,
+        title: row.title,
+        body: row.body,
+        priority: row.priority,
+        windowsAgentPresentation: row.windowsAgentPresentation,
+        requiresResponse: row.requiresResponse,
+        templateVersion: row.templateVersion,
+        workflow: parseWorkflowSnapshot(row.workflowSnapshot),
+        criticalBehaviorMode: parseCriticalBehaviorMode(row.templatePolicySnapshot),
+      })),
+      nextCursor: rows.at(-1)?.updatedAt ?? null,
+    };
+  }
+
+  private async requireActiveRealtimeConnection(deviceId: string, connectionId: string) {
+    const rows = await this.database.query<{ id: string }>(
+      `
+        select id::text as id
+        from public.device_realtime_connections
+        where device_id = $1::uuid
+          and connection_identifier = $2
+          and status = 'Connected'
+        limit 1
+      `,
+      [deviceId, connectionId],
+    );
+
+    if (rows[0]) {
+      return rows[0];
+    }
+
+    throw new AppError({
+      statusCode: 404,
+      code: "REALTIME_CONNECTION_NOT_FOUND",
+      message: "The negotiated realtime connection was not found for this device.",
+    });
+  }
+
+  private async touchRealtimeConnection(deviceId: string, connectionId: string) {
+    await this.database.query(
+      `
+        update public.device_realtime_connections
+        set
+          last_seen_at = now(),
+          status = 'Connected',
+          disconnected_at = null
+        where device_id = $1::uuid
+          and connection_identifier = $2
+      `,
+      [deviceId, connectionId],
+    );
+  }
+
+  private async markRealtimeConnectionClosed(deviceId: string, connectionId: string) {
+    await this.database.query(
+      `
+        update public.device_realtime_connections
+        set
+          status = 'Disconnected',
+          disconnected_at = now(),
+          last_seen_at = now()
+        where device_id = $1::uuid
+          and connection_identifier = $2
+      `,
+      [deviceId, connectionId],
+    );
+  }
+
+  private async getWorkflowSnapshotCached(
+    cache: Map<string, WorkflowSnapshot | null>,
+    workflowId: string,
+  ) {
+    const cached = cache.get(workflowId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const workflow = await this.getWorkflowSnapshot(workflowId);
+    cache.set(workflowId, workflow);
+    return workflow;
+  }
+
+  private async getWorkflowSnapshot(workflowId: string): Promise<WorkflowSnapshot | null> {
+    const rows = await this.database.query<{
+      id: string;
+      name: string;
+      allowFreeText: boolean;
+      requireFreeText: boolean;
+      escalationTimeoutMinutes: number | null;
+      escalationMode: "RecipientOnly" | null;
+      responseImpliesAck: boolean;
+    }>(
+      `
+        select
+          id::text as id,
+          name::text as name,
+          allow_free_text as "allowFreeText",
+          require_free_text as "requireFreeText",
+          escalation_timeout_minutes as "escalationTimeoutMinutes",
+          escalation_mode::text as "escalationMode",
+          response_implies_ack as "responseImpliesAck"
+        from public.response_workflows
+        where id::text = $1
+        limit 1
+      `,
+      [workflowId],
+    );
+
+    const workflow = rows[0];
+    if (!workflow) {
+      return null;
+    }
+
+    const optionRows = await this.database.query<{ key: string; label: string }>(
+      `
+        select
+          option_key::text as key,
+          option_label::text as label
+        from public.response_workflow_options
+        where workflow_id::text = $1
+        order by sort_order asc, created_at asc
+      `,
+      [workflowId],
+    );
+
+    return {
+      ...workflow,
+      options: optionRows,
+    };
   }
 
   private async ensureSessionOwnsDevice(session: AgentSession, requestedDeviceIdentifier: string) {
@@ -747,10 +1211,14 @@ export class AgentService {
     this.ensureIsoDate(value, fieldName);
   }
 
-  private buildRealtimeUrl() {
+  private buildRealtimeUrl(connectionId: string, deviceIdentifier: string) {
     const port = this.env.BACKEND_PORT;
     const host = this.env.NODE_ENV === "production" ? "localhost" : "localhost";
-    return `http://${host}:${port}/agent/realtime-hub`;
+    const query = new URLSearchParams({
+      connectionId,
+      deviceIdentifier,
+    });
+    return `http://${host}:${port}/agent/realtime-hub?${query.toString()}`;
   }
 
   private serializeDevice(device: DeviceRecord) {
@@ -920,6 +1388,25 @@ function parseWorkflowSnapshot(value: unknown): WorkflowSnapshot | null {
   };
 }
 
+function assertReminderEventType(eventType: string): asserts eventType is ReminderEventType {
+  if (
+    eventType === "Triggered" ||
+    eventType === "Displayed" ||
+    eventType === "Read" ||
+    eventType === "Dismissed" ||
+    eventType === "Snoozed" ||
+    eventType === "Responded"
+  ) {
+    return;
+  }
+
+  throw new AppError({
+    statusCode: 422,
+    code: "VALIDATION_ERROR",
+    message: "eventType is not supported for reminder policy reporting.",
+  });
+}
+
 function parseCriticalBehaviorMode(value: unknown) {
   const parsed = parseJsonObject<{ criticalBehaviorMode?: string | null }>(value);
   const criticalBehaviorMode = parsed?.criticalBehaviorMode;
@@ -1005,4 +1492,8 @@ function readResponseNote(value: unknown) {
 function readActorUserIdentifier(value: unknown) {
   const parsed = parseJsonObject<{ activeUserIdentifier?: string | null }>(value);
   return typeof parsed?.activeUserIdentifier === "string" ? parsed.activeUserIdentifier : null;
+}
+
+function isExpiredReminderPolicy(validUntil: string | null) {
+  return validUntil ? Date.parse(validUntil) <= Date.now() : false;
 }

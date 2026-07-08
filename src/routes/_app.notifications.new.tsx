@@ -438,7 +438,7 @@ function CreateNotificationPage() {
                 <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="max-w-xs" />
               )}
               <p className="text-xs text-muted-foreground">
-                Publish scheduling belum aktif di backend Phase 1, jadi form ini saat ini menyimpan draft authoring.
+                This step still creates a draft only. Use the detail page to publish `Now` or `Scheduled` through the live backend flow.
               </p>
             </div>
 

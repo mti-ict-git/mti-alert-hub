@@ -105,7 +105,7 @@ export function createHttpServer(options: CreateServerOptions) {
         json: () => parseJsonBody(request),
       });
 
-      if (response.writableEnded) {
+      if (response.writableEnded || response.headersSent) {
         return;
       }
 

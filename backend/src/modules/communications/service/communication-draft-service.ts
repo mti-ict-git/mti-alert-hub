@@ -1,6 +1,7 @@
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
+import type { AgentService } from "../../agent/service/agent-service.js";
 import type {
   ChannelPlanItem,
   ExecutionAudienceResolution,
@@ -160,6 +161,7 @@ export class CommunicationDraftService {
     private readonly database: DatabaseClient,
     private readonly templateService: CommunicationTemplateService,
     private readonly audiencePreviewService: AudiencePreviewService,
+    private readonly agentService: AgentService,
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
@@ -449,6 +451,7 @@ export class CommunicationDraftService {
     const executionAudience = await this.audiencePreviewService.resolveExecutionAudience(
       communicationId,
     );
+    validateAgentLocalRoutineAudience(input, executionAudience);
     const workflowSnapshot = existing.workflowId
       ? await this.getWorkflowSummary(existing.workflowId)
       : null;
@@ -580,7 +583,26 @@ export class CommunicationDraftService {
         workflowSnapshot,
         templatePolicySnapshot,
       });
+
+      await materializeAgentReminderPolicies(transaction, {
+        communicationScheduleId: scheduleId,
+        communicationId,
+        executionMode: input.executionMode ?? null,
+        recipients: executionAudience,
+        communication: existing,
+        scheduleVersion: 1,
+        recurrenceRule: input.recurrenceRule ?? null,
+        timezone: input.timezone ?? null,
+        validFrom: input.scheduledAt ?? acceptedAt,
+        validUntil: input.validUntil ?? null,
+      });
     });
+
+    if (input.publishMode === "Now") {
+      await this.agentService.notifyPendingMessagesForDevices(
+        collectWindowsAgentDeviceIds(executionAudience.recipients),
+      );
+    }
 
     return this.getCommunicationDetail(communicationId);
   }
@@ -1765,6 +1787,144 @@ function determineRetryLimit(channel: Channel) {
   }
 }
 
+function validateAgentLocalRoutineAudience(
+  input: PublishCommunicationInput,
+  executionAudience: ExecutionAudienceResolution,
+) {
+  if (input.publishMode !== "Recurring" || input.executionMode !== "AgentLocalRoutine") {
+    return;
+  }
+
+  const hasDeviceBoundWindowsAgentRecipient = executionAudience.recipients.some(
+    (recipient) =>
+      recipient.deviceId &&
+      recipient.availableChannels.includes("WindowsAgent") &&
+      recipient.recipientType === "Device",
+  );
+
+  if (hasDeviceBoundWindowsAgentRecipient) {
+    return;
+  }
+
+  throw new AppError({
+    statusCode: 422,
+    code: "AGENT_LOCAL_ROUTINE_DEVICE_REQUIRED",
+    message:
+      "AgentLocalRoutine execution mode requires at least one device-bound Windows Agent recipient.",
+  });
+}
+
+async function materializeAgentReminderPolicies(
+  transaction: TransactionClient,
+  options: {
+    communicationScheduleId: string;
+    communicationId: string;
+    executionMode: ScheduleExecutionMode | null;
+    recipients: ExecutionAudienceResolution;
+    communication: CommunicationDetailRow;
+    scheduleVersion: number;
+    recurrenceRule: string | null;
+    timezone: string | null;
+    validFrom: string | null;
+    validUntil: string | null;
+  },
+) {
+  if (
+    options.executionMode !== "AgentLocalRoutine" ||
+    !options.recurrenceRule ||
+    !options.timezone
+  ) {
+    return;
+  }
+
+  const deviceRecipients = dedupeAgentReminderDevices(options.recipients.recipients);
+  for (const recipient of deviceRecipients) {
+    await transaction.query(
+      `
+        insert into public.agent_reminder_policies (
+          communication_schedule_id,
+          communication_id,
+          device_id,
+          schedule_version,
+          recurrence_rule,
+          timezone,
+          title_snapshot,
+          body_snapshot,
+          windows_agent_presentation,
+          valid_from,
+          valid_until,
+          is_active
+        )
+        values (
+          $1::uuid,
+          $2::uuid,
+          $3::uuid,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10::timestamptz,
+          $11::timestamptz,
+          true
+        )
+      `,
+      [
+        options.communicationScheduleId,
+        options.communicationId,
+        recipient.deviceId,
+        options.scheduleVersion,
+        options.recurrenceRule,
+        options.timezone,
+        options.communication.title,
+        options.communication.body,
+        options.communication.windowsAgentPresentation,
+        options.validFrom,
+        options.validUntil,
+      ],
+    );
+  }
+}
+
+function dedupeAgentReminderDevices(
+  recipients: ExecutionAudienceResolution["recipients"],
+) {
+  const devices = new Map<string, AgentReminderDeviceRecipient>();
+
+  for (const recipient of recipients) {
+    if (!isAgentReminderDeviceRecipient(recipient)) {
+      continue;
+    }
+
+    devices.set(recipient.deviceId, recipient);
+  }
+
+  return [...devices.values()];
+}
+
+function collectWindowsAgentDeviceIds(
+  recipients: ExecutionAudienceResolution["recipients"],
+) {
+  return [...new Set(dedupeAgentReminderDevices(recipients).map((recipient) => recipient.deviceId))];
+}
+
+type AgentReminderDeviceRecipient = ExecutionAudienceResolution["recipients"][number] & {
+  recipientType: "Device";
+  deviceId: string;
+};
+
+function isAgentReminderDeviceRecipient(
+  recipient: ExecutionAudienceResolution["recipients"][number],
+): recipient is AgentReminderDeviceRecipient {
+  return (
+    recipient.recipientType === "Device" &&
+    typeof recipient.deviceId === "string" &&
+    recipient.deviceId.length > 0 &&
+    recipient.availableChannels.includes("WindowsAgent")
+  );
+}
+
 async function deactivateActiveSchedules(
   transaction: TransactionClient,
   communicationId: string,
@@ -1780,6 +1940,17 @@ async function deactivateActiveSchedules(
         and is_active = true
     `,
     [communicationId, cancelledAt],
+  );
+
+  await transaction.query(
+    `
+      update public.agent_reminder_policies
+      set
+        is_active = false
+      where communication_id::text = $1
+        and is_active = true
+    `,
+    [communicationId],
   );
 }
 

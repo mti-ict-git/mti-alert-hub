@@ -136,7 +136,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `In Progress`
 
 ### Objective
-Implement communication publication, scheduling, recipient snapshots, delivery job orchestration, and routine reminder policy distribution for Windows Agent and WhatsApp.
+Implement communication publication, scheduling, recipient snapshots, delivery job orchestration, and routine reminder policy distribution, with the first live release focused on Windows Agent connectivity before WhatsApp provider integration.
 
 ### Source Documents
 - `docs/functional-specification.md`
@@ -173,17 +173,19 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `[x]` Slice 2.8 Windows Agent reconciliation: implement `GET /agent/messages` as contract-valid pending-message reconciliation, including safe empty-state behavior.
 - `[x]` Slice 2.8 Windows Agent reconciliation: implement idempotent `Displayed` and `Read` evidence ingestion for `POST /agent/messages/{messageId}/displayed` and `POST /agent/messages/{messageId}/read`.
 - `[x]` Slice 2.8 Windows Agent reconciliation: implement `POST /agent/messages/{messageId}/response` using workflow-aware response validation when the published communication requires a response.
-- `[ ]` Slice 2.9 Realtime compatibility boundary: implement `POST /agent/realtime/negotiate` so the server can return concrete negotiation metadata instead of placeholders.
-- `[ ]` Slice 2.9 Reminder policy sync: implement `GET /agent/reminder-policies` plus policy invalidation semantics for approved local routine reminders.
-- `[ ]` Slice 2.9 Reminder policy sync: implement `POST /agent/reminder-policies/{policyId}/events` for local occurrence and sync-state reporting.
-- `[ ]` Slice 2.10 WhatsApp connector boundary: implement outbound provider interface, callback ingestion contract, and delivery-state normalization.
-- `[ ]` Slice 2.10 WhatsApp connector boundary: map actual provider delivery and read receipts into MTI Alert delivery lifecycle states without over-claiming `Read`.
-- `[ ]` Slice 2.11 Frontend publish integration: replace mock publish, cancel, delivery, and device-monitoring service calls with backend-backed integrations.
+- `[x]` Slice 2.9 Realtime compatibility boundary: implement `POST /agent/realtime/negotiate` so the server can return concrete negotiation metadata instead of placeholders.
+- `[x]` Slice 2.9 Reminder policy sync: implement `GET /agent/reminder-policies` plus policy invalidation semantics for approved local routine reminders.
+- `[x]` Slice 2.9 Reminder policy sync: implement `POST /agent/reminder-policies/{policyId}/events` for local occurrence and sync-state reporting.
+- `[ ]` Slice 2.10 WhatsApp connector boundary: implement outbound provider interface, callback ingestion contract, and delivery-state normalization. Deferred until after the first Windows Agent go-live release.
+- `[ ]` Slice 2.10 WhatsApp connector boundary: map actual provider delivery and read receipts into MTI Alert delivery lifecycle states without over-claiming `Read`. Deferred until after the first Windows Agent go-live release.
+- `[x]` Slice 2.11 Frontend publish integration: replace mock publish and cancel service calls with backend-backed integrations on the admin notification flow.
+- `[ ]` Slice 2.11 Frontend publish integration: replace mock delivery and device-monitoring service calls with backend-backed visibility aligned to the Phase 2 contract.
 - `[ ]` Slice 2.11 Frontend publish integration: validate the admin publish and delivery monitoring flow against the new Phase 2 contract.
 
 ### Output
-- Backend supports end-to-end communication dispatch orchestration.
-- Delivery orchestration exists for both Windows Agent and WhatsApp with status persistence and retry behavior.
+- Backend supports end-to-end Windows Agent communication dispatch orchestration for the first live release.
+- Windows Agent delivery orchestration, reconciliation, and routine reminder sync are ready to serve the initial client go-live path.
+- WhatsApp provider delivery orchestration is explicitly deferred until after the first Windows Agent go-live release.
 - Routine reminder policies can be synchronized to Windows Agent for bounded local execution without changing server ownership of schedule lifecycle.
 
 ### Challenge / Verification
@@ -202,12 +204,19 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `2026-07-08`: Slice 2.6 now writes `delivery_jobs`, initial `delivery_attempts`, and append-only `delivery_events` from the publish snapshot, including bounded retry metadata and cancellation-to-failed normalization for pending jobs when a scheduled communication is cancelled.
 - `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4013` confirmed immediate, scheduled, and recurring publish acceptance produced the expected recipient snapshot mix, created per-channel delivery jobs, persisted initial attempts and `Queued` events, and transitioned pending scheduled jobs into `Failed` plus `AdminApi` failure events when the communication was cancelled.
 - Compatibility baseline added on `2026-07-08`: the backend now exposes `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, `GET /agent/messages`, `GET /agent/reminder-policies`, `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, `POST /agent/messages/{messageId}/response`, and `POST /agent/reminder-policies/{policyId}/events`.
-- Current limitation for that baseline: realtime negotiation still returns placeholder hub metadata, and reminder-policy synchronization remains an empty-safe compatibility handler until local routine policy persistence is implemented.
+- Compatibility baseline expanded on `2026-07-08`: the backend now also exposes `GET /agent/realtime-hub` as the first working `SSE` hub transport, emits `connected`, `messages.snapshot`, and `messages.available` events, and pushes queued Windows Agent delivery jobs to currently connected devices while preserving reconciliation through `GET /agent/messages`.
+- Current limitation for that baseline: the first compatible hub still reuses the persisted agent session token, currently emits the active message set for a device instead of a strictly delta-only stream, and local routine reminder sync remains limited to device-bound Windows Agent recurring recipients.
+- `2026-07-08`: delivery scope was reprioritized for the first live release so Windows Agent connectivity is the release-critical path, while `Slice 2.10 WhatsApp connector boundary` is intentionally deferred until after the desktop client go-live milestone.
+- `2026-07-08`: the current first-release blocker review is captured in `docs/go-live-checklist.md`, with the concrete realtime hub endpoint and the final operator publish path called out as the remaining release-critical gaps for the Windows Agent go-live path.
+- `2026-07-08`: the concrete realtime hub endpoint gap is now closed through a first compatible `SSE` slice, so the remaining first-release blocker is the final operator publish path if the admin UI is included in the release scope.
+- `2026-07-08`: the admin notification UI now uses backend-backed `publish` and `cancel` actions on the detail flow, including immediate and scheduled publish confirmation, while delivery monitoring and device-support visibility remain the unfinished frontend portion of `Slice 2.11`.
 - Verification evidence on `2026-07-08`: `npm run backend:typecheck` passed, `npm run backend:build` passed, and `npm run backend:migrate:dev` applied `0005_phase2_communication_schedules.up.sql` plus `0006_phase2_delivery_foundation.up.sql` after implementing publish, cancel, recipient snapshot, and delivery foundation persistence.
 - `2026-07-08`: Slice 2.7 now persists `POST /agent/session` trust in `device_sessions`, rotates the device token on session refresh, renews expiry on authenticated agent usage, and uses persisted device ownership to validate `POST /agent/heartbeat` before updating device freshness metadata.
 - `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4014` confirmed a registered device receives `200` from `POST /agent/session`, exactly one persisted `device_sessions` row remains for that device after session refresh, `POST /agent/heartbeat` returns `204` and updates `devices.last_heartbeat_at` plus `status`, and the replaced token is rejected with `401 UNAUTHORIZED`.
 - `2026-07-08`: Slice 2.8 now serves `GET /agent/messages` from persisted `delivery_jobs` plus `communication_recipients`, records idempotent `Displayed` and `Read` delivery events from the Windows Agent, and accepts workflow-validated `POST /agent/messages/{messageId}/response` by transitioning the message into `Responded` while updating recipient response and acknowledgement state.
 - `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4015` with `LDAP_ALLOWED_GROUPS=''` confirmed an admin can create and publish a Windows Agent-targeted communication, the target device receives exactly one pending message from `GET /agent/messages`, duplicate `Displayed` and `Read` submissions remain `204` and create only one lifecycle event each, `POST /agent/messages/{messageId}/response` returns `200`, the delivery job transitions to `Responded`, recipient state becomes `Responded` plus `Acknowledged`, and the message no longer appears in reconciliation after response submission.
+- `2026-07-08`: Slice 2.9 now materializes `AgentLocalRoutine` recurring reminder policies into `agent_reminder_policies`, records local reminder evidence in `agent_reminder_events`, persists realtime negotiation compatibility rows in `device_realtime_connections`, and rejects `AgentLocalRoutine` publish attempts that do not resolve to at least one device-bound Windows Agent recipient.
+- `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4016` with `LDAP_ALLOWED_GROUPS=''` confirmed an admin can publish a recurring `AgentLocalRoutine` reminder, `POST /agent/realtime/negotiate` returns a concrete `connectionUrl` plus reusable session-backed access token and persists a `Connected` realtime row, `GET /agent/reminder-policies` returns the synchronized policy, `POST /agent/reminder-policies/{policyId}/events` records a `Triggered` occurrence, and cancelling the communication removes the target `policyId` from subsequent reminder-policy sync responses while leaving the persisted policy row inactive.
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status

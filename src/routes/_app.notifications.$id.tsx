@@ -37,7 +37,7 @@ import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import type { Category, Channel, Notification, TargetType } from "@/types";
 import { format } from "date-fns";
-import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Users } from "lucide-react";
+import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/notifications/$id")({
@@ -63,7 +63,12 @@ function NotificationDetailPage() {
     queryFn: referenceService.listEmployees,
   });
   const [editOpen, setEditOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [draftForm, setDraftForm] = useState<EditDraftForm | null>(null);
+  const [publishMode, setPublishMode] = useState<"Now" | "Scheduled">("Now");
+  const [scheduledPublishAt, setScheduledPublishAt] = useState("");
+  const [publishTimezone, setPublishTimezone] = useState(getLocalTimeZone());
   const sites = organizationReference?.sites ?? [];
   const areas = organizationReference?.areas ?? [];
   const departments = organizationReference?.departments ?? [];
@@ -102,6 +107,54 @@ function NotificationDetailPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to update draft");
+    },
+  });
+  const publishMutation = useMutation({
+    mutationFn: async () => {
+      if (publishMode === "Scheduled") {
+        const scheduledAtIso = normalizeScheduledDateTime(scheduledPublishAt);
+        return notificationsService.publish(id, {
+          publishMode: "Scheduled",
+          scheduledAt: scheduledAtIso,
+          timezone: publishTimezone.trim(),
+          confirmedPreview: true,
+        });
+      }
+
+      return notificationsService.publish(id, {
+        publishMode: "Now",
+        confirmedPreview: true,
+      });
+    },
+    onSuccess: async (updated) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["notifications"] }),
+        qc.invalidateQueries({ queryKey: ["notification", id] }),
+        qc.invalidateQueries({ queryKey: ["audience-preview", id] }),
+      ]);
+      setPublishOpen(false);
+      toast.success(
+        updated.status === "Scheduled"
+          ? "Communication scheduled"
+          : "Communication queued for Windows Agent delivery",
+      );
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to publish communication");
+    },
+  });
+  const cancelMutation = useMutation({
+    mutationFn: () => notificationsService.cancel(id),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["notifications"] }),
+        qc.invalidateQueries({ queryKey: ["notification", id] }),
+      ]);
+      setCancelOpen(false);
+      toast.success("Communication cancelled");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel communication");
     },
   });
   const previewRecipients = audiencePreview?.recipients ?? [];
@@ -157,6 +210,11 @@ function NotificationDetailPage() {
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
   const isDraft = n.status === "Draft";
+  const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
+  const canPublish = isDraft;
+  const scheduledPublishInvalid =
+    publishMode === "Scheduled" &&
+    (!scheduledPublishAt.trim() || !publishTimezone.trim());
 
   function openEditDialog() {
     setDraftForm({
@@ -176,6 +234,13 @@ function NotificationDetailPage() {
     setEditOpen(true);
   }
 
+  function openPublishDialog() {
+    setPublishMode("Now");
+    setScheduledPublishAt("");
+    setPublishTimezone(getLocalTimeZone());
+    setPublishOpen(true);
+  }
+
   return (
     <div>
       <PageHeader
@@ -183,6 +248,16 @@ function NotificationDetailPage() {
         description={buildNotificationDescription(n)}
         actions={
           <>
+            {canPublish && (
+              <Button size="sm" onClick={openPublishDialog}>
+                <Rocket className="mr-2 h-4 w-4" /> Publish
+              </Button>
+            )}
+            {canCancel && (
+              <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
+                <XCircle className="mr-2 h-4 w-4" /> Cancel
+              </Button>
+            )}
             {isDraft && (
               <Button variant="outline" size="sm" onClick={openEditDialog}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit Draft
@@ -575,6 +650,112 @@ function NotificationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish Communication</DialogTitle>
+            <DialogDescription>
+              This confirms the latest audience preview and sends the draft into the live delivery flow.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Publish Mode</Label>
+              <RadioGroup
+                value={publishMode}
+                onValueChange={(value) => setPublishMode(value as "Now" | "Scheduled")}
+                className="grid grid-cols-1 gap-2"
+              >
+                <Label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+                  <RadioGroupItem value="Now" />
+                  Publish now and queue delivery immediately
+                </Label>
+                <Label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+                  <RadioGroupItem value="Scheduled" />
+                  Schedule for a specific future time
+                </Label>
+              </RadioGroup>
+            </div>
+
+            {publishMode === "Scheduled" && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Scheduled At</Label>
+                  <Input
+                    type="datetime-local"
+                    value={scheduledPublishAt}
+                    onChange={(event) => setScheduledPublishAt(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The backend requires a future timestamp with timezone context.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <Input
+                    value={publishTimezone}
+                    onChange={(event) => setPublishTimezone(event.target.value)}
+                    placeholder="e.g. Asia/Jakarta"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-md border p-3 text-sm">
+              <div className="font-medium">{n.title}</div>
+              <p className="mt-1 text-muted-foreground">{n.message}</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                By continuing, the operator confirms the latest audience preview and allows the backend to create delivery jobs for the selected channels.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPublishOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending || scheduledPublishInvalid}
+            >
+              {publishMutation.isPending
+                ? "Publishing..."
+                : publishMode === "Scheduled"
+                  ? "Schedule"
+                  : "Publish Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Communication</DialogTitle>
+            <DialogDescription>
+              This stops future delivery for the current communication and marks pending Windows Agent jobs as cancelled in backend tracking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border p-3 text-sm">
+            <div className="font-medium">{n.title}</div>
+            <p className="mt-1 text-muted-foreground">
+              Current status: {n.status}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -682,4 +863,17 @@ function buildNotificationDescription(notification: Notification) {
   }
 
   return parts.join(" · ");
+}
+
+function normalizeScheduledDateTime(value: string) {
+  const scheduledDate = new Date(value);
+  if (Number.isNaN(scheduledDate.getTime())) {
+    throw new Error("Scheduled publish requires a valid date and time.");
+  }
+
+  return scheduledDate.toISOString();
+}
+
+function getLocalTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }

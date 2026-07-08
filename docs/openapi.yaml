@@ -617,7 +617,13 @@ paths:
     post:
       tags: [Agent]
       summary: Negotiate a realtime Windows Agent connection
-      description: Requires a valid persisted agent session and rejects requests that try to negotiate for a different device identifier.
+      description: |
+        Requires a valid persisted agent session and rejects requests that try to negotiate for a different device identifier.
+
+        Current Phase 2 note:
+        - The negotiation response now returns the concrete realtime hub URL exposed by the backend runtime.
+        - The first compatible hub slice uses `transport = SSE`.
+        - The compatibility access token currently reuses the persisted agent session token until a dedicated hub token issuer is introduced.
       operationId: negotiateAgentRealtimeConnection
       x-implementation-phase: Phase 2
       security:
@@ -637,6 +643,49 @@ paths:
                 $ref: "#/components/schemas/AgentRealtimeNegotiationResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /agent/realtime-hub:
+    get:
+      tags: [Agent]
+      summary: Open the negotiated realtime hub stream for the Windows Agent
+      description: |
+        Opens the first compatible realtime hub transport for the calling Windows Agent session.
+
+        Current Phase 2 note:
+        - The current implementation uses Server-Sent Events (`text/event-stream`).
+        - The client must use the `connectionUrl` or the returned `connectionId` from `POST /agent/realtime/negotiate`.
+        - The stream emits an initial `connected` event, a `messages.snapshot` event after connect, and `messages.available` whenever queued Windows Agent delivery jobs are published for the connected device.
+        - `GET /agent/messages` remains the required reconciliation fallback after reconnect or suspected event loss.
+      operationId: openAgentRealtimeHub
+      x-implementation-phase: Phase 2
+      security:
+        - AgentSessionAuth: []
+      parameters:
+        - in: query
+          name: connectionId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deviceIdentifier
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Realtime SSE stream opened successfully
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -707,6 +756,13 @@ paths:
     get:
       tags: [Agent]
       summary: Fetch active locally executable reminder policies for the Windows Agent
+      description: |
+        Returns active `AgentLocalRoutine` reminder policies synchronized for the calling device.
+
+        Current Phase 2 note:
+        - Policies are materialized from recurring `communication_schedules` into `agent_reminder_policies`.
+        - Cancelled, replaced, expired, or inactive policies are omitted from the sync response.
+        - Initial implementation currently syncs only device-bound Windows Agent reminder recipients.
       operationId: listAgentReminderPolicies
       x-implementation-phase: Phase 2
       security:
@@ -732,6 +788,7 @@ paths:
     post:
       tags: [Agent]
       summary: Report a locally executed reminder occurrence or interaction
+      description: Records local Windows Agent reminder evidence for an active synced policy owned by the calling device.
       operationId: reportAgentReminderPolicyEvent
       x-implementation-phase: Phase 2
       security:
@@ -1806,16 +1863,18 @@ components:
 
     AgentRealtimeNegotiationResponse:
       type: object
-      required: [connectionUrl, accessToken]
+      required: [connectionUrl, accessToken, connectionId, transport]
       properties:
         connectionUrl:
           type: string
           format: uri
         accessToken:
           type: string
+        connectionId:
+          type: string
         transport:
           type: string
-          nullable: true
+          enum: [SSE]
 
     AgentHeartbeatRequest:
       type: object
