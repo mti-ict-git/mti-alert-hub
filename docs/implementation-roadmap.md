@@ -226,7 +226,7 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status
-- `Pending`
+- `In Progress`
 
 ### Objective
 Implement recipient response workflows, status monitoring, dashboards, and audit-driven reporting.
@@ -248,15 +248,15 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
 - `[ ]` Workflow management: implement workflow option validation rules.
 - `[ ]` Response handling: implement response submission for Windows Agent and compatible channel responses.
-- `[ ]` Response handling: enforce `response implies ack` semantics in the backend.
-- `[ ]` Response handling: store actor context as optional audit metadata where available.
-- `[ ]` Monitoring: implement communication-level monitoring endpoints.
-- `[ ]` Monitoring: implement recipient-level monitoring endpoints with device and contact distinctions.
-- `[ ]` Monitoring: implement dashboard summary endpoints and aggregation queries.
-- `[ ]` Monitoring: implement delivery and response state rollups for tracked content types.
+- `[x]` Response handling: enforce `response implies ack` semantics in the backend.
+- `[x]` Response handling: store actor context as optional audit metadata where available.
+- `[x]` Monitoring: implement communication-level monitoring endpoints.
+- `[x]` Monitoring: implement recipient-level monitoring endpoints with device and contact distinctions.
+- `[x]` Monitoring: implement dashboard summary endpoints and aggregation queries.
+- `[x]` Monitoring: implement delivery and response state rollups for tracked content types.
 - `[ ]` Overdue handling: implement timeout evaluation and recipient-only follow-up triggers.
 - `[ ]` Auditability: implement audit logging for publish, cancel, override rejection, response, and state transitions.
-- `[ ]` Frontend integration: replace mock reports, dashboards, and response summary services with backend-backed calls.
+- `[x]` Frontend integration: replace mock reports, dashboards, and response summary services with backend-backed calls.
 
 ### Output
 - Backend supports monitored response workflows and operational reporting.
@@ -267,6 +267,18 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - Overdue cases are challenged.
 - Dashboard counts reconcile with source records.
 - Audit records are challenged against representative lifecycle events.
+- `2026-07-09`: Phase 3 is now active because Windows Agent startup, realtime push, reconnect, and thin admin delivery visibility were already validated for the first go-live path.
+- `2026-07-09`: the backend now exposes `GET /communications/{communicationId}/responses` as the first admin response-monitoring endpoint, returning paged recipient responses derived from persisted `Responded` delivery events for the communication.
+- `2026-07-09`: manual `workflowId` selection on communication drafts now also sets `requiresResponse`, preventing `RESPONSE_NOT_REQUIRED` conflicts when operators create response-required communications without relying on template defaults.
+- `2026-07-09`: the admin notification detail page now includes a backend-backed `Responses` tab that lists recipient name, response option, actor, and response time using the new Phase 3 response endpoint together with persisted recipient snapshots.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4020` that created a Windows Agent communication with workflow `11111111-1111-1111-1111-111111111111`, published it to `device-mti-ops-01`, submitted agent response option `safe`, and confirmed `GET /communications/{communicationId}/responses` returned the persisted response plus actor context with `totalItems = 1`.
+- `2026-07-09`: the backend now exposes `GET /dashboard/overview` as the first dashboard summary baseline, and the admin dashboard stat cards use this endpoint for active communications, pending recipients, delivered jobs, responded recipients, failed jobs, and overdue response counts instead of local mock aggregation.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4021` that authenticated an admin session and confirmed `GET /dashboard/overview` returned non-error aggregate metrics (`activeCommunications = 10`, `recipientsPending = 5`, `deliveredCount = 10`, `respondedCount = 5`, `failedCount = 3`, `overdueResponses = 0`).
+- `2026-07-09`: `GET /communications/{communicationId}/deliveries` now serves as the first recipient-level monitoring baseline, returning `Device`, `Employee`, and `ContactEndpoint` recipient contexts together with `deviceId`, `deviceIdentifier`, `hostname`, and `channelEndpoint` where available, and the admin notification detail `Recipients` tab now surfaces those references directly for operator monitoring.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4022` that published one device-targeted Windows Agent communication plus one employee-targeted WhatsApp communication, then confirmed `GET /communications/{communicationId}/deliveries` returned a `Device` recipient with `deviceId = 401317fc-fb05-4020-b69f-15c7bd6d90d6`, `deviceIdentifier = device-mti-ops-01`, `hostname = MTI-OPS-01`, and a `ContactEndpoint` recipient with `channelEndpoint = +628000000001`.
+- `2026-07-09`: the backend now exposes `GET /dashboard/content-type-rollups` as the first tracked-content reporting baseline, grouping persisted communication, recipient, workflow, and delivery state into per-`communicationType` delivery and response rollups without requiring a derived reporting table.
+- `2026-07-09`: the admin `Reports` page now uses backend-backed content-type rollups instead of mock department, site, and channel chart data, and `GET /communications` now includes persisted `category`, `createdAt`, `recipientsCount`, and `ackCount` summary fields so report history and dashboard notification summaries no longer default to placeholder zero counts.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4023` that published one `Alert` plus one `News` communication to `device-mti-ops-01`, reported `Displayed`, `Read`, and workflow `Responded` for the `Alert`, then confirmed `GET /dashboard/content-type-rollups` returned six tracked content-type rows including `Alert` rollups with `readCount = 11` and `respondedCount = 7`, while `GET /communications` returned the created `Alert` summary with `recipientsCount = 1` and `ackCount = 1`.
 
 ## Phase 4 - Hardening And Expansion
 ### Status

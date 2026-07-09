@@ -7,10 +7,14 @@ type ApiCommunicationSummary = {
   priority: "Info" | "Warning" | "Critical";
   title: string;
   status: string;
+  category?: string | null;
   scheduledAt?: string | null;
   templateId?: string | null;
   templateVersion?: number | null;
   channelSelections: Array<"WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage">;
+  createdAt?: string | null;
+  recipientsCount?: number;
+  ackCount?: number;
 };
 
 type ApiCommunicationDetail = ApiCommunicationSummary & {
@@ -45,6 +49,10 @@ type ApiDeliveryRecord = {
   recipientName: string;
   recipientType?: "Device" | "Employee" | "ContactEndpoint";
   employeeId?: string | null;
+  deviceId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  channelEndpoint?: string | null;
   employeeNumber?: string | null;
   departmentName?: string | null;
   sectionName?: string | null;
@@ -64,6 +72,9 @@ type ApiDeliveryRecipient = {
   recipientType: "Device" | "Employee" | "ContactEndpoint";
   employeeId?: string | null;
   deviceId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  channelEndpoint?: string | null;
   employeeNumber?: string | null;
   recipientName: string;
   departmentName?: string | null;
@@ -71,7 +82,7 @@ type ApiDeliveryRecipient = {
   siteName?: string | null;
   areaName?: string | null;
   ackState: string;
-  responseState: "NotRequired" | "AwaitingResponse" | "Responded";
+  responseState: "NotRequired" | "AwaitingResponse" | "Overdue" | "Responded";
   channels: Array<ApiCommunicationSummary["channelSelections"][number]>;
   latestJobStatus: string;
   lastUpdatedAt?: string | null;
@@ -227,7 +238,7 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
     title: item.title,
     message: "",
     priority: mapPriorityFromApi(item.priority),
-    category: "General",
+    category: normalizeCategory(item.category),
     targetType: "Custom",
     channels: item.channelSelections.map(mapChannelFromApi),
     requireAck: false,
@@ -235,9 +246,9 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
     status: mapStatusFromApi(item.status),
     templateId: item.templateId ?? null,
     createdBy: "System",
-    createdAt: item.scheduledAt ?? new Date().toISOString(),
-    recipientsCount: 0,
-    ackCount: 0,
+    createdAt: item.createdAt ?? item.scheduledAt ?? new Date().toISOString(),
+    recipientsCount: item.recipientsCount ?? 0,
+    ackCount: item.ackCount ?? 0,
   };
 }
 
@@ -331,6 +342,10 @@ function mapDeliveryRecipientToRecipient(
     id: recipient.recipientId,
     notificationId,
     employeeId: recipient.employeeNumber ?? recipient.employeeId ?? recipient.recipientId,
+    deviceId: recipient.deviceId ?? null,
+    deviceIdentifier: recipient.deviceIdentifier ?? null,
+    hostname: recipient.hostname ?? null,
+    channelEndpoint: recipient.channelEndpoint ?? null,
     name: recipient.recipientName,
     department: recipient.departmentName ?? "—",
     section: recipient.sectionName ?? "—",
@@ -365,6 +380,7 @@ function mapDeliveryStatusFromApi(status: string): DeliveryLog["status"] {
     case "Delivered":
     case "Displayed":
     case "Read":
+    case "Overdue":
     case "Responded":
     case "Failed":
       return status;

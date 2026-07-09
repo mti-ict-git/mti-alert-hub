@@ -8,6 +8,7 @@ import type { BackendEnv } from "../../../app/config/env.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
+import type { ResponseOverdueService } from "../../communications/service/response-overdue-service.js";
 
 type DeviceRecord = {
   id: string;
@@ -172,6 +173,7 @@ export class AgentService {
   constructor(
     private readonly database: DatabaseClient,
     private readonly sessionStore: AgentSessionStore,
+    private readonly responseOverdueService: ResponseOverdueService,
     private readonly env: BackendEnv,
     private readonly logger: Logger,
   ) {}
@@ -838,6 +840,8 @@ export class AgentService {
   }
 
   private async listPendingMessagesByDeviceId(deviceId: string, since?: string | null) {
+    await this.responseOverdueService.evaluateRecipientOnlyOverdueForDevice(deviceId);
+
     if (since) {
       this.ensureOptionalIsoDate(since, "since");
     }

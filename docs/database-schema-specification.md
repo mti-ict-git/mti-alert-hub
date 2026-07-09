@@ -321,18 +321,16 @@ Key columns:
 - `is_terminal`
 
 ### recipient_responses
-Stores actual recipient responses.
+Dedicated normalized response rows are deferred in the current MVP runtime.
 
-Key columns:
-- `id`
-- `communication_recipient_id`
-- `device_id`
-- `actor_user_identifier` nullable
-- `channel`
-- `response_option_key`
-- `response_note`
-- `responded_at`
-- `created_at`
+Current implementation note:
+- Windows Agent response evidence is currently persisted in `delivery_events` with `event_type = Responded`.
+- Response state is mirrored onto `communication_recipients.response_state`.
+- Workflows with `response_implies_ack = true` also update `communication_recipients.ack_state` to `Acknowledged`.
+- `delivery_events.event_payload_json` currently carries:
+  - `responseOptionKey`
+  - `responseNote` when the workflow allows free text
+  - `activeUserIdentifier` when the device reports actor context
 
 ## Delivery Tables
 ### delivery_jobs
@@ -470,7 +468,7 @@ Key columns:
 - `communication_recipients` 1-to-many `delivery_jobs`
 - `delivery_jobs` 1-to-many `delivery_attempts`
 - `delivery_jobs` 1-to-many `delivery_events`
-- `communication_recipients` 1-to-many `recipient_responses`
+- `delivery_jobs` 1-to-many response evidence rows through `delivery_events` where `event_type = Responded`
 - `devices` 1-to-many `device_realtime_connections`
 
 ## Notes

@@ -348,14 +348,16 @@ function NotificationDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Recipient Type</TableHead><TableHead>Employee No</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead><TableHead>Status</TableHead><TableHead>Ack</TableHead>
+                      <TableHead>Recipient Type</TableHead><TableHead>Reference</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead><TableHead>Status</TableHead><TableHead>Response</TableHead><TableHead>Ack</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {recipientRows.map((recipient) => (
                       <TableRow key={recipient.id}>
                         <TableCell>{recipient.recipientType ?? "—"}</TableCell>
-                        <TableCell className="font-mono text-xs">{recipient.employeeId || "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {buildRecipientReference(recipient)}
+                        </TableCell>
                         <TableCell>{recipient.name || "—"}</TableCell>
                         <TableCell>{recipient.department || "—"}</TableCell>
                         <TableCell>{recipient.section || "—"}</TableCell>
@@ -365,12 +367,13 @@ function NotificationDetailPage() {
                           {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
                         </TableCell>
                         <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
+                        <TableCell><StatusBadge status={formatResponseState(recipient.responseState)} /></TableCell>
                         <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
                       </TableRow>
                     ))}
                     {recipientRows.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
                           No recipient snapshots are available yet for this communication.
                         </TableCell>
                       </TableRow>
@@ -960,6 +963,32 @@ function normalizeScheduledDateTime(value: string) {
 
 function getLocalTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function buildRecipientReference(recipient: Recipient) {
+  if (recipient.recipientType === "Device") {
+    return recipient.deviceIdentifier ?? recipient.hostname ?? recipient.deviceId ?? "—";
+  }
+
+  if (recipient.recipientType === "ContactEndpoint") {
+    return recipient.channelEndpoint ?? "—";
+  }
+
+  return recipient.employeeId || "—";
+}
+
+function formatResponseState(state: Recipient["responseState"]) {
+  switch (state) {
+    case "AwaitingResponse":
+      return "Pending";
+    case "Overdue":
+      return "Overdue";
+    case "Responded":
+      return "Responded";
+    case "NotRequired":
+    default:
+      return "NotRequired";
+  }
 }
 
 function mapPreviewChannelToChannel(channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage") {

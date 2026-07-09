@@ -12,7 +12,10 @@ import { registerCommunicationRoutes } from "../../modules/communications/contro
 import { AudiencePreviewService } from "../../modules/communications/service/audience-preview-service.js";
 import { CommunicationDraftService } from "../../modules/communications/service/communication-draft-service.js";
 import { CommunicationTemplateService } from "../../modules/communications/service/communication-template-service.js";
+import { ResponseOverdueService } from "../../modules/communications/service/response-overdue-service.js";
 import { AccessProfileService } from "../../modules/access/service/access-profile-service.js";
+import { registerDashboardRoutes } from "../../modules/dashboard/controller/register-dashboard-routes.js";
+import { DashboardReadService } from "../../modules/dashboard/service/dashboard-read-service.js";
 import { registerDeviceRoutes } from "../../modules/devices/controller/register-device-routes.js";
 import { DeviceReadService } from "../../modules/devices/service/device-read-service.js";
 import { registerHealthRoutes } from "../../modules/health/controller/register-health-routes.js";
@@ -33,7 +36,15 @@ export async function createBackendApp() {
   const ldapAuthenticator = new LdapAuthenticator(env, logger);
   const organizationReadService = new OrganizationReadService(database.client);
   const deviceReadService = new DeviceReadService(database.client);
-  const agentService = new AgentService(database.client, agentSessionStore, env, logger);
+  const dashboardReadService = new DashboardReadService(database.client);
+  const responseOverdueService = new ResponseOverdueService(database.client);
+  const agentService = new AgentService(
+    database.client,
+    agentSessionStore,
+    responseOverdueService,
+    env,
+    logger,
+  );
   const communicationTemplateService = new CommunicationTemplateService(database.client);
   const audiencePreviewService = new AudiencePreviewService(
     database.client,
@@ -69,6 +80,9 @@ export async function createBackendApp() {
       }),
       ...registerDeviceRoutes({
         deviceReadService,
+      }),
+      ...registerDashboardRoutes({
+        dashboardReadService,
       }),
       ...registerAgentRoutes({
         agentService,

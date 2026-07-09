@@ -335,6 +335,7 @@ paths:
         Current Phase 2 note:
         - The response includes paged delivery jobs, persisted recipient snapshots, and recent delivery event logs.
         - Recipient snapshots come from publish-time `communication_recipients`.
+        - Recipient snapshots and delivery rows now distinguish `Device`, `Employee`, and `ContactEndpoint` monitoring contexts, including device references and routed contact endpoints where available.
         - Delivery jobs and delivery events come from the current orchestration persistence model and are intended for first-line operational support, not full dashboard analytics.
       operationId: listCommunicationDeliveries
       x-implementation-phase: Phase 2
@@ -360,6 +361,13 @@ paths:
     get:
       tags: [Responses]
       summary: List recipient responses for a communication
+      description: |
+        Returns the current admin response-monitoring baseline for one communication.
+
+        Current Phase 3 note:
+        - The response list is derived from persisted `Responded` delivery events for the communication.
+        - `actorUserIdentifier` is sourced from the Windows Agent response payload when available.
+        - This endpoint supports thin operator monitoring and response drill-down before broader reporting and dashboard slices are completed.
       operationId: listCommunicationResponses
       x-implementation-phase: Phase 3
       parameters:
@@ -920,6 +928,13 @@ paths:
     get:
       tags: [Dashboard]
       summary: Get dashboard summary metrics
+      description: |
+        Returns the current operator dashboard summary baseline.
+
+        Current Phase 3 note:
+        - The overview is backed by persisted communications, recipient snapshots, workflows, and delivery jobs.
+        - The current baseline includes counts for active communications, recipients still pending acknowledgement or response, delivered jobs, responding recipients, failed jobs, and overdue response recipients.
+        - Richer trend analytics, activity-feed aggregation, and channel comparison reporting remain later Phase 3 work.
       operationId: getDashboardOverview
       x-implementation-phase: Phase 3
       responses:
@@ -929,6 +944,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardOverview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /dashboard/content-type-rollups:
+    get:
+      tags: [Dashboard]
+      summary: Get delivery and response rollups by content type
+      description: |
+        Returns the current reporting baseline for tracked communication content types.
+
+        Current Phase 3 note:
+        - The response groups persisted communication, recipient, workflow, and delivery state by `communicationType`.
+        - The baseline is intended for operator reporting screens that need delivery and response rollups without introducing derived reporting tables yet.
+        - Each row includes communication counts, recipient counts, active communication counts, delivered/read/responded/failed counts, pending responses, and overdue responses for the tracked content type.
+      operationId: getDashboardContentTypeRollups
+      x-implementation-phase: Phase 3
+      responses:
+        "200":
+          description: Dashboard content-type rollups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardContentTypeRollupListResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1242,6 +1282,9 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/CommunicationStatus"
+        category:
+          type: string
+          nullable: true
         scheduledAt:
           type: string
           format: date-time
@@ -1256,6 +1299,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Channel"
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        recipientsCount:
+          type: integer
+        ackCount:
+          type: integer
 
     CommunicationDetail:
       allOf:
@@ -1457,6 +1508,18 @@ components:
           type: string
           nullable: true
         employeeId:
+          type: string
+          nullable: true
+        deviceId:
+          type: string
+          nullable: true
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        channelEndpoint:
           type: string
           nullable: true
         employeeNumber:
@@ -2124,6 +2187,15 @@ components:
         deviceId:
           type: string
           nullable: true
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        channelEndpoint:
+          type: string
+          nullable: true
         employeeNumber:
           type: string
           nullable: true
@@ -2258,3 +2330,47 @@ components:
           type: integer
         overdueResponses:
           type: integer
+
+    DashboardContentTypeRollup:
+      type: object
+      required:
+        - communicationType
+        - communicationCount
+        - activeCommunications
+        - recipientCount
+        - deliveredCount
+        - readCount
+        - respondedCount
+        - failedCount
+        - pendingResponseCount
+        - overdueResponses
+      properties:
+        communicationType:
+          $ref: "#/components/schemas/CommunicationType"
+        communicationCount:
+          type: integer
+        activeCommunications:
+          type: integer
+        recipientCount:
+          type: integer
+        deliveredCount:
+          type: integer
+        readCount:
+          type: integer
+        respondedCount:
+          type: integer
+        failedCount:
+          type: integer
+        pendingResponseCount:
+          type: integer
+        overdueResponses:
+          type: integer
+
+    DashboardContentTypeRollupListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardContentTypeRollup"

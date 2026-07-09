@@ -31,6 +31,7 @@ export type DeliveryStatus =
   | "Delivered"
   | "Displayed"
   | "Read"
+  | "Overdue"
   | "Responded"
   | "Failed";
 export type AckStatus = "Safe" | "NeedAssistance" | "NotInArea" | "Acknowledged" | "NoResponse";
@@ -108,6 +109,10 @@ export interface Recipient {
   id: string;
   notificationId: string;
   employeeId: string;
+  deviceId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  channelEndpoint?: string | null;
   name: string;
   department: string;
   section: string;
@@ -118,7 +123,7 @@ export interface Recipient {
   recipientType?: "Device" | "Employee" | "ContactEndpoint";
   deliveryStatus: DeliveryStatus;
   ackStatus: AckStatus;
-  responseState?: "NotRequired" | "AwaitingResponse" | "Responded";
+  responseState?: "NotRequired" | "AwaitingResponse" | "Overdue" | "Responded";
   response?: string;
   responseTime?: string;
 }

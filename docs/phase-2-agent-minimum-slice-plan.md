@@ -150,7 +150,7 @@ This table may be added now even if realtime negotiation is deferred, because it
 ### Not Required For This Slice
 - `agent_reminder_policies`
 - `agent_reminder_events`
-- `recipient_responses`
+- dedicated `recipient_responses` table
 - dashboard or derived reporting tables
 
 ## Behavior Notes Per Endpoint

@@ -25,6 +25,7 @@ import {
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { dashboardService } from "@/services/dashboard.service";
 import { notificationsService } from "@/services/notifications.service";
 import { devicesService } from "@/services/devices.service";
 import { employeesService } from "@/services/employees.service";
@@ -36,23 +37,19 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function DashboardPage() {
+  const { data: overview } = useQuery({ queryKey: ["dashboard-overview"], queryFn: dashboardService.overview });
   const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: notificationsService.list });
   const { data: devices = [] } = useQuery({ queryKey: ["devices"], queryFn: devicesService.list });
   const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: employeesService.list });
 
-  const today = new Date().toDateString();
-  const notifToday = notifications.filter((n) => new Date(n.createdAt).toDateString() === today).length;
-  const activeEmergency = notifications.filter(
-    (n) => n.priority === "Emergency" && (n.status === "Sent" || n.status === "Sending"),
-  ).length;
-  const onlineDevices = devices.filter((d) => d.status === "Online").length;
-  const whatsAppRecipients = employees.filter(
-    (e) => e.status === "Active" && e.preferredChannels.includes("WhatsApp"),
-  ).length;
-  const totalRcp = notifications.reduce((s, n) => s + n.recipientsCount, 0);
-  const totalAck = notifications.reduce((s, n) => s + n.ackCount, 0);
-  const ackRate = totalRcp ? Math.round((totalAck / totalRcp) * 100) : 0;
-  const needAssistance = 4; // aggregated from mock recipients
+  const overviewStats = overview ?? {
+    activeCommunications: 0,
+    recipientsPending: 0,
+    deliveredCount: 0,
+    respondedCount: 0,
+    failedCount: 0,
+    overdueResponses: 0,
+  };
 
   const byPriority = ["Emergency", "Warning", "Info"].map((p) => ({
     name: p,
@@ -89,12 +86,12 @@ function DashboardPage() {
       <PageHeader title="Control Room" description="Live overview of emergency and operational notifications." />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Active Emergency" value={activeEmergency} icon={Siren} tone="emergency" hint="Currently open" />
-        <StatCard label="Notifications Today" value={notifToday} icon={BellRing} tone="info" />
-        <StatCard label="Desktop Agents Online" value={`${onlineDevices}/${devices.length}`} icon={MonitorSmartphone} tone="success" />
-        <StatCard label="WhatsApp Recipients" value={whatsAppRecipients} icon={MessageCircle} tone="info" hint="Field officers" />
-        <StatCard label="Acknowledgement Rate" value={`${ackRate}%`} icon={CheckCircle2} tone="success" />
-        <StatCard label="Need Assistance" value={needAssistance} icon={HandHelping} tone="warning" />
+        <StatCard label="Active Communications" value={overviewStats.activeCommunications} icon={Siren} tone="emergency" hint="Scheduled, queued, sending, active" />
+        <StatCard label="Recipients Pending" value={overviewStats.recipientsPending} icon={BellRing} tone="info" />
+        <StatCard label="Delivered" value={overviewStats.deliveredCount} icon={MonitorSmartphone} tone="success" />
+        <StatCard label="Responded" value={overviewStats.respondedCount} icon={MessageCircle} tone="info" hint="Unique responding recipients" />
+        <StatCard label="Failed" value={overviewStats.failedCount} icon={CheckCircle2} tone="warning" />
+        <StatCard label="Overdue Responses" value={overviewStats.overdueResponses} icon={HandHelping} tone="warning" />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

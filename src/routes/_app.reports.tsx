@@ -20,9 +20,18 @@ export const Route = createFileRoute("/_app/reports")({
 });
 
 function ReportsPage() {
-  const { data: rtByDept = [] } = useQuery({ queryKey: ["rtDept"], queryFn: reportsService.responseTimeByDept });
-  const { data: ackBySite = [] } = useQuery({ queryKey: ["ackSite"], queryFn: reportsService.ackRateBySite });
-  const { data: byChannel = [] } = useQuery({ queryKey: ["byChannel"], queryFn: reportsService.deliveryByChannel });
+  const { data: deliveryByContentType = [] } = useQuery({
+    queryKey: ["report-delivery-by-content-type"],
+    queryFn: reportsService.deliveryByContentType,
+  });
+  const { data: responseByContentType = [] } = useQuery({
+    queryKey: ["report-response-by-content-type"],
+    queryFn: reportsService.responseByContentType,
+  });
+  const { data: monitoringByContentType = [] } = useQuery({
+    queryKey: ["report-monitoring-by-content-type"],
+    queryFn: reportsService.monitoringByContentType,
+  });
   const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: notificationsService.list });
 
   return (
@@ -40,42 +49,49 @@ function ReportsPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle className="text-base">Response Time by Department (s)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Delivery Rollup by Content Type</CardTitle></CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer><BarChart data={rtByDept}>
+            <ResponsiveContainer><BarChart data={deliveryByContentType}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" fontSize={11} stroke="var(--muted-foreground)" />
               <YAxis fontSize={11} stroke="var(--muted-foreground)" />
               <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
-              <Bar dataKey="seconds" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="delivered" fill="var(--success)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="failed" fill="var(--emergency)" radius={[4, 4, 0, 0]} />
             </BarChart></ResponsiveContainer>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">Ack Rate by Site (%)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Response Rollup by Content Type</CardTitle></CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer><BarChart data={ackBySite}>
+            <ResponsiveContainer><BarChart data={responseByContentType}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" fontSize={11} stroke="var(--muted-foreground)" />
-              <YAxis fontSize={11} stroke="var(--muted-foreground)" domain={[0, 100]} />
+              <YAxis fontSize={11} stroke="var(--muted-foreground)" />
               <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
-              <Bar dataKey="rate" fill="var(--success)" radius={[4, 4, 0, 0]}>
-                {ackBySite.map((d, i) => <Cell key={i} fill={d.rate < 70 ? "var(--warning)" : "var(--success)"} />)}
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="read" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="responded" fill="var(--success)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="overdue" fill="var(--warning)" radius={[4, 4, 0, 0]}>
+                {responseByContentType.map((item, index) => (
+                  <Cell key={index} fill={item.overdue > 0 ? "var(--warning)" : "var(--muted)"} />
+                ))}
               </Bar>
             </BarChart></ResponsiveContainer>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">Delivery Status by Channel</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Active and Pending by Content Type</CardTitle></CardHeader>
           <CardContent className="h-64">
-            <ResponsiveContainer><BarChart data={byChannel}>
+            <ResponsiveContainer><BarChart data={monitoringByContentType}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="channel" fontSize={11} stroke="var(--muted-foreground)" />
+              <XAxis dataKey="name" fontSize={11} stroke="var(--muted-foreground)" />
               <YAxis fontSize={11} stroke="var(--muted-foreground)" />
               <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="delivered" stackId="a" fill="var(--success)" />
-              <Bar dataKey="failed" stackId="a" fill="var(--emergency)" />
+              <Bar dataKey="active" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pending" fill="var(--warning)" radius={[4, 4, 0, 0]} />
             </BarChart></ResponsiveContainer>
           </CardContent>
         </Card>

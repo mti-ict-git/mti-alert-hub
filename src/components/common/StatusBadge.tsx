@@ -14,6 +14,7 @@ const map: Record<string, { className: string }> = {
   Delivered: { className: "bg-success text-success-foreground" },
   Displayed: { className: "bg-info text-info-foreground" },
   Read: { className: "bg-info text-info-foreground" },
+  Overdue: { className: "bg-warning text-warning-foreground" },
   Responded: { className: "bg-success text-success-foreground" },
   Pending: { className: "bg-muted text-muted-foreground" },
   Online: { className: "bg-success text-success-foreground" },

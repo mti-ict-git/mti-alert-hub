@@ -108,10 +108,14 @@ type CommunicationSummaryRow = {
   priority: Priority;
   title: string;
   status: CommunicationStatus;
+  category: string | null;
   scheduledAt: string | null;
   templateId: string | null;
   templateVersion: number | null;
   channelSelections: unknown;
+  createdAt: string | null;
+  recipientsCount: number;
+  ackCount: number;
 };
 
 type CommunicationDetailRow = CommunicationSummaryRow & {
@@ -134,9 +138,9 @@ type DeliveryJobStatus =
   | "Responded"
   | "Failed";
 
-type DeliveryEventType = "Queued" | DeliveryJobStatus;
+type DeliveryEventType = "Queued" | "Overdue" | DeliveryJobStatus;
 
-type RecipientResponseState = "NotRequired" | "AwaitingResponse" | "Responded";
+type RecipientResponseState = "NotRequired" | "AwaitingResponse" | "Overdue" | "Responded";
 type RecipientAckState = "Pending" | "Acknowledged" | "Safe" | "NeedAssistance" | "NotInArea";
 
 type ListCommunicationDeliveriesOptions = {
@@ -156,6 +160,9 @@ type CommunicationDeliveryRecipientRow = {
   recipientType: "Device" | "Employee" | "ContactEndpoint";
   employeeId: string | null;
   deviceId: string | null;
+  deviceIdentifier: string | null;
+  hostname: string | null;
+  channelEndpoint: string | null;
   employeeNumber: string | null;
   recipientName: string;
   departmentName: string | null;
@@ -180,6 +187,10 @@ type CommunicationDeliveryRow = {
   recipientName: string;
   recipientType: "Device" | "Employee" | "ContactEndpoint";
   employeeId: string | null;
+  deviceId: string | null;
+  deviceIdentifier: string | null;
+  hostname: string | null;
+  channelEndpoint: string | null;
   employeeNumber: string | null;
   departmentName: string | null;
   sectionName: string | null;
@@ -268,10 +279,23 @@ export class CommunicationDraftService {
             priority::text as priority,
             title::text as title,
             status::text as status,
+            category::text as category,
             scheduled_at::text as "scheduledAt",
             template_id::text as "templateId",
             template_version as "templateVersion",
-            channel_selections_json as "channelSelections"
+            channel_selections_json as "channelSelections",
+            created_at::text as "createdAt",
+            (
+              select count(*)::int
+              from public.communication_recipients cr
+              where cr.communication_id = public.communications.id
+            ) as "recipientsCount",
+            (
+              select count(*)::int
+              from public.communication_recipients cr
+              where cr.communication_id = public.communications.id
+                and cr.ack_state in ('Acknowledged', 'Safe', 'NeedAssistance', 'NotInArea')
+            ) as "ackCount"
           from public.communications
           ${where.clause}
           order by updated_at desc, created_at desc
@@ -297,10 +321,14 @@ export class CommunicationDraftService {
         priority: row.priority,
         title: row.title,
         status: row.status,
+        category: row.category,
         scheduledAt: row.scheduledAt,
         templateId: row.templateId,
         templateVersion: row.templateVersion,
         channelSelections: normalizeChannelArray(row.channelSelections),
+        createdAt: row.createdAt,
+        recipientsCount: row.recipientsCount,
+        ackCount: row.ackCount,
       })),
       page: createPageMeta({
         page: options.page,
@@ -413,6 +441,9 @@ export class CommunicationDraftService {
             cr.recipient_type::text as "recipientType",
             cr.employee_id::text as "employeeId",
             cr.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            cr.channel_endpoint::text as "channelEndpoint",
             e.employee_number::text as "employeeNumber",
             coalesce(
               cr.recipient_name_snapshot,
@@ -425,7 +456,16 @@ export class CommunicationDraftService {
             cr.section_name_snapshot::text as "sectionName",
             cr.site_name_snapshot::text as "siteName",
             cr.area_name_snapshot::text as "areaName",
-            cr.response_state::text as "responseState",
+            case
+              when cr.response_state = 'AwaitingResponse'
+                and nullif(cr.workflow_snapshot_json ->> 'escalationTimeoutMinutes', '') is not null
+                and coalesce(cr.workflow_snapshot_json ->> 'escalationMode', '') = 'RecipientOnly'
+                and cr.created_at <= now() - make_interval(
+                  mins => (cr.workflow_snapshot_json ->> 'escalationTimeoutMinutes')::int
+                )
+              then 'Overdue'
+              else cr.response_state::text
+            end as "responseState",
             cr.ack_state::text as "ackState",
             cr.created_at::text as "createdAt"
           from public.communication_recipients cr
@@ -463,6 +503,10 @@ export class CommunicationDraftService {
             )::text as "recipientName",
             cr.recipient_type::text as "recipientType",
             cr.employee_id::text as "employeeId",
+            cr.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            cr.channel_endpoint::text as "channelEndpoint",
             e.employee_number::text as "employeeNumber",
             cr.department_name_snapshot::text as "departmentName",
             cr.section_name_snapshot::text as "sectionName",
@@ -570,18 +614,21 @@ export class CommunicationDraftService {
       this.database.query<CommunicationResponseRow>(
         `
           select
-            rr.id::text as id,
-            rr.communication_recipient_id::text as "recipientId",
-            rr.channel::text as channel,
-            rr.response_option_key::text as "responseOptionKey",
-            rr.actor_user_identifier::text as "actorUserIdentifier",
-            rr.response_note::text as "responseNote",
-            rr.responded_at::text as "respondedAt"
-          from public.recipient_responses rr
+            de.id::text as id,
+            cr.id::text as "recipientId",
+            dj.channel::text as channel,
+            (de.event_payload_json ->> 'responseOptionKey')::text as "responseOptionKey",
+            (de.event_payload_json ->> 'activeUserIdentifier')::text as "actorUserIdentifier",
+            (de.event_payload_json ->> 'responseNote')::text as "responseNote",
+            de.occurred_at::text as "respondedAt"
+          from public.delivery_events de
+          inner join public.delivery_jobs dj
+            on dj.id = de.delivery_job_id
           inner join public.communication_recipients cr
-            on cr.id = rr.communication_recipient_id
+            on cr.id = dj.communication_recipient_id
           where cr.communication_id::text = $1
-          order by rr.responded_at desc, rr.created_at desc
+            and de.event_type = 'Responded'
+          order by de.occurred_at desc, de.created_at desc
           limit $${pagination.limitIndex}
           offset $${pagination.offsetIndex}
         `,
@@ -590,10 +637,13 @@ export class CommunicationDraftService {
       this.database.query<{ totalItems: number }>(
         `
           select count(*)::int as "totalItems"
-          from public.recipient_responses rr
+          from public.delivery_events de
+          inner join public.delivery_jobs dj
+            on dj.id = de.delivery_job_id
           inner join public.communication_recipients cr
-            on cr.id = rr.communication_recipient_id
+            on cr.id = dj.communication_recipient_id
           where cr.communication_id::text = $1
+            and de.event_type = 'Responded'
         `,
         [options.communicationId],
       ),
@@ -963,18 +1013,20 @@ export class CommunicationDraftService {
       priority: detail.priority,
       title: detail.title,
       status: detail.status,
+      category: detail.category,
       scheduledAt: detail.scheduledAt,
       templateId: detail.templateId,
       templateVersion: detail.templateVersion,
       channelSelections: normalizeChannelArray(detail.channelSelections),
+      createdAt: detail.createdAt,
+      recipientsCount: detail.recipientsCount,
+      ackCount: detail.ackCount,
       body: detail.body,
-      category: detail.category,
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
       deliveryStrategy: detail.deliveryStrategy,
       workflow,
       targets,
-      createdAt: detail.createdAt,
       updatedAt: detail.updatedAt,
     };
   }
@@ -988,17 +1040,28 @@ export class CommunicationDraftService {
           priority::text as priority,
           title::text as title,
           status::text as status,
+          category::text as category,
           scheduled_at::text as "scheduledAt",
           template_id::text as "templateId",
           template_version as "templateVersion",
           channel_selections_json as "channelSelections",
-          category::text as category,
+          created_at::text as "createdAt",
+          (
+            select count(*)::int
+            from public.communication_recipients cr
+            where cr.communication_id = public.communications.id
+          ) as "recipientsCount",
+          (
+            select count(*)::int
+            from public.communication_recipients cr
+            where cr.communication_id = public.communications.id
+              and cr.ack_state in ('Acknowledged', 'Safe', 'NeedAssistance', 'NotInArea')
+          ) as "ackCount",
           body::text as body,
           requires_response as "requiresResponse",
           workflow_id::text as "workflowId",
           windows_agent_presentation::text as "windowsAgentPresentation",
           delivery_strategy::text as "deliveryStrategy",
-          created_at::text as "createdAt",
           updated_at::text as "updatedAt"
         from public.communications
         where id::text = $1
@@ -2424,6 +2487,9 @@ function serializeDeliveryRecipients(
       recipientType: row.recipientType,
       employeeId: row.employeeId,
       deviceId: row.deviceId,
+      deviceIdentifier: row.deviceIdentifier,
+      hostname: row.hostname,
+      channelEndpoint: row.channelEndpoint,
       employeeNumber: row.employeeNumber,
       recipientName: row.recipientName,
       departmentName: row.departmentName,
@@ -2449,6 +2515,10 @@ function serializeDeliveryRecord(row: CommunicationDeliveryRow) {
     recipientName: row.recipientName,
     recipientType: row.recipientType,
     employeeId: row.employeeId,
+    deviceId: row.deviceId,
+    deviceIdentifier: row.deviceIdentifier,
+    hostname: row.hostname,
+    channelEndpoint: row.channelEndpoint,
     employeeNumber: row.employeeNumber,
     departmentName: row.departmentName,
     sectionName: row.sectionName,
@@ -2517,6 +2587,10 @@ function buildDeliveryEventDetail(
       return activeUserIdentifier
         ? `Read by active user ${activeUserIdentifier}.`
         : `Read and recorded by ${source}.`;
+    case "Overdue":
+      return reason
+        ? `Response overdue in ${source}: ${reason}.`
+        : `Response overdue and queued for recipient-only follow-up.`;
     case "Responded": {
       const responseLabel = responseOptionKey ? `Response "${responseOptionKey}" submitted` : "Response submitted";
       return responseNote ? `${responseLabel}: ${responseNote}` : `${responseLabel}.`;
