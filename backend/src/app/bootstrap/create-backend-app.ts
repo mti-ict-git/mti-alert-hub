@@ -4,6 +4,8 @@ import { bootstrapDatabase } from "../../infrastructure/db/connection.js";
 import { registerAgentRoutes } from "../../modules/agent/controller/register-agent-routes.js";
 import { AgentService } from "../../modules/agent/service/agent-service.js";
 import { AgentSessionStore } from "../../modules/agent/service/agent-session-store.js";
+import { registerAuditRoutes } from "../../modules/audit/controller/register-audit-routes.js";
+import { AuditLogService } from "../../modules/audit/service/audit-log-service.js";
 import { registerAuthRoutes } from "../../modules/auth/controller/register-auth-routes.js";
 import { AdminSessionStore } from "../../modules/auth/service/admin-session-store.js";
 import { AuthService } from "../../modules/auth/service/auth-service.js";
@@ -37,10 +39,12 @@ export async function createBackendApp() {
   const organizationReadService = new OrganizationReadService(database.client);
   const deviceReadService = new DeviceReadService(database.client);
   const dashboardReadService = new DashboardReadService(database.client);
-  const responseOverdueService = new ResponseOverdueService(database.client);
+  const auditLogService = new AuditLogService(database.client);
+  const responseOverdueService = new ResponseOverdueService(database.client, auditLogService);
   const agentService = new AgentService(
     database.client,
     agentSessionStore,
+    auditLogService,
     responseOverdueService,
     env,
     logger,
@@ -55,6 +59,7 @@ export async function createBackendApp() {
     communicationTemplateService,
     audiencePreviewService,
     agentService,
+    auditLogService,
   );
   const authService = new AuthService(
     ldapAuthenticator,
@@ -84,12 +89,16 @@ export async function createBackendApp() {
       ...registerDashboardRoutes({
         dashboardReadService,
       }),
+      ...registerAuditRoutes({
+        auditLogService,
+      }),
       ...registerAgentRoutes({
         agentService,
       }),
       ...registerCommunicationRoutes({
         communicationDraftService,
         communicationTemplateService,
+        auditLogService,
         audiencePreviewService,
       }),
     ],

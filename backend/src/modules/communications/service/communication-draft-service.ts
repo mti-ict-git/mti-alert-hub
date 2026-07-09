@@ -2,6 +2,7 @@ import type { DatabaseClient, TransactionClient } from "../../../infrastructure/
 import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
+import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type {
   ChannelPlanItem,
   ExecutionAudienceResolution,
@@ -90,6 +91,7 @@ type PublishCommunicationInput = {
 type PublicationActor = {
   userIdentifier: string;
   username: string;
+  ipAddress?: string | null;
 };
 
 type ListCommunicationOptions = {
@@ -264,6 +266,7 @@ export class CommunicationDraftService {
     private readonly templateService: CommunicationTemplateService,
     private readonly audiencePreviewService: AudiencePreviewService,
     private readonly agentService: AgentService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
@@ -867,6 +870,39 @@ export class CommunicationDraftService {
           workflowSnapshot,
           templatePolicySnapshot,
         });
+        await this.auditLogService.record(transaction, {
+          actorUserId: actor.userIdentifier,
+          actorUsername: actor.username,
+          actionType: "PublishCommunication",
+          moduleName: "Communications",
+          entityType: "Communication",
+          entityId: communicationId,
+          description: `Publish request accepted for communication ${communicationId} with immediate delivery execution.`,
+          ipAddress: actor.ipAddress ?? null,
+          metadata: {
+            publishMode: input.publishMode,
+            previousStatus: existing.status,
+            nextStatus: "Queued",
+            selectedChannels: executionAudience.selectedChannels,
+          },
+          createdAt: acceptedAt,
+        });
+        await this.auditLogService.record(transaction, {
+          actorUserId: actor.userIdentifier,
+          actorUsername: actor.username,
+          actionType: "CommunicationStatusChanged",
+          moduleName: "Communications",
+          entityType: "Communication",
+          entityId: communicationId,
+          description: `Communication ${communicationId} status changed from Draft to Queued via publish acceptance.`,
+          ipAddress: actor.ipAddress ?? null,
+          metadata: {
+            previousStatus: existing.status,
+            nextStatus: "Queued",
+            publishMode: input.publishMode,
+          },
+          createdAt: acceptedAt,
+        });
 
         return;
       }
@@ -906,6 +942,40 @@ export class CommunicationDraftService {
           communication: existing,
           workflowSnapshot,
           templatePolicySnapshot,
+        });
+        await this.auditLogService.record(transaction, {
+          actorUserId: actor.userIdentifier,
+          actorUsername: actor.username,
+          actionType: "PublishCommunication",
+          moduleName: "Communications",
+          entityType: "Communication",
+          entityId: communicationId,
+          description: `Publish request accepted for communication ${communicationId} with scheduled delivery execution.`,
+          ipAddress: actor.ipAddress ?? null,
+          metadata: {
+            publishMode: input.publishMode,
+            previousStatus: existing.status,
+            nextStatus: "Scheduled",
+            scheduledAt: input.scheduledAt ?? null,
+            timezone: input.timezone ?? null,
+          },
+          createdAt: acceptedAt,
+        });
+        await this.auditLogService.record(transaction, {
+          actorUserId: actor.userIdentifier,
+          actorUsername: actor.username,
+          actionType: "CommunicationStatusChanged",
+          moduleName: "Communications",
+          entityType: "Communication",
+          entityId: communicationId,
+          description: `Communication ${communicationId} status changed from Draft to Scheduled via publish acceptance.`,
+          ipAddress: actor.ipAddress ?? null,
+          metadata: {
+            previousStatus: existing.status,
+            nextStatus: "Scheduled",
+            publishMode: input.publishMode,
+          },
+          createdAt: acceptedAt,
         });
 
         return;
@@ -959,6 +1029,43 @@ export class CommunicationDraftService {
         validFrom: input.scheduledAt ?? acceptedAt,
         validUntil: input.validUntil ?? null,
       });
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "PublishCommunication",
+        moduleName: "Communications",
+        entityType: "Communication",
+        entityId: communicationId,
+        description: `Publish request accepted for communication ${communicationId} with recurring delivery execution.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          publishMode: input.publishMode,
+          previousStatus: existing.status,
+          nextStatus: "Scheduled",
+          scheduledAt: input.scheduledAt ?? null,
+          timezone: input.timezone ?? null,
+          executionMode: input.executionMode ?? null,
+          recurrenceRule: input.recurrenceRule ?? null,
+          validUntil: input.validUntil ?? null,
+        },
+        createdAt: acceptedAt,
+      });
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "CommunicationStatusChanged",
+        moduleName: "Communications",
+        entityType: "Communication",
+        entityId: communicationId,
+        description: `Communication ${communicationId} status changed from Draft to Scheduled via recurring publish acceptance.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          previousStatus: existing.status,
+          nextStatus: "Scheduled",
+          publishMode: input.publishMode,
+        },
+        createdAt: acceptedAt,
+      });
     });
 
     if (input.publishMode === "Now") {
@@ -970,7 +1077,7 @@ export class CommunicationDraftService {
     return this.getCommunicationDetail(communicationId);
   }
 
-  async cancelCommunication(communicationId: string) {
+  async cancelCommunication(communicationId: string, actor: PublicationActor) {
     const existing = await this.getCommunicationDetailRow(communicationId);
     if (!existing) {
       throw new AppError({
@@ -996,6 +1103,36 @@ export class CommunicationDraftService {
         `,
         [communicationId, cancelledAt],
       );
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "CancelCommunication",
+        moduleName: "Communications",
+        entityType: "Communication",
+        entityId: communicationId,
+        description: `Cancel request accepted for communication ${communicationId}.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          previousStatus: existing.status,
+          nextStatus: "Cancelled",
+        },
+        createdAt: cancelledAt,
+      });
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "CommunicationStatusChanged",
+        moduleName: "Communications",
+        entityType: "Communication",
+        entityId: communicationId,
+        description: `Communication ${communicationId} status changed from ${existing.status} to Cancelled.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          previousStatus: existing.status,
+          nextStatus: "Cancelled",
+        },
+        createdAt: cancelledAt,
+      });
     });
 
     return this.getCommunicationDetail(communicationId);

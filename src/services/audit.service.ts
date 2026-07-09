@@ -1,11 +1,14 @@
-// TODO(backend): GET /api/audit-logs with pagination & filters.
 import type { AuditLog } from "@/types";
-import { mockDelay } from "@/lib/mock-delay";
-import { auditLogs as seed } from "@/data/misc";
+import { apiClient } from "@/services/api-client";
+
+type ApiAuditLogRecord = AuditLog;
+type ApiAuditLogListResponse = {
+  items: ApiAuditLogRecord[];
+};
 
 export const auditService = {
   async list(): Promise<AuditLog[]> {
-    await mockDelay();
-    return [...seed];
+    const response = await apiClient.get<ApiAuditLogListResponse>("/audit-logs?page=1&pageSize=200");
+    return response.items;
   },
 };

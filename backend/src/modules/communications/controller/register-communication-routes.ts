@@ -1,8 +1,11 @@
 import { z } from "zod";
+import type { IncomingMessage } from "node:http";
 
 import type { AppRoute } from "../../../app/http/create-server.js";
 import { baseListQuerySchema, parseListQuery } from "../../../shared/http/list-query.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
+import { isAppError } from "../../../shared/errors/app-error.js";
+import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import { CommunicationDraftService } from "../service/communication-draft-service.js";
 import { CommunicationTemplateService } from "../service/communication-template-service.js";
 
@@ -98,6 +101,7 @@ const publishCommunicationSchema = z.object({
 type RegisterCommunicationRoutesOptions = {
   communicationDraftService: CommunicationDraftService;
   communicationTemplateService: CommunicationTemplateService;
+  auditLogService: AuditLogService;
   audiencePreviewService: {
     previewCommunicationAudience(communicationId: string): Promise<unknown>;
   };
@@ -146,12 +150,23 @@ export function registerCommunicationRoutes(
       method: "POST",
       path: "/communications",
       requiresAuth: true,
-      async handler({ json }) {
+      async handler({ json, auth, request }) {
         const payload = validateWithSchema(createCommunicationSchema, await json());
-        return {
-          statusCode: 201,
-          body: await options.communicationDraftService.createDraft(payload),
-        };
+        try {
+          return {
+            statusCode: 201,
+            body: await options.communicationDraftService.createDraft(payload),
+          };
+        } catch (error) {
+          await recordTemplateOverrideRejection(options.auditLogService, {
+            error,
+            auth,
+            request,
+            templateId: payload.templateId ?? null,
+            communicationId: null,
+          });
+          throw error;
+        }
       },
     },
     {
@@ -171,15 +186,26 @@ export function registerCommunicationRoutes(
       method: "PATCH",
       path: "/communications/{communicationId}",
       requiresAuth: true,
-      async handler({ params, json }) {
+      async handler({ params, json, auth, request }) {
         const payload = validateWithSchema(updateCommunicationSchema, await json());
-        return {
-          statusCode: 200,
-          body: await options.communicationDraftService.updateDraft(
-            params.communicationId ?? "",
-            payload,
-          ),
-        };
+        try {
+          return {
+            statusCode: 200,
+            body: await options.communicationDraftService.updateDraft(
+              params.communicationId ?? "",
+              payload,
+            ),
+          };
+        } catch (error) {
+          await recordTemplateOverrideRejection(options.auditLogService, {
+            error,
+            auth,
+            request,
+            templateId: payload.templateId ?? null,
+            communicationId: params.communicationId ?? null,
+          });
+          throw error;
+        }
       },
     },
     {
@@ -199,30 +225,47 @@ export function registerCommunicationRoutes(
       method: "POST",
       path: "/communications/{communicationId}/publish",
       requiresAuth: true,
-      async handler({ params, json, auth }) {
+      async handler({ params, json, auth, request }) {
         const payload = validateWithSchema(publishCommunicationSchema, await json());
-        return {
-          statusCode: 200,
-          body: await options.communicationDraftService.publishCommunication(
-            params.communicationId ?? "",
-            payload,
-            {
-              userIdentifier: auth?.session.user.id ?? "anonymous",
-              username: auth?.session.user.username ?? "anonymous",
-            },
-          ),
-        };
+        try {
+          return {
+            statusCode: 200,
+            body: await options.communicationDraftService.publishCommunication(
+              params.communicationId ?? "",
+              payload,
+              {
+                userIdentifier: auth?.session.user.id ?? "anonymous",
+                username: auth?.session.user.username ?? "anonymous",
+                ipAddress: resolveRequestIpAddress(request),
+              },
+            ),
+          };
+        } catch (error) {
+          await recordTemplateOverrideRejection(options.auditLogService, {
+            error,
+            auth,
+            request,
+            templateId: null,
+            communicationId: params.communicationId ?? null,
+          });
+          throw error;
+        }
       },
     },
     {
       method: "POST",
       path: "/communications/{communicationId}/cancel",
       requiresAuth: true,
-      async handler({ params }) {
+      async handler({ params, auth, request }) {
         return {
           statusCode: 200,
           body: await options.communicationDraftService.cancelCommunication(
             params.communicationId ?? "",
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: resolveRequestIpAddress(request),
+            },
           ),
         };
       },
@@ -273,4 +316,53 @@ export function registerCommunicationRoutes(
       },
     },
   ];
+}
+
+async function recordTemplateOverrideRejection(
+  auditLogService: AuditLogService,
+  options: {
+    error: unknown;
+    auth: { session: { user: { id: string; username: string } } } | undefined;
+    request: IncomingMessage;
+    templateId: string | null;
+    communicationId: string | null;
+  },
+) {
+  if (!isAppError(options.error)) {
+    return;
+  }
+
+  if (
+    options.error.code !== "LOCKED_TEMPLATE_FIELD_OVERRIDE" &&
+    options.error.code !== "TEMPLATE_CHANNEL_OVERRIDE_REJECTED"
+  ) {
+    return;
+  }
+
+  await auditLogService.recordNow({
+    actorUserId: options.auth?.session.user.id ?? "anonymous",
+    actorUsername: options.auth?.session.user.username ?? "anonymous",
+    actionType: "TemplateOverrideRejected",
+    moduleName: "Communications",
+    entityType: options.communicationId ? "Communication" : "Template",
+    entityId: options.communicationId ?? options.templateId ?? null,
+    description: options.communicationId
+      ? `Template override rejected for communication ${options.communicationId}: ${options.error.message}`
+      : `Template override rejected for template ${options.templateId ?? "unknown"}: ${options.error.message}`,
+    ipAddress: resolveRequestIpAddress(options.request),
+    metadata: {
+      code: options.error.code,
+      templateId: options.templateId,
+      communicationId: options.communicationId,
+    },
+  });
+}
+
+function resolveRequestIpAddress(request: IncomingMessage) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0]?.trim() ?? null;
+  }
+
+  return request.socket.remoteAddress ?? null;
 }

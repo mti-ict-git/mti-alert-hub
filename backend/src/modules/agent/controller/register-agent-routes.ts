@@ -1,3 +1,4 @@
+import type { IncomingMessage } from "node:http";
 import { z } from "zod";
 
 import type { AppRoute } from "../../../app/http/create-server.js";
@@ -211,6 +212,9 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
             sessionToken,
             params.messageId ?? "",
             payload,
+            {
+              ipAddress: resolveRequestIpAddress(request),
+            },
           ),
         };
       },
@@ -235,6 +239,15 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       },
     },
   ];
+}
+
+function resolveRequestIpAddress(request: IncomingMessage) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0]?.trim() ?? null;
+  }
+
+  return request.socket.remoteAddress ?? null;
 }
 
 function requireAgentSessionToken(authorizationHeader: string | undefined) {

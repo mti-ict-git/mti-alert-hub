@@ -289,6 +289,7 @@ Key columns:
 - `recipient_name_snapshot`
 - `response_state`
 - `ack_state`
+- `follow_up_triggered_at`
 - `template_version_snapshot`
 - `workflow_reference_id`
 - `workflow_snapshot_json`
@@ -325,8 +326,9 @@ Dedicated normalized response rows are deferred in the current MVP runtime.
 
 Current implementation note:
 - Windows Agent response evidence is currently persisted in `delivery_events` with `event_type = Responded`.
-- Response state is mirrored onto `communication_recipients.response_state`.
+- Response state is mirrored onto `communication_recipients.response_state`, including persisted `Overdue` transitions when recipient-only timeout evaluation triggers.
 - Workflows with `response_implies_ack = true` also update `communication_recipients.ack_state` to `Acknowledged`.
+- Recipient-only overdue follow-up is currently tracked by `communication_recipients.follow_up_triggered_at` so the same recipient is re-alerted only once in the MVP baseline.
 - `delivery_events.event_payload_json` currently carries:
   - `responseOptionKey`
   - `responseNote` when the workflow allows free text
@@ -376,6 +378,9 @@ Key columns:
 - `event_payload_json`
 - `occurred_at`
 
+
+Current implementation note:
+- `event_type = Overdue` is used when response timeout evaluation marks a recipient overdue and triggers recipient-only follow-up re-alert behavior for the same Windows Agent delivery job.
 Recommended event types include:
 - `Queued`
 - `Sent`
@@ -430,13 +435,19 @@ Key columns:
 ### audit_logs
 - `id`
 - `actor_user_id`
+- `actor_username`
 - `action_type`
 - `module_name`
 - `entity_type`
 - `entity_id`
 - `description`
 - `ip_address`
+- `metadata_json`
 - `created_at`
+
+Current implementation note:
+- `audit_logs` is now the append-only audit baseline for representative communication lifecycle actions.
+- The MVP baseline currently records publish acceptance, cancel acceptance, template override rejection, response recording, overdue transitions, and recipient-only follow-up queue actions.
 
 ### communication_metrics_daily
 Optional derived reporting table for aggregated reporting workloads.

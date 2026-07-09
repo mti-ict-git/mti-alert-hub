@@ -44,6 +44,8 @@ tags:
     description: Recipient response retrieval endpoints.
   - name: Dashboard
     description: Monitoring and summary endpoints.
+  - name: Audit
+    description: Admin audit trail endpoints.
 security:
   - AdminSessionAuth: []
 paths:
@@ -974,6 +976,40 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: List audit logs
+      description: |
+        Returns the current audit trail baseline for operator and support investigation.
+
+        Current Phase 3 note:
+        - The response lists append-only audit records for representative communication lifecycle actions.
+        - The baseline currently captures publish acceptance, cancel acceptance, template override rejection, response recording, overdue transitions, and recipient-only follow-up queue events.
+        - Audit records are intended to explain lifecycle intent and user action context beyond raw delivery tables.
+      operationId: listAuditLogs
+      x-implementation-phase: Phase 3
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - name: module
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
 components:
   securitySchemes:
     AdminSessionAuth:
@@ -1158,7 +1194,7 @@ components:
       enum: [Pending, Sent, Delivered, Displayed, Read, Responded, Failed]
     DeliveryEventType:
       type: string
-      enum: [Queued, Sent, Delivered, Displayed, Read, Responded, Failed]
+      enum: [Queued, Sent, Delivered, Displayed, Read, Overdue, Responded, Failed]
     RecipientType:
       type: string
       enum: [Device, Employee, ContactEndpoint]
@@ -2218,7 +2254,7 @@ components:
           enum: [Pending, Acknowledged, Safe, NeedAssistance, NotInArea]
         responseState:
           type: string
-          enum: [NotRequired, AwaitingResponse, Responded]
+          enum: [NotRequired, AwaitingResponse, Overdue, Responded]
         channels:
           type: array
           items:
@@ -2374,3 +2410,35 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardContentTypeRollup"
+
+    AuditLogRecord:
+      type: object
+      required: [id, time, user, action, module, description]
+      properties:
+        id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        user:
+          type: string
+        action:
+          type: string
+        module:
+          type: string
+        description:
+          type: string
+        ipAddress:
+          type: string
+          nullable: true
+
+    AuditLogListResponse:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogRecord"
+        page:
+          $ref: "#/components/schemas/PageMeta"

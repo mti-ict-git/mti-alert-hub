@@ -5,6 +5,7 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import type { Logger } from "../../../shared/observability/logger.js";
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import type { BackendEnv } from "../../../app/config/env.js";
+import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
@@ -167,12 +168,17 @@ type RealtimeStreamInput = {
   response: ServerResponse;
 };
 
+type AgentAuditContext = {
+  ipAddress?: string | null;
+};
+
 export class AgentService {
   private readonly realtimeConnections = new Map<string, ActiveRealtimeConnection>();
 
   constructor(
     private readonly database: DatabaseClient,
     private readonly sessionStore: AgentSessionStore,
+    private readonly auditLogService: AuditLogService,
     private readonly responseOverdueService: ResponseOverdueService,
     private readonly env: BackendEnv,
     private readonly logger: Logger,
@@ -452,7 +458,12 @@ export class AgentService {
     });
   }
 
-  async submitResponse(sessionToken: string, messageId: string, input: MessageResponseInput) {
+  async submitResponse(
+    sessionToken: string,
+    messageId: string,
+    input: MessageResponseInput,
+    auditContext: AgentAuditContext = {},
+  ) {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
     if (input.occurredAt) {
@@ -519,6 +530,44 @@ export class AgentService {
         `,
         [message.communicationRecipientId, workflow.responseImpliesAck],
       );
+      await this.auditLogService.record(transaction, {
+        actorUserId: input.activeUserIdentifier ?? null,
+        actorUsername: input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
+        actionType: "RecordResponse",
+        moduleName: "Communications",
+        entityType: "CommunicationRecipient",
+        entityId: message.communicationRecipientId,
+        description: `Recorded workflow response "${input.responseOptionKey}" for communication ${message.communicationId} recipient ${message.communicationRecipientId}.`,
+        ipAddress: auditContext.ipAddress ?? null,
+        metadata: {
+          communicationId: message.communicationId,
+          deliveryJobId: message.messageId,
+          responseOptionKey: input.responseOptionKey,
+          responseImpliesAck: workflow.responseImpliesAck,
+          hasResponseNote: Boolean(input.responseNote),
+          activeUserIdentifier: input.activeUserIdentifier ?? null,
+        },
+        createdAt: respondedAt,
+      });
+      await this.auditLogService.record(transaction, {
+        actorUserId: input.activeUserIdentifier ?? null,
+        actorUsername: input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
+        actionType: "RecipientResponseStateChanged",
+        moduleName: "Communications",
+        entityType: "CommunicationRecipient",
+        entityId: message.communicationRecipientId,
+        description: `Communication ${message.communicationId} recipient ${message.communicationRecipientId} response state changed from AwaitingResponse to Responded.`,
+        ipAddress: auditContext.ipAddress ?? null,
+        metadata: {
+          communicationId: message.communicationId,
+          deliveryJobId: message.messageId,
+          previousResponseState: "AwaitingResponse",
+          nextResponseState: "Responded",
+          responseOptionKey: input.responseOptionKey,
+          ackStateChanged: workflow.responseImpliesAck,
+        },
+        createdAt: respondedAt,
+      });
       return event;
     });
 

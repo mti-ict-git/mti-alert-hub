@@ -229,7 +229,13 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `In Progress`
 
 ### Objective
-Implement recipient response workflows, status monitoring, dashboards, and audit-driven reporting.
+Implement recipient response workflows, overdue behavior, monitoring, and audit-ready reporting on top of the persisted delivery foundation from Phase 2.
+
+Phase 3 is the bridge between delivery execution and operator visibility:
+- turn persisted delivery evidence into operator-facing response and monitoring views
+- ensure required-response communications move through explicit lifecycle states
+- make overdue and follow-up behavior operationally visible
+- prepare representative audit evidence before broader hardening in Phase 4
 
 ### Source Documents
 - `docs/functional-specification.md`
@@ -244,6 +250,69 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `docs/windows-agent-client-specification.md`
 - `docs/backend-module-breakdown.md`
 
+### Execution Direction
+#### Slice 3.1 Workflow Baseline
+- Scope:
+  - workflow definition source-of-truth is available to communication drafting and response evaluation
+  - workflow option constraints are validated consistently during submission
+- Current status:
+  - draft selection and workflow snapshots are already used by the runtime
+  - managed seed loading or CRUD management remains open
+- Done when:
+  - operators can only use valid workflow definitions and valid option sets
+  - runtime no longer depends on undocumented workflow assumptions
+
+#### Slice 3.2 Response Ingestion And Semantics
+- Scope:
+  - Windows Agent response submission persists workflow result, actor context, and optional note
+  - `response implies ack` behavior is enforced when configured by the workflow
+- Current status:
+  - Windows Agent response submission baseline is in place
+  - actor context and `response implies ack` are already persisted
+- Done when:
+  - required-response messages move from `AwaitingResponse` to `Responded`
+  - monitoring endpoints can explain who responded, what option was chosen, and when it happened
+
+#### Slice 3.3 Monitoring And Reporting Baseline
+- Scope:
+  - communication-level, recipient-level, dashboard, and tracked-content rollup views are backend-backed
+  - device, employee, and contact-endpoint recipient contexts are distinguishable in monitoring
+- Current status:
+  - baseline monitoring endpoints and reports are implemented
+  - dashboard and reports are already consuming persisted backend data
+- Done when:
+  - operators can answer `what was sent`, `to whom`, `through which channel`, and `what happened next`
+  - monitoring counts reconcile against `communication_recipients`, `delivery_jobs`, and `delivery_events`
+
+#### Slice 3.4 Overdue And Recipient-Only Follow-Up
+- Scope:
+  - required-response recipients can transition into `Overdue`
+  - MVP follow-up remains recipient-only and must not escalate to new recipients automatically
+- Current status:
+  - persisted overdue state and one-time Windows Agent recipient-only re-alert baseline are implemented
+- Done when:
+  - overdue recipients are visible in detail monitoring and dashboard rollups
+  - follow-up behavior is recorded explicitly enough to challenge and support operational review
+
+#### Slice 3.5 Auditability
+- Scope:
+  - publish, cancel, override rejection, response, and representative state transitions produce explicit audit evidence
+  - audit evidence is queryable enough for operator/support investigation
+- Current status:
+  - this is the main remaining open slice in Phase 3
+- Done when:
+  - representative lifecycle events are not only inferable from delivery tables but intentionally recorded as audit history
+  - support teams can reconstruct a communication lifecycle without reading raw infrastructure logs
+
+#### Slice 3.6 Frontend Alignment
+- Scope:
+  - remove monitoring/reporting mocks that would hide real backend state
+  - ensure admin views show persisted response, overdue, and delivery rollups
+- Current status:
+  - dashboard, reports, delivery visibility, and response summary are already backend-backed
+- Done when:
+  - operator UI is a faithful read-model of backend monitoring state for the MVP release path
+
 ### Checklist
 - `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
 - `[ ]` Workflow management: implement workflow option validation rules.
@@ -254,19 +323,26 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `[x]` Monitoring: implement recipient-level monitoring endpoints with device and contact distinctions.
 - `[x]` Monitoring: implement dashboard summary endpoints and aggregation queries.
 - `[x]` Monitoring: implement delivery and response state rollups for tracked content types.
-- `[ ]` Overdue handling: implement timeout evaluation and recipient-only follow-up triggers.
-- `[ ]` Auditability: implement audit logging for publish, cancel, override rejection, response, and state transitions.
+- `[x]` Overdue handling: implement timeout evaluation and recipient-only follow-up triggers.
+- `[x]` Auditability: implement audit logging for publish, cancel, override rejection, response, and state transitions.
 - `[x]` Frontend integration: replace mock reports, dashboards, and response summary services with backend-backed calls.
 
 ### Output
 - Backend supports monitored response workflows and operational reporting.
 - Reporting and monitoring are backed by persisted delivery, response, and audit records.
+- Operators can identify required-response progress, overdue recipients, and recipient-only follow-up behavior from backend-backed views.
+- Remaining open Phase 3 work is narrowed to workflow management completion and compatible non-Windows-Agent response handling.
 
 ### Challenge / Verification
 - Response state transitions are validated.
 - Overdue cases are challenged.
 - Dashboard counts reconcile with source records.
 - Audit records are challenged against representative lifecycle events.
+- For every closed slice, verification should name the exact endpoint, runtime port, and persisted state that changed.
+- Phase 3 evidence should always reconcile three layers together:
+  - admin-facing endpoint or UI result
+  - persisted source rows or aggregate query result
+  - lifecycle event sequence that explains why the state is correct
 - `2026-07-09`: Phase 3 is now active because Windows Agent startup, realtime push, reconnect, and thin admin delivery visibility were already validated for the first go-live path.
 - `2026-07-09`: the backend now exposes `GET /communications/{communicationId}/responses` as the first admin response-monitoring endpoint, returning paged recipient responses derived from persisted `Responded` delivery events for the communication.
 - `2026-07-09`: manual `workflowId` selection on communication drafts now also sets `requiresResponse`, preventing `RESPONSE_NOT_REQUIRED` conflicts when operators create response-required communications without relying on template defaults.
@@ -279,6 +355,10 @@ Implement recipient response workflows, status monitoring, dashboards, and audit
 - `2026-07-09`: the backend now exposes `GET /dashboard/content-type-rollups` as the first tracked-content reporting baseline, grouping persisted communication, recipient, workflow, and delivery state into per-`communicationType` delivery and response rollups without requiring a derived reporting table.
 - `2026-07-09`: the admin `Reports` page now uses backend-backed content-type rollups instead of mock department, site, and channel chart data, and `GET /communications` now includes persisted `category`, `createdAt`, `recipientsCount`, and `ackCount` summary fields so report history and dashboard notification summaries no longer default to placeholder zero counts.
 - `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4023` that published one `Alert` plus one `News` communication to `device-mti-ops-01`, reported `Displayed`, `Read`, and workflow `Responded` for the `Alert`, then confirmed `GET /dashboard/content-type-rollups` returned six tracked content-type rows including `Alert` rollups with `readCount = 11` and `respondedCount = 7`, while `GET /communications` returned the created `Alert` summary with `recipientsCount = 1` and `ackCount = 1`.
+- `2026-07-09`: overdue handling now persists `communication_recipients.response_state = Overdue`, records `delivery_events.event_type = Overdue`, and stores `follow_up_triggered_at` when recipient-only timeout evaluation triggers a one-time Windows Agent re-alert for the same recipient and delivery job.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run backend:migrate`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4024` that temporarily set the seeded workflow timeout to `0`, published a response-required `Alert` to `device-mti-ops-01`, triggered `GET /agent/messages`, and then confirmed `GET /communications/{communicationId}/deliveries` returned a `Device` recipient with `responseState = Overdue`, an `Overdue` delivery event, a re-queued `Pending` delivery job for recipient-only follow-up, and updated dashboard overdue counts.
+- `2026-07-09`: the backend now exposes `GET /audit-logs` as the first audit trail baseline, backed by append-only `audit_logs` rows for publish acceptance, cancel acceptance, template override rejection, agent response recording, overdue transitions, and recipient-only follow-up queue events; the admin `Audit Logs` page now reads this backend endpoint instead of mock seed data.
+- `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run backend:migrate`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4025` that forced a template override rejection, published a response-required Windows Agent communication, submitted an agent response, cancelled the communication, and then confirmed `GET /audit-logs` returned `TemplateOverrideRejected`, `PublishCommunication`, `CommunicationStatusChanged`, `RecordResponse`, `RecipientResponseStateChanged`, and `CancelCommunication` entries tied to the exercised lifecycle.
 
 ## Phase 4 - Hardening And Expansion
 ### Status

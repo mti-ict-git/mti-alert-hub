@@ -1,4 +1,5 @@
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
+import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 
 type OverdueCandidateRow = {
   deliveryJobId: string;
@@ -8,7 +9,10 @@ type OverdueCandidateRow = {
 };
 
 export class ResponseOverdueService {
-  constructor(private readonly database: DatabaseClient) {}
+  constructor(
+    private readonly database: DatabaseClient,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   async evaluateRecipientOnlyOverdueForDevice(deviceId: string) {
     const candidates = await this.database.query<OverdueCandidateRow>(
@@ -46,6 +50,41 @@ export class ResponseOverdueService {
           occurredAt,
           candidate.timeoutMinutes,
         );
+        await this.auditLogService.record(transaction, {
+          actorUserId: null,
+          actorUsername: "system",
+          actionType: "RecipientResponseStateChanged",
+          moduleName: "Communications",
+          entityType: "CommunicationRecipient",
+          entityId: candidate.communicationRecipientId,
+          description: `Communication recipient ${candidate.communicationRecipientId} response state changed from AwaitingResponse to Overdue after recipient-only timeout evaluation.`,
+          ipAddress: null,
+          metadata: {
+            previousResponseState: "AwaitingResponse",
+            nextResponseState: "Overdue",
+            escalationMode: "RecipientOnly",
+            escalationTimeoutMinutes: candidate.timeoutMinutes,
+            deliveryJobId: candidate.deliveryJobId,
+          },
+          createdAt: occurredAt,
+        });
+        await this.auditLogService.record(transaction, {
+          actorUserId: null,
+          actorUsername: "system",
+          actionType: "QueueRecipientFollowUp",
+          moduleName: "Communications",
+          entityType: "DeliveryJob",
+          entityId: candidate.deliveryJobId,
+          description: `Recipient-only follow-up re-queued delivery job ${candidate.deliveryJobId} after overdue evaluation.`,
+          ipAddress: null,
+          metadata: {
+            escalationMode: "RecipientOnly",
+            escalationTimeoutMinutes: candidate.timeoutMinutes,
+            attemptNumber: candidate.attemptCount + 1,
+            communicationRecipientId: candidate.communicationRecipientId,
+          },
+          createdAt: occurredAt,
+        });
       });
     }
 
