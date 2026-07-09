@@ -25,7 +25,14 @@ export type NotificationStatus =
   | "Completed"
   | "Cancelled"
   | "Failed";
-export type DeliveryStatus = "Pending" | "Delivered" | "Failed" | "Read";
+export type DeliveryStatus =
+  | "Pending"
+  | "Sent"
+  | "Delivered"
+  | "Displayed"
+  | "Read"
+  | "Responded"
+  | "Failed";
 export type AckStatus = "Safe" | "NeedAssistance" | "NotInArea" | "Acknowledged" | "NoResponse";
 export type DeviceStatus = "Online" | "Offline" | "Stale";
 export type EmployeeStatus = "Active" | "Inactive";
@@ -105,9 +112,13 @@ export interface Recipient {
   department: string;
   section: string;
   site: string;
+  area?: string;
   channel: Channel;
+  channels?: Channel[];
+  recipientType?: "Device" | "Employee" | "ContactEndpoint";
   deliveryStatus: DeliveryStatus;
   ackStatus: AckStatus;
+  responseState?: "NotRequired" | "AwaitingResponse" | "Responded";
   response?: string;
   responseTime?: string;
 }

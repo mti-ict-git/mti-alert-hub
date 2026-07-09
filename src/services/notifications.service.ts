@@ -32,6 +32,77 @@ type ApiListResponse = {
 
 type ApiAudiencePreview = AudiencePreview;
 
+type ApiPageMeta = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+type ApiDeliveryRecord = {
+  deliveryJobId: string;
+  recipientId: string;
+  recipientName: string;
+  recipientType?: "Device" | "Employee" | "ContactEndpoint";
+  employeeId?: string | null;
+  employeeNumber?: string | null;
+  departmentName?: string | null;
+  sectionName?: string | null;
+  siteName?: string | null;
+  areaName?: string | null;
+  channel: ApiCommunicationSummary["channelSelections"][number];
+  deliveryStrategy?: string | null;
+  jobStatus: string;
+  lastUpdatedAt: string;
+  lastEventType?: string | null;
+  lastEventSource?: string | null;
+  detail: string;
+};
+
+type ApiDeliveryRecipient = {
+  recipientId: string;
+  recipientType: "Device" | "Employee" | "ContactEndpoint";
+  employeeId?: string | null;
+  deviceId?: string | null;
+  employeeNumber?: string | null;
+  recipientName: string;
+  departmentName?: string | null;
+  sectionName?: string | null;
+  siteName?: string | null;
+  areaName?: string | null;
+  ackState: string;
+  responseState: "NotRequired" | "AwaitingResponse" | "Responded";
+  channels: Array<ApiCommunicationSummary["channelSelections"][number]>;
+  latestJobStatus: string;
+  lastUpdatedAt?: string | null;
+};
+
+type ApiDeliveryEvent = {
+  eventId: string;
+  deliveryJobId: string;
+  recipientId: string;
+  recipientName: string;
+  channel: ApiCommunicationSummary["channelSelections"][number];
+  eventType: string;
+  eventSource: string;
+  occurredAt: string;
+  detail: string;
+};
+
+type ApiDeliveryVisibilityResponse = {
+  items: ApiDeliveryRecord[];
+  recipients: ApiDeliveryRecipient[];
+  events: ApiDeliveryEvent[];
+  page: ApiPageMeta;
+};
+
+type DeliveryVisibility = {
+  items: ApiDeliveryRecord[];
+  recipients: Recipient[];
+  logs: DeliveryLog[];
+  page: ApiPageMeta;
+};
+
 type CreateNotificationInput = Omit<
   Notification,
   "id" | "createdAt" | "createdBy" | "recipientsCount" | "ackCount" | "status"
@@ -64,13 +135,23 @@ export const notificationsService = {
     const detail = await apiClient.get<ApiCommunicationDetail>(`/communications/${id}`);
     return mapDetailToNotification(detail);
   },
+  async deliveryVisibility(id: string): Promise<DeliveryVisibility> {
+    const response = await apiClient.get<ApiDeliveryVisibilityResponse>(
+      `/communications/${id}/deliveries?page=1&pageSize=200`,
+    );
+
+    return {
+      items: response.items,
+      recipients: response.recipients.map((recipient) => mapDeliveryRecipientToRecipient(id, recipient)),
+      logs: response.events.map((event) => mapDeliveryEventToLog(id, event)),
+      page: response.page,
+    };
+  },
   async recipients(id: string): Promise<Recipient[]> {
-    void id;
-    return [];
+    return (await this.deliveryVisibility(id)).recipients;
   },
   async deliveryLogs(id: string): Promise<DeliveryLog[]> {
-    void id;
-    return [];
+    return (await this.deliveryVisibility(id)).logs;
   },
   async audiencePreview(id: string): Promise<ApiAudiencePreview> {
     return apiClient.post<ApiAudiencePreview>(`/communications/${id}/audience-preview`);
@@ -201,6 +282,71 @@ function mapTargetTypeFromApi(targetType?: string): Notification["targetType"] {
       return targetType;
     default:
       return "Custom";
+  }
+}
+
+function mapDeliveryRecipientToRecipient(
+  notificationId: string,
+  recipient: ApiDeliveryRecipient,
+): Recipient {
+  const channels = recipient.channels.map(mapChannelFromApi);
+
+  return {
+    id: recipient.recipientId,
+    notificationId,
+    employeeId: recipient.employeeNumber ?? recipient.employeeId ?? recipient.recipientId,
+    name: recipient.recipientName,
+    department: recipient.departmentName ?? "—",
+    section: recipient.sectionName ?? "—",
+    site: recipient.siteName ?? "—",
+    area: recipient.areaName ?? "—",
+    channel: channels[0] ?? "DesktopAgent",
+    channels,
+    recipientType: recipient.recipientType,
+    deliveryStatus: mapDeliveryStatusFromApi(recipient.latestJobStatus),
+    ackStatus: mapAckStatusFromApi(recipient.ackState),
+    responseState: recipient.responseState,
+    responseTime: recipient.lastUpdatedAt ?? undefined,
+  };
+}
+
+function mapDeliveryEventToLog(notificationId: string, event: ApiDeliveryEvent): DeliveryLog {
+  return {
+    id: event.eventId,
+    notificationId,
+    time: event.occurredAt,
+    channel: mapChannelFromApi(event.channel),
+    target: event.recipientName,
+    status: mapDeliveryStatusFromApi(event.eventType),
+    detail: event.detail,
+  };
+}
+
+function mapDeliveryStatusFromApi(status: string): DeliveryLog["status"] {
+  switch (status) {
+    case "Pending":
+    case "Sent":
+    case "Delivered":
+    case "Displayed":
+    case "Read":
+    case "Responded":
+    case "Failed":
+      return status;
+    default:
+      return "Pending";
+  }
+}
+
+function mapAckStatusFromApi(status: string): Recipient["ackStatus"] {
+  switch (status) {
+    case "Safe":
+    case "NeedAssistance":
+    case "NotInArea":
+    case "Acknowledged":
+      return status;
+    case "Pending":
+    default:
+      return "NoResponse";
   }
 }
 

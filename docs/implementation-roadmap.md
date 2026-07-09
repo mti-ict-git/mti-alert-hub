@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.3`
 - Status: `Active`
-- Last Updated: `2026-07-08`
+- Last Updated: `2026-07-09`
 
 ## Active Phase
 - `Phase 2 - Delivery Orchestration`
@@ -179,8 +179,8 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `[ ]` Slice 2.10 WhatsApp connector boundary: implement outbound provider interface, callback ingestion contract, and delivery-state normalization. Deferred until after the first Windows Agent go-live release.
 - `[ ]` Slice 2.10 WhatsApp connector boundary: map actual provider delivery and read receipts into MTI Alert delivery lifecycle states without over-claiming `Read`. Deferred until after the first Windows Agent go-live release.
 - `[x]` Slice 2.11 Frontend publish integration: replace mock publish and cancel service calls with backend-backed integrations on the admin notification flow.
-- `[ ]` Slice 2.11 Frontend publish integration: replace mock delivery and device-monitoring service calls with backend-backed visibility aligned to the Phase 2 contract.
-- `[ ]` Slice 2.11 Frontend publish integration: validate the admin publish and delivery monitoring flow against the new Phase 2 contract.
+- `[x]` Slice 2.11 Frontend publish integration: replace mock delivery and device-monitoring service calls with backend-backed visibility aligned to the Phase 2 contract.
+- `[x]` Slice 2.11 Frontend publish integration: validate the admin publish and delivery monitoring flow against the new Phase 2 contract.
 
 ### Output
 - Backend supports end-to-end Windows Agent communication dispatch orchestration for the first live release.
@@ -217,6 +217,9 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4015` with `LDAP_ALLOWED_GROUPS=''` confirmed an admin can create and publish a Windows Agent-targeted communication, the target device receives exactly one pending message from `GET /agent/messages`, duplicate `Displayed` and `Read` submissions remain `204` and create only one lifecycle event each, `POST /agent/messages/{messageId}/response` returns `200`, the delivery job transitions to `Responded`, recipient state becomes `Responded` plus `Acknowledged`, and the message no longer appears in reconciliation after response submission.
 - `2026-07-08`: Slice 2.9 now materializes `AgentLocalRoutine` recurring reminder policies into `agent_reminder_policies`, records local reminder evidence in `agent_reminder_events`, persists realtime negotiation compatibility rows in `device_realtime_connections`, and rejects `AgentLocalRoutine` publish attempts that do not resolve to at least one device-bound Windows Agent recipient.
 - `2026-07-08`: focused runtime verification against a dedicated backend instance on `BACKEND_PORT=4016` with `LDAP_ALLOWED_GROUPS=''` confirmed an admin can publish a recurring `AgentLocalRoutine` reminder, `POST /agent/realtime/negotiate` returns a concrete `connectionUrl` plus reusable session-backed access token and persists a `Connected` realtime row, `GET /agent/reminder-policies` returns the synchronized policy, `POST /agent/reminder-policies/{policyId}/events` records a `Triggered` occurrence, and cancelling the communication removes the target `policyId` from subsequent reminder-policy sync responses while leaving the persisted policy row inactive.
+- `2026-07-09`: Slice 2.11 now exposes `GET /communications/{communicationId}/deliveries` as the thin Phase 2 admin visibility baseline, returning paged delivery jobs together with persisted recipient snapshots and recent delivery events derived from `communication_recipients`, `delivery_jobs`, and `delivery_events`.
+- `2026-07-09`: the admin notification detail flow now uses backend delivery visibility for the `Recipients`, `Delivery Logs`, and acknowledgement summary tabs instead of placeholder data, while richer device monitoring and reporting remain intentionally deferred.
+- `2026-07-09`: focused verification for Slice 2.11 passed with `npm run backend:typecheck`, `npm run backend:build`, and `npm run build`, and a dedicated runtime on `BACKEND_PORT=4018` confirmed a create-preview-publish sequence returns `Queued`, then `GET /communications/{communicationId}/deliveries` returns at least one recipient snapshot, one delivery job, and a persisted `Queued` delivery event detail.
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status

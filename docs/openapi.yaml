@@ -329,8 +329,15 @@ paths:
     get:
       tags: [Deliveries]
       summary: List delivery jobs and status for a communication
+      description: |
+        Returns the thin delivery visibility baseline for the admin communication detail flow.
+
+        Current Phase 2 note:
+        - The response includes paged delivery jobs, persisted recipient snapshots, and recent delivery event logs.
+        - Recipient snapshots come from publish-time `communication_recipients`.
+        - Delivery jobs and delivery events come from the current orchestration persistence model and are intended for first-line operational support, not full dashboard analytics.
       operationId: listCommunicationDeliveries
-      x-implementation-phase: Phase 3
+      x-implementation-phase: Phase 2
       parameters:
         - $ref: "#/components/parameters/CommunicationId"
         - $ref: "#/components/parameters/Page"
@@ -1109,6 +1116,9 @@ components:
     DeliveryJobStatus:
       type: string
       enum: [Pending, Sent, Delivered, Displayed, Read, Responded, Failed]
+    DeliveryEventType:
+      type: string
+      enum: [Queued, Sent, Delivered, Displayed, Read, Responded, Failed]
     RecipientType:
       type: string
       enum: [Device, Employee, ContactEndpoint]
@@ -2037,7 +2047,132 @@ components:
 
     DeliveryRecord:
       type: object
+      required:
+        - deliveryJobId
+        - recipientId
+        - recipientName
+        - recipientType
+        - channel
+        - jobStatus
+        - lastUpdatedAt
+        - detail
       properties:
+        deliveryJobId:
+          type: string
+        recipientId:
+          type: string
+        recipientName:
+          type: string
+        recipientType:
+          $ref: "#/components/schemas/RecipientType"
+        employeeId:
+          type: string
+          nullable: true
+        employeeNumber:
+          type: string
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        sectionName:
+          type: string
+          nullable: true
+        siteName:
+          type: string
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        channel:
+          $ref: "#/components/schemas/Channel"
+        deliveryStrategy:
+          $ref: "#/components/schemas/DeliveryStrategy"
+          nullable: true
+        jobStatus:
+          $ref: "#/components/schemas/DeliveryJobStatus"
+        lastUpdatedAt:
+          type: string
+          format: date-time
+        lastEventType:
+          $ref: "#/components/schemas/DeliveryEventType"
+          nullable: true
+        lastEventSource:
+          type: string
+          enum: [System, AdminApi, Agent, Provider]
+          nullable: true
+        detail:
+          type: string
+
+    DeliveryRecipientRecord:
+      type: object
+      required:
+        - recipientId
+        - recipientType
+        - recipientName
+        - ackState
+        - responseState
+        - channels
+        - latestJobStatus
+      properties:
+        recipientId:
+          type: string
+        recipientType:
+          $ref: "#/components/schemas/RecipientType"
+        employeeId:
+          type: string
+          nullable: true
+        deviceId:
+          type: string
+          nullable: true
+        employeeNumber:
+          type: string
+          nullable: true
+        recipientName:
+          type: string
+        departmentName:
+          type: string
+          nullable: true
+        sectionName:
+          type: string
+          nullable: true
+        siteName:
+          type: string
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        ackState:
+          type: string
+          enum: [Pending, Acknowledged, Safe, NeedAssistance, NotInArea]
+        responseState:
+          type: string
+          enum: [NotRequired, AwaitingResponse, Responded]
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+        latestJobStatus:
+          $ref: "#/components/schemas/DeliveryJobStatus"
+        lastUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    DeliveryEventRecord:
+      type: object
+      required:
+        - eventId
+        - deliveryJobId
+        - recipientId
+        - recipientName
+        - channel
+        - eventType
+        - eventSource
+        - occurredAt
+        - detail
+      properties:
+        eventId:
+          type: string
         deliveryJobId:
           type: string
         recipientId:
@@ -2046,22 +2181,33 @@ components:
           type: string
         channel:
           $ref: "#/components/schemas/Channel"
-        deliveryStrategy:
-          $ref: "#/components/schemas/DeliveryStrategy"
-        jobStatus:
-          $ref: "#/components/schemas/DeliveryJobStatus"
-        lastUpdatedAt:
+        eventType:
+          $ref: "#/components/schemas/DeliveryEventType"
+        eventSource:
+          type: string
+          enum: [System, AdminApi, Agent, Provider]
+        occurredAt:
           type: string
           format: date-time
+        detail:
+          type: string
 
     DeliveryListResponse:
       type: object
-      required: [items, page]
+      required: [items, recipients, events, page]
       properties:
         items:
           type: array
           items:
             $ref: "#/components/schemas/DeliveryRecord"
+        recipients:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryRecipientRecord"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryEventRecord"
         page:
           $ref: "#/components/schemas/PageMeta"
 

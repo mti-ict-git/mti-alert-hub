@@ -125,6 +125,81 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   updatedAt: string | null;
 };
 
+type DeliveryJobStatus =
+  | "Pending"
+  | "Sent"
+  | "Delivered"
+  | "Displayed"
+  | "Read"
+  | "Responded"
+  | "Failed";
+
+type DeliveryEventType = "Queued" | DeliveryJobStatus;
+
+type RecipientResponseState = "NotRequired" | "AwaitingResponse" | "Responded";
+type RecipientAckState = "Pending" | "Acknowledged" | "Safe" | "NeedAssistance" | "NotInArea";
+
+type ListCommunicationDeliveriesOptions = {
+  communicationId: string;
+  page: number;
+  pageSize: number;
+};
+
+type CommunicationDeliveryRecipientRow = {
+  recipientId: string;
+  recipientType: "Device" | "Employee" | "ContactEndpoint";
+  employeeId: string | null;
+  deviceId: string | null;
+  employeeNumber: string | null;
+  recipientName: string;
+  departmentName: string | null;
+  sectionName: string | null;
+  siteName: string | null;
+  areaName: string | null;
+  responseState: RecipientResponseState;
+  ackState: RecipientAckState;
+  createdAt: string | null;
+};
+
+type CommunicationDeliveryRecipientJobRow = {
+  recipientId: string;
+  channel: Channel;
+  jobStatus: DeliveryJobStatus;
+  lastUpdatedAt: string;
+};
+
+type CommunicationDeliveryRow = {
+  deliveryJobId: string;
+  recipientId: string;
+  recipientName: string;
+  recipientType: "Device" | "Employee" | "ContactEndpoint";
+  employeeId: string | null;
+  employeeNumber: string | null;
+  departmentName: string | null;
+  sectionName: string | null;
+  siteName: string | null;
+  areaName: string | null;
+  channel: Channel;
+  deliveryStrategy: DeliveryStrategy | null;
+  jobStatus: DeliveryJobStatus;
+  lastUpdatedAt: string;
+  lastEventType: DeliveryEventType | null;
+  lastEventSource: string | null;
+  lastEventPayload: unknown;
+};
+
+type CommunicationDeliveryEventRow = {
+  eventId: string;
+  deliveryJobId: string;
+  recipientId: string;
+  recipientName: string;
+  channel: Channel;
+  eventType: DeliveryEventType;
+  eventSource: "System" | "AdminApi" | "Agent" | "Provider";
+  occurredAt: string;
+  eventPayload: unknown;
+};
+
 type WorkflowRow = {
   id: string;
   name: string;
@@ -294,6 +369,167 @@ export class CommunicationDraftService {
     }
 
     return this.serializeCommunicationDetail(detail);
+  }
+
+  async listCommunicationDeliveries(options: ListCommunicationDeliveriesOptions) {
+    const detail = await this.getCommunicationDetailRow(options.communicationId);
+    if (!detail) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    const pagination = buildPaginationParams(
+      {
+        page: options.page,
+        pageSize: options.pageSize,
+      },
+      [options.communicationId],
+    );
+
+    const [recipientRows, recipientJobRows, deliveryRows, totalRows, eventRows] = await Promise.all([
+      this.database.query<CommunicationDeliveryRecipientRow>(
+        `
+          select
+            cr.id::text as "recipientId",
+            cr.recipient_type::text as "recipientType",
+            cr.employee_id::text as "employeeId",
+            cr.device_id::text as "deviceId",
+            e.employee_number::text as "employeeNumber",
+            coalesce(
+              cr.recipient_name_snapshot,
+              e.full_name,
+              d.hostname,
+              cr.channel_endpoint,
+              'Unknown recipient'
+            )::text as "recipientName",
+            cr.department_name_snapshot::text as "departmentName",
+            cr.section_name_snapshot::text as "sectionName",
+            cr.site_name_snapshot::text as "siteName",
+            cr.area_name_snapshot::text as "areaName",
+            cr.response_state::text as "responseState",
+            cr.ack_state::text as "ackState",
+            cr.created_at::text as "createdAt"
+          from public.communication_recipients cr
+          left join public.employees e on e.id = cr.employee_id
+          left join public.devices d on d.id = cr.device_id
+          where cr.communication_id::text = $1
+          order by cr.created_at asc
+        `,
+        [options.communicationId],
+      ),
+      this.database.query<CommunicationDeliveryRecipientJobRow>(
+        `
+          select
+            cr.id::text as "recipientId",
+            dj.channel::text as channel,
+            dj.job_status::text as "jobStatus",
+            coalesce(dj.completed_at, dj.updated_at, dj.queued_at, dj.created_at)::text as "lastUpdatedAt"
+          from public.delivery_jobs dj
+          inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+          where dj.communication_id::text = $1
+        `,
+        [options.communicationId],
+      ),
+      this.database.query<CommunicationDeliveryRow>(
+        `
+          select
+            dj.id::text as "deliveryJobId",
+            cr.id::text as "recipientId",
+            coalesce(
+              cr.recipient_name_snapshot,
+              e.full_name,
+              d.hostname,
+              cr.channel_endpoint,
+              'Unknown recipient'
+            )::text as "recipientName",
+            cr.recipient_type::text as "recipientType",
+            cr.employee_id::text as "employeeId",
+            e.employee_number::text as "employeeNumber",
+            cr.department_name_snapshot::text as "departmentName",
+            cr.section_name_snapshot::text as "sectionName",
+            cr.site_name_snapshot::text as "siteName",
+            cr.area_name_snapshot::text as "areaName",
+            dj.channel::text as channel,
+            dj.delivery_strategy::text as "deliveryStrategy",
+            dj.job_status::text as "jobStatus",
+            coalesce(latest_event.occurred_at, dj.updated_at, dj.created_at)::text as "lastUpdatedAt",
+            latest_event.event_type::text as "lastEventType",
+            latest_event.event_source::text as "lastEventSource",
+            latest_event.event_payload_json as "lastEventPayload"
+          from public.delivery_jobs dj
+          inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+          left join public.employees e on e.id = cr.employee_id
+          left join public.devices d on d.id = cr.device_id
+          left join lateral (
+            select
+              de.event_type,
+              de.event_source,
+              de.event_payload_json,
+              de.occurred_at
+            from public.delivery_events de
+            where de.delivery_job_id = dj.id
+            order by de.occurred_at desc, de.created_at desc
+            limit 1
+          ) latest_event on true
+          where dj.communication_id::text = $1
+          order by coalesce(latest_event.occurred_at, dj.updated_at, dj.created_at) desc, dj.created_at desc
+          limit $2
+          offset $3
+        `,
+        pagination.values,
+      ),
+      this.database.query<{ totalItems: number }>(
+        `
+          select count(*)::int as "totalItems"
+          from public.delivery_jobs
+          where communication_id::text = $1
+        `,
+        [options.communicationId],
+      ),
+      this.database.query<CommunicationDeliveryEventRow>(
+        `
+          select
+            de.id::text as "eventId",
+            dj.id::text as "deliveryJobId",
+            cr.id::text as "recipientId",
+            coalesce(
+              cr.recipient_name_snapshot,
+              e.full_name,
+              d.hostname,
+              cr.channel_endpoint,
+              'Unknown recipient'
+            )::text as "recipientName",
+            dj.channel::text as channel,
+            de.event_type::text as "eventType",
+            de.event_source::text as "eventSource",
+            de.occurred_at::text as "occurredAt",
+            de.event_payload_json as "eventPayload"
+          from public.delivery_events de
+          inner join public.delivery_jobs dj on dj.id = de.delivery_job_id
+          inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+          left join public.employees e on e.id = cr.employee_id
+          left join public.devices d on d.id = cr.device_id
+          where dj.communication_id::text = $1
+          order by de.occurred_at desc, de.created_at desc
+          limit 200
+        `,
+        [options.communicationId],
+      ),
+    ]);
+
+    return {
+      items: deliveryRows.map((row) => serializeDeliveryRecord(row)),
+      recipients: serializeDeliveryRecipients(recipientRows, recipientJobRows),
+      events: eventRows.map((row) => serializeDeliveryEventRecord(row)),
+      page: createPageMeta({
+        page: options.page,
+        pageSize: options.pageSize,
+        totalItems: totalRows[0]?.totalItems ?? 0,
+      }),
+    };
   }
 
   async updateDraft(communicationId: string, input: UpdateCommunicationDraftInput) {
@@ -2079,4 +2315,147 @@ function buildPaginationParams(
     limitIndex: baseParams.length + 1,
     offsetIndex: baseParams.length + 2,
   };
+}
+
+function serializeDeliveryRecipients(
+  recipientRows: CommunicationDeliveryRecipientRow[],
+  recipientJobRows: CommunicationDeliveryRecipientJobRow[],
+) {
+  const jobsByRecipientId = new Map<string, CommunicationDeliveryRecipientJobRow[]>();
+  for (const row of recipientJobRows) {
+    const current = jobsByRecipientId.get(row.recipientId) ?? [];
+    current.push(row);
+    jobsByRecipientId.set(row.recipientId, current);
+  }
+
+  return recipientRows.map((row) => {
+    const jobs = jobsByRecipientId.get(row.recipientId) ?? [];
+    const channels = dedupeChannels(jobs.map((job) => job.channel));
+    const latestJob = jobs.reduce<CommunicationDeliveryRecipientJobRow | null>((latest, candidate) => {
+      if (!latest) {
+        return candidate;
+      }
+
+      return toTimestampValue(candidate.lastUpdatedAt) > toTimestampValue(latest.lastUpdatedAt)
+        ? candidate
+        : latest;
+    }, null);
+
+    return {
+      recipientId: row.recipientId,
+      recipientType: row.recipientType,
+      employeeId: row.employeeId,
+      deviceId: row.deviceId,
+      employeeNumber: row.employeeNumber,
+      recipientName: row.recipientName,
+      departmentName: row.departmentName,
+      sectionName: row.sectionName,
+      siteName: row.siteName,
+      areaName: row.areaName,
+      ackState: row.ackState,
+      responseState: row.responseState,
+      channels,
+      latestJobStatus: latestJob?.jobStatus ?? "Pending",
+      lastUpdatedAt: latestJob?.lastUpdatedAt ?? row.createdAt,
+    };
+  });
+}
+
+function serializeDeliveryRecord(row: CommunicationDeliveryRow) {
+  const detailEventType = row.lastEventType ?? row.jobStatus;
+  const detailEventSource = row.lastEventSource ?? "System";
+
+  return {
+    deliveryJobId: row.deliveryJobId,
+    recipientId: row.recipientId,
+    recipientName: row.recipientName,
+    recipientType: row.recipientType,
+    employeeId: row.employeeId,
+    employeeNumber: row.employeeNumber,
+    departmentName: row.departmentName,
+    sectionName: row.sectionName,
+    siteName: row.siteName,
+    areaName: row.areaName,
+    channel: row.channel,
+    deliveryStrategy: row.deliveryStrategy,
+    jobStatus: row.jobStatus,
+    lastUpdatedAt: row.lastUpdatedAt,
+    lastEventType: row.lastEventType,
+    lastEventSource: row.lastEventSource,
+    detail: buildDeliveryEventDetail(detailEventType, detailEventSource, row.lastEventPayload),
+  };
+}
+
+function serializeDeliveryEventRecord(row: CommunicationDeliveryEventRow) {
+  return {
+    eventId: row.eventId,
+    deliveryJobId: row.deliveryJobId,
+    recipientId: row.recipientId,
+    recipientName: row.recipientName,
+    channel: row.channel,
+    eventType: row.eventType,
+    eventSource: row.eventSource,
+    occurredAt: row.occurredAt,
+    detail: buildDeliveryEventDetail(row.eventType, row.eventSource, row.eventPayload),
+  };
+}
+
+function buildDeliveryEventDetail(
+  eventType: DeliveryEventType,
+  eventSource: string | null,
+  payload: unknown,
+) {
+  const source = eventSource ?? "System";
+  const responseOptionKey = readDeliveryEventText(payload, "responseOptionKey");
+  const responseNote = readDeliveryEventText(payload, "responseNote");
+  const activeUserIdentifier = readDeliveryEventText(payload, "activeUserIdentifier");
+  const reason =
+    readDeliveryEventText(payload, "reason") ?? readDeliveryEventText(payload, "lastErrorMessage");
+
+  switch (eventType) {
+    case "Queued":
+      return `Queued for delivery by ${source}.`;
+    case "Sent":
+      return `Sent by ${source}.`;
+    case "Delivered":
+      return `Delivered and recorded by ${source}.`;
+    case "Displayed":
+      return activeUserIdentifier
+        ? `Displayed for active user ${activeUserIdentifier}.`
+        : `Displayed and recorded by ${source}.`;
+    case "Read":
+      return activeUserIdentifier
+        ? `Read by active user ${activeUserIdentifier}.`
+        : `Read and recorded by ${source}.`;
+    case "Responded": {
+      const responseLabel = responseOptionKey ? `Response "${responseOptionKey}" submitted` : "Response submitted";
+      return responseNote ? `${responseLabel}: ${responseNote}` : `${responseLabel}.`;
+    }
+    case "Failed":
+      return reason ? `Failed in ${source}: ${reason}` : `Failed in ${source}.`;
+    default:
+      return `${eventType} recorded by ${source}.`;
+  }
+}
+
+function readDeliveryEventText(payload: unknown, field: string) {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const value = payload[field];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toTimestampValue(value: string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }

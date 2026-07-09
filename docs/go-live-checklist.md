@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Working Checklist`
-- Last Updated: `2026-07-08`
+- Last Updated: `2026-07-09`
 - Audience: `Product Owner`, `Tech Lead`, `Backend Engineers`, `Frontend Engineers`
 
 ## Purpose
@@ -83,7 +83,7 @@ The first live release does **not** require:
 - reporting dashboards and audit-heavy aggregates
 - non-device-bound Windows Agent local routine recipients
 - production-grade realtime scaling, selective event fan-out, and dedicated token issuance beyond the first compatible hub slice
-- richer admin-side delivery monitoring beyond the current thin visibility baseline
+- richer admin-side delivery monitoring beyond the current thin recipient and event visibility baseline
 
 ## Stop-Ship Conditions
 - Admin users cannot log in successfully with valid credentials.
@@ -131,11 +131,11 @@ Capture this evidence before declaring release-ready:
 - Organization, employee, and device reference data may be empty in the first release.
 - WhatsApp runtime delivery is not part of this first live cutoff.
 - Realtime technology and scaling shape are still constrained by the first compatible `SSE` hub implementation.
-- Admin monitoring views remain thin because publish and cancel are backend-backed, but delivery logs and device-support visibility are not yet fully wired to Phase 2 delivery read models.
+- Admin monitoring views remain intentionally thin: recipient snapshots and recent delivery logs are backend-backed, but deeper device-support views, dashboards, and audit-heavy analytics are still deferred.
 
 ## Recommended Next Focus
 After this checklist is accepted, the recommended implementation focus is:
 - validate the startup, reconnect, and push flow with a Windows Agent prototype against the current `SSE` hub contract
-- add targeted admin-side delivery visibility needed for first-line operational support
+- validate the current thin admin delivery visibility in a real operator session before expanding reporting scope
 - validate the current admin publish and cancel flow in a real operator session before expanding deferred scope
 - verify the startup and reconnect path with a Windows Agent prototype before touching deferred channel work

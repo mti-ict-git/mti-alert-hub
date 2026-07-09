@@ -48,8 +48,10 @@ function NotificationDetailPage() {
   const { id } = useParams({ from: "/_app/notifications/$id" });
   const qc = useQueryClient();
   const { data: n } = useQuery({ queryKey: ["notification", id], queryFn: () => notificationsService.get(id) });
-  const { data: recipients = [] } = useQuery({ queryKey: ["recipients", id], queryFn: () => notificationsService.recipients(id) });
-  const { data: logs = [] } = useQuery({ queryKey: ["logs", id], queryFn: () => notificationsService.deliveryLogs(id) });
+  const { data: deliveryVisibility } = useQuery({
+    queryKey: ["delivery-visibility", id],
+    queryFn: () => notificationsService.deliveryVisibility(id),
+  });
   const { data: audiencePreview } = useQuery({
     queryKey: ["audience-preview", id],
     queryFn: () => notificationsService.audiencePreview(id),
@@ -158,6 +160,12 @@ function NotificationDetailPage() {
     },
   });
   const previewRecipients = audiencePreview?.recipients ?? [];
+  const persistedRecipients = deliveryVisibility?.recipients ?? [];
+  const logs = deliveryVisibility?.logs ?? [];
+  const recipientRows =
+    persistedRecipients.length > 0
+      ? persistedRecipients
+      : previewRecipients.map((recipient, index) => mapPreviewRecipientToRecipient(id, recipient, index));
   const availableSections = useMemo(
     () => sections.filter((item) => !draftForm?.targetDepartment || item.departmentId === draftForm.targetDepartment),
     [draftForm?.targetDepartment, sections],
@@ -200,12 +208,13 @@ function NotificationDetailPage() {
     ],
   );
   const ackCounts = {
-    Safe: recipients.filter((r) => r.ackStatus === "Safe").length,
-    NeedAssistance: recipients.filter((r) => r.ackStatus === "NeedAssistance").length,
-    NotInArea: recipients.filter((r) => r.ackStatus === "NotInArea").length,
-    Acknowledged: recipients.filter((r) => r.ackStatus === "Acknowledged").length,
-    NoResponse: recipients.filter((r) => r.ackStatus === "NoResponse").length,
+    Safe: persistedRecipients.filter((r) => r.ackStatus === "Safe").length,
+    NeedAssistance: persistedRecipients.filter((r) => r.ackStatus === "NeedAssistance").length,
+    NotInArea: persistedRecipients.filter((r) => r.ackStatus === "NotInArea").length,
+    Acknowledged: persistedRecipients.filter((r) => r.ackStatus === "Acknowledged").length,
+    NoResponse: persistedRecipients.filter((r) => r.ackStatus === "NoResponse").length,
   };
+  const recipientCount = recipientRows.length;
 
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
@@ -280,8 +289,8 @@ function NotificationDetailPage() {
         <Tabs defaultValue="overview">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="recipients">Recipients ({previewRecipients.length})</TabsTrigger>
-            <TabsTrigger value="logs">Delivery Logs</TabsTrigger>
+            <TabsTrigger value="recipients">Recipients ({recipientCount})</TabsTrigger>
+            <TabsTrigger value="logs">Delivery Logs ({logs.length})</TabsTrigger>
             <TabsTrigger value="ack">Audience Summary</TabsTrigger>
           </TabsList>
 
@@ -295,7 +304,7 @@ function NotificationDetailPage() {
                 <Info label="Created By" value={n.createdBy} />
                 <Info label="Created At" value={format(new Date(n.createdAt), "dd MMM yyyy HH:mm")} />
                 {n.scheduledAt && <Info label="Scheduled At" value={format(new Date(n.scheduledAt), "dd MMM yyyy HH:mm")} />}
-                <Info label="Recipients" value={`${audiencePreview?.totalRecipients ?? 0}`} />
+                <Info label="Recipients" value={`${recipientCount || audiencePreview?.totalRecipients || 0}`} />
               </CardContent>
             </Card>
             {audiencePreview && (
@@ -334,28 +343,30 @@ function NotificationDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Recipient Type</TableHead><TableHead>Employee No</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead>
+                      <TableHead>Recipient Type</TableHead><TableHead>Employee No</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead><TableHead>Status</TableHead><TableHead>Ack</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {previewRecipients.map((recipient) => (
-                      <TableRow key={`${recipient.recipientType}-${recipient.deviceId ?? recipient.employeeId ?? recipient.employeeNumber}`}>
-                        <TableCell>{recipient.recipientType}</TableCell>
-                        <TableCell className="font-mono text-xs">{recipient.employeeNumber ?? "—"}</TableCell>
-                        <TableCell>{recipient.fullName ?? "—"}</TableCell>
-                        <TableCell>{recipient.departmentName ?? "—"}</TableCell>
-                        <TableCell>{recipient.sectionName ?? "—"}</TableCell>
-                        <TableCell>{recipient.siteName ?? "—"}</TableCell>
-                        <TableCell>{recipient.areaName ?? "—"}</TableCell>
+                    {recipientRows.map((recipient) => (
+                      <TableRow key={recipient.id}>
+                        <TableCell>{recipient.recipientType ?? "—"}</TableCell>
+                        <TableCell className="font-mono text-xs">{recipient.employeeId || "—"}</TableCell>
+                        <TableCell>{recipient.name || "—"}</TableCell>
+                        <TableCell>{recipient.department || "—"}</TableCell>
+                        <TableCell>{recipient.section || "—"}</TableCell>
+                        <TableCell>{recipient.site || "—"}</TableCell>
+                        <TableCell>{recipient.area || "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {recipient.availableChannels.join(", ") || "—"}
+                          {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
                         </TableCell>
+                        <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
+                        <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
                       </TableRow>
                     ))}
-                    {previewRecipients.length === 0 && (
+                    {recipientRows.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                          No audience preview is available for this draft yet.
+                        <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                          No recipient snapshots are available yet for this communication.
                         </TableCell>
                       </TableRow>
                     )}
@@ -384,7 +395,7 @@ function NotificationDetailPage() {
                   {logs.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                        Delivery logs are not available until delivery orchestration is implemented.
+                        No delivery events have been recorded for this communication yet.
                       </TableCell>
                     </TableRow>
                   )}
@@ -405,7 +416,7 @@ function NotificationDetailPage() {
                 ))}
               </CardContent>
               <CardContent className="pt-0 text-sm text-muted-foreground">
-                Response and acknowledgement counts stay `0` until delivery and response tracking endpoints are implemented in later phases.
+                These counts now come from persisted recipient acknowledgement state and remain `0` until a delivery or response event updates the recipient snapshot.
               </CardContent>
             </Card>
           </TabsContent>
@@ -760,6 +771,31 @@ function NotificationDetailPage() {
   );
 }
 
+function mapPreviewRecipientToRecipient(
+  notificationId: string,
+  recipient: AudiencePreview["recipients"][number],
+  index: number,
+) {
+  const channels = recipient.availableChannels.map(mapPreviewChannelToChannel);
+
+  return {
+    id: `${notificationId}-preview-${index}`,
+    notificationId,
+    employeeId: recipient.employeeNumber ?? recipient.employeeId ?? "—",
+    name: recipient.fullName ?? "—",
+    department: recipient.departmentName ?? "—",
+    section: recipient.sectionName ?? "—",
+    site: recipient.siteName ?? "—",
+    area: recipient.areaName ?? "—",
+    channel: channels[0] ?? "DesktopAgent",
+    channels,
+    recipientType: recipient.recipientType,
+    deliveryStatus: "Pending" as const,
+    ackStatus: "NoResponse" as const,
+    responseState: "NotRequired" as const,
+  };
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -876,4 +912,8 @@ function normalizeScheduledDateTime(value: string) {
 
 function getLocalTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function mapPreviewChannelToChannel(channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage") {
+  return channel === "WindowsAgent" ? "DesktopAgent" : channel;
 }

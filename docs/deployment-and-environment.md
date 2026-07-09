@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-09`
 - Owner: `Engineering / Operations`
 
 ## Purpose
@@ -218,6 +218,7 @@ Latest verification evidence:
 - `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4016` with `LDAP_ALLOWED_GROUPS=''` confirmed recurring `AgentLocalRoutine` publish, realtime negotiation persistence, reminder policy sync, local reminder event reporting, and target-policy invalidation after communication cancellation.
 - `2026-07-08`: a dedicated verification runtime on `BACKEND_PORT=4017` with `LDAP_ALLOWED_GROUPS=''` confirmed `POST /agent/realtime/negotiate` returns `transport = SSE`, `GET /agent/realtime-hub` opens a working event stream, publish `Now` pushes `messages.available` to the active device connection, and `GET /agent/messages` still returns the same communication for reconciliation fallback.
 - `2026-07-08`: frontend build verification after wiring backend-backed admin publish and cancel actions succeeded with `npm run build`, confirming the notification detail flow and notification index flow compile against the current Phase 2 contract.
+- `2026-07-09`: a dedicated verification runtime on `BACKEND_PORT=4018` confirmed the new Phase 2 delivery visibility baseline end to end: an admin created and previewed a Windows Agent-targeted communication, `publish Now` returned `Queued`, and `GET /communications/{communicationId}/deliveries` then returned a persisted recipient snapshot, one delivery job, and a recent `Queued` delivery event with the expected detail text.
 
 ## Operational Dependencies
 ### Enterprise Identity

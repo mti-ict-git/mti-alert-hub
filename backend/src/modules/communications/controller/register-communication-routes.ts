@@ -46,6 +46,7 @@ const communicationListQuerySchema = baseListQuerySchema.extend({
 });
 
 const templateListQuerySchema = baseListQuerySchema;
+const deliveryListQuerySchema = baseListQuerySchema;
 
 const targetRuleSchema = z.object({
   targetType: targetTypeSchema,
@@ -223,6 +224,22 @@ export function registerCommunicationRoutes(
           body: await options.communicationDraftService.cancelCommunication(
             params.communicationId ?? "",
           ),
+        };
+      },
+    },
+    {
+      method: "GET",
+      path: "/communications/{communicationId}/deliveries",
+      requiresAuth: true,
+      async handler({ params, url }) {
+        const query = parseListQuery(deliveryListQuerySchema, url);
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.listCommunicationDeliveries({
+            communicationId: params.communicationId ?? "",
+            page: query.page,
+            pageSize: query.pageSize,
+          }),
         };
       },
     },
