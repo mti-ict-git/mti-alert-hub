@@ -135,7 +135,7 @@ Capture this evidence before declaring release-ready:
 
 ## Recommended Next Focus
 After this checklist is accepted, the recommended implementation focus is:
-- validate the startup, reconnect, and push flow with a Windows Agent prototype against the current `SSE` hub contract
 - validate the current thin admin delivery visibility in a real operator session before expanding reporting scope
 - validate the current admin publish and cancel flow in a real operator session before expanding deferred scope
-- verify the startup and reconnect path with a Windows Agent prototype before touching deferred channel work
+- validate the Windows Agent lifecycle evidence path in a real client session, including displayed and read submission after reconnect recovery
+- confirm operational handoff readiness for the Windows Agent engineer using the current `SSE` baseline documents

@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-09`
 - Audience: `Windows Agent Engineers`
 
 ## Purpose
@@ -168,6 +168,15 @@ The current server baseline for the first go-live slice uses:
 
 The client should treat this as the current working transport, while keeping the hub abstraction isolated enough to tolerate a later move to a different server technology.
 
+### Validated MVP Runtime Baseline
+The current runtime baseline has now been explicitly validated against the server implementation:
+- session creation works before realtime negotiation
+- realtime negotiation returns a fresh `connectionId` for reconnect
+- opening the negotiated `SSE` stream returns `connected` followed by `messages.snapshot`
+- reconnect requires a fresh negotiate step before opening the next stream
+- publishing a Windows Agent-targeted communication while connected emits `messages.available`
+- after reconnect, the agent can still recover the same pending communication through both `messages.snapshot` and `GET /agent/messages`
+
 ## Authentication And Session Model
 ### Current Direction
 The current safe direction is:
@@ -205,6 +214,11 @@ Recommended client startup sequence:
 9. Begin normal realtime event handling.
 
 The tray application should auto start on user login and execute this sequence without requiring the user to manually open the full desktop UI.
+
+Reconnect guidance for MVP:
+- on disconnect, the client should negotiate again to obtain a new `connectionId`
+- the client should not assume the previous realtime connection remains reusable after reconnect
+- after reopening the stream, the client should still call `GET /agent/messages` as the recovery path even if `messages.snapshot` already arrives
 
 ## Heartbeat And Device Health
 ### Required Client Behavior
