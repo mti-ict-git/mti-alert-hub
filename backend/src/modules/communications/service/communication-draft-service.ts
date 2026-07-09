@@ -145,6 +145,12 @@ type ListCommunicationDeliveriesOptions = {
   pageSize: number;
 };
 
+type ListCommunicationResponsesOptions = {
+  communicationId: string;
+  page: number;
+  pageSize: number;
+};
+
 type CommunicationDeliveryRecipientRow = {
   recipientId: string;
   recipientType: "Device" | "Employee" | "ContactEndpoint";
@@ -198,6 +204,16 @@ type CommunicationDeliveryEventRow = {
   eventSource: "System" | "AdminApi" | "Agent" | "Provider";
   occurredAt: string;
   eventPayload: unknown;
+};
+
+type CommunicationResponseRow = {
+  id: string;
+  recipientId: string;
+  channel: Channel;
+  responseOptionKey: string;
+  actorUserIdentifier: string | null;
+  responseNote: string | null;
+  respondedAt: string;
 };
 
 type WorkflowRow = {
@@ -524,6 +540,67 @@ export class CommunicationDraftService {
       items: deliveryRows.map((row) => serializeDeliveryRecord(row)),
       recipients: serializeDeliveryRecipients(recipientRows, recipientJobRows),
       events: eventRows.map((row) => serializeDeliveryEventRecord(row)),
+      page: createPageMeta({
+        page: options.page,
+        pageSize: options.pageSize,
+        totalItems: totalRows[0]?.totalItems ?? 0,
+      }),
+    };
+  }
+
+  async listCommunicationResponses(options: ListCommunicationResponsesOptions) {
+    const detail = await this.getCommunicationDetailRow(options.communicationId);
+    if (!detail) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    const pagination = buildPaginationParams(
+      {
+        page: options.page,
+        pageSize: options.pageSize,
+      },
+      [options.communicationId],
+    );
+
+    const [rows, totalRows] = await Promise.all([
+      this.database.query<CommunicationResponseRow>(
+        `
+          select
+            rr.id::text as id,
+            rr.communication_recipient_id::text as "recipientId",
+            rr.channel::text as channel,
+            rr.response_option_key::text as "responseOptionKey",
+            rr.actor_user_identifier::text as "actorUserIdentifier",
+            rr.response_note::text as "responseNote",
+            rr.responded_at::text as "respondedAt"
+          from public.recipient_responses rr
+          inner join public.communication_recipients cr
+            on cr.id = rr.communication_recipient_id
+          where cr.communication_id::text = $1
+          order by rr.responded_at desc, rr.created_at desc
+          limit $${pagination.limitIndex}
+          offset $${pagination.offsetIndex}
+        `,
+        pagination.values,
+      ),
+      this.database.query<{ totalItems: number }>(
+        `
+          select count(*)::int as "totalItems"
+          from public.recipient_responses rr
+          inner join public.communication_recipients cr
+            on cr.id = rr.communication_recipient_id
+          where cr.communication_id::text = $1
+        `,
+        [options.communicationId],
+      ),
+    ]);
+
+    return {
+      items: rows.map((row) => serializeRecipientResponseRecord(row)),
       page: createPageMeta({
         page: options.page,
         pageSize: options.pageSize,
@@ -1125,7 +1202,8 @@ export class CommunicationDraftService {
     const finalWindowsAgentPresentation =
       template?.defaultWindowsAgentPresentation ?? input.windowsAgentPresentation;
     const finalDeliveryStrategy = template?.defaultDeliveryStrategy ?? input.deliveryStrategy;
-    const requiresResponse = template?.defaultRequiresResponse ?? false;
+    const requiresResponse =
+      template?.defaultRequiresResponse ?? Boolean(finalWorkflowId);
 
     if (template) {
       validateAllowedTargetTypes(template, input.targets);
@@ -2397,6 +2475,18 @@ function serializeDeliveryEventRecord(row: CommunicationDeliveryEventRow) {
     eventSource: row.eventSource,
     occurredAt: row.occurredAt,
     detail: buildDeliveryEventDetail(row.eventType, row.eventSource, row.eventPayload),
+  };
+}
+
+function serializeRecipientResponseRecord(row: CommunicationResponseRow) {
+  return {
+    id: row.id,
+    recipientId: row.recipientId,
+    channel: row.channel,
+    responseOptionKey: row.responseOptionKey,
+    actorUserIdentifier: row.actorUserIdentifier,
+    responseNote: row.responseNote,
+    respondedAt: row.respondedAt,
   };
 }
 

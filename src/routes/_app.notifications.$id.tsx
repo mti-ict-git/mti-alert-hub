@@ -52,6 +52,10 @@ function NotificationDetailPage() {
     queryKey: ["delivery-visibility", id],
     queryFn: () => notificationsService.deliveryVisibility(id),
   });
+  const { data: responses = [] } = useQuery({
+    queryKey: ["notification-responses", id],
+    queryFn: () => notificationsService.responses(id),
+  });
   const { data: audiencePreview } = useQuery({
     queryKey: ["audience-preview", id],
     queryFn: () => notificationsService.audiencePreview(id),
@@ -291,6 +295,7 @@ function NotificationDetailPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="recipients">Recipients ({recipientCount})</TabsTrigger>
             <TabsTrigger value="logs">Delivery Logs ({logs.length})</TabsTrigger>
+            <TabsTrigger value="responses">Responses ({responses.length})</TabsTrigger>
             <TabsTrigger value="ack">Audience Summary</TabsTrigger>
           </TabsList>
 
@@ -396,6 +401,49 @@ function NotificationDetailPage() {
                     <TableRow>
                       <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                         No delivery events have been recorded for this communication yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="responses" className="mt-4">
+            <Card><CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Recipient</TableHead>
+                    <TableHead>Channel</TableHead>
+                    <TableHead>Response</TableHead>
+                    <TableHead>Actor</TableHead>
+                    <TableHead>Note</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {responses.map((response) => (
+                    <TableRow key={response.id}>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {format(new Date(response.respondedAt), "dd MMM HH:mm:ss")}
+                      </TableCell>
+                      <TableCell>{response.recipientName}</TableCell>
+                      <TableCell>{response.channel}</TableCell>
+                      <TableCell>
+                        <StatusBadge status="Responded" />
+                        <div className="mt-1 text-xs text-muted-foreground">{response.responseOptionKey}</div>
+                      </TableCell>
+                      <TableCell>{response.actorUserIdentifier || "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {response.responseNote || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {responses.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                        No recipient responses have been recorded for this communication yet.
                       </TableCell>
                     </TableRow>
                   )}

@@ -244,6 +244,22 @@ export function registerCommunicationRoutes(
       },
     },
     {
+      method: "GET",
+      path: "/communications/{communicationId}/responses",
+      requiresAuth: true,
+      async handler({ params, url }) {
+        const query = parseListQuery(baseListQuerySchema, url);
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.listCommunicationResponses({
+            communicationId: params.communicationId ?? "",
+            page: query.page,
+            pageSize: query.pageSize,
+          }),
+        };
+      },
+    },
+    {
       method: "POST",
       path: "/communications/{communicationId}/duplicate",
       requiresAuth: true,

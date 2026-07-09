@@ -133,6 +133,18 @@ export interface DeliveryLog {
   detail: string;
 }
 
+export interface ResponseRecord {
+  id: string;
+  notificationId: string;
+  recipientId: string;
+  recipientName: string;
+  channel: Channel;
+  responseOptionKey: string;
+  actorUserIdentifier?: string | null;
+  responseNote?: string | null;
+  respondedAt: string;
+}
+
 export interface AudiencePreviewRecipient {
   recipientType: "Employee" | "Device";
   deviceId?: string | null;

@@ -1,4 +1,4 @@
-import type { AudiencePreview, DeliveryLog, Notification, Recipient } from "@/types";
+import type { AudiencePreview, DeliveryLog, Notification, Recipient, ResponseRecord } from "@/types";
 import { apiClient } from "@/services/api-client";
 
 type ApiCommunicationSummary = {
@@ -96,6 +96,21 @@ type ApiDeliveryVisibilityResponse = {
   page: ApiPageMeta;
 };
 
+type ApiRecipientResponse = {
+  id: string;
+  recipientId: string;
+  channel: ApiCommunicationSummary["channelSelections"][number];
+  responseOptionKey: string;
+  actorUserIdentifier?: string | null;
+  responseNote?: string | null;
+  respondedAt: string;
+};
+
+type ApiResponseListResponse = {
+  items: ApiRecipientResponse[];
+  page: ApiPageMeta;
+};
+
 type DeliveryVisibility = {
   items: ApiDeliveryRecord[];
   recipients: Recipient[];
@@ -152,6 +167,27 @@ export const notificationsService = {
   },
   async deliveryLogs(id: string): Promise<DeliveryLog[]> {
     return (await this.deliveryVisibility(id)).logs;
+  },
+  async responses(id: string): Promise<ResponseRecord[]> {
+    const [response, deliveryVisibility] = await Promise.all([
+      apiClient.get<ApiResponseListResponse>(`/communications/${id}/responses?page=1&pageSize=200`),
+      this.deliveryVisibility(id),
+    ]);
+    const recipientNames = new Map(
+      deliveryVisibility.recipients.map((recipient) => [recipient.id, recipient.name]),
+    );
+
+    return response.items.map((item) => ({
+      id: item.id,
+      notificationId: id,
+      recipientId: item.recipientId,
+      recipientName: recipientNames.get(item.recipientId) ?? item.recipientId,
+      channel: mapChannelFromApi(item.channel),
+      responseOptionKey: item.responseOptionKey,
+      actorUserIdentifier: item.actorUserIdentifier ?? null,
+      responseNote: item.responseNote ?? null,
+      respondedAt: item.respondedAt,
+    }));
   },
   async audiencePreview(id: string): Promise<ApiAudiencePreview> {
     return apiClient.post<ApiAudiencePreview>(`/communications/${id}/audience-preview`);

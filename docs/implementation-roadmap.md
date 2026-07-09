@@ -129,6 +129,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `2026-07-08`: saved-group audience resolution is now backed by `audience_groups` and `audience_group_members`, and representative `Group` plus `Device` target previews return expected recipients with zero preview warnings.
 - Go-live fast-track decision on `2026-07-07`: HR or organization baseline ingestion is not treated as a go-live blocker and is explicitly deferred until after the first live release unless operational needs force it back into scope.
 - `2026-07-08`: frontend-to-backend CORS compatibility was updated for local Phase 1 admin verification origins on `4173` and `5173`, and direct preflight plus authenticated login requests from the frontend origin to the backend verification runtime returned the expected headers and `200` login response.
+- `2026-07-09`: the local development CORS allowlist was expanded to also accept common frontend dev origins on `3000`, `3001`, and `8080` for both `localhost` and `127.0.0.1`, preventing admin UI login failures caused by origin mismatch while preserving the explicit allowlist model.
 - `2026-07-08`: frontend smoke verification remains partially constrained by the current browser automation environment because cross-port localhost requests from the tool fail with `net::ERR_FAILED`, but the Phase 1 admin contract was still challenged through successful frontend build, backend-backed service wiring, and direct runtime checks against the same frontend origin and backend target.
 
 ## Phase 2 - Delivery Orchestration
