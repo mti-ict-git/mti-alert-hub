@@ -7,6 +7,7 @@ const envSchema = z.object({
   APP_NAME: z.string().default("MTI Alert Backend"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   BACKEND_PORT: z.coerce.number().int().positive().default(4000),
+  BACKEND_PUBLIC_BASE_URL: z.string().url().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   POSTGRES_URL: z.string().min(1, "POSTGRES_URL is required for backend startup."),
   POSTGRES_USERNAME: z.string().optional(),

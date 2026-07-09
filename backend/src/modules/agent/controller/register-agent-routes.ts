@@ -82,7 +82,10 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
 
         return {
           statusCode: 200,
-          body: await options.agentService.negotiateRealtime(sessionToken, payload),
+          body: await options.agentService.negotiateRealtime(sessionToken, {
+            ...payload,
+            requestBaseUrl: resolveRequestBaseUrl(request),
+          }),
         };
       },
     },
@@ -259,3 +262,35 @@ function extractBearerToken(authorizationHeader: string | undefined) {
 
   return token;
 }
+
+function resolveRequestBaseUrl(request: RequestLike) {
+  const protocol = firstHeaderValue(request.headers["x-forwarded-proto"]) ?? "http";
+  const host = firstHeaderValue(request.headers["x-forwarded-host"]) ?? request.headers.host;
+
+  if (!host?.trim()) {
+    return undefined;
+  }
+
+  return `${protocol}://${host.trim()}`;
+}
+
+function firstHeaderValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  if (!value) {
+    return undefined;
+  }
+
+  return value.split(",")[0]?.trim();
+}
+
+type RequestLike = {
+  headers: {
+    authorization?: string;
+    host?: string;
+    "x-forwarded-host"?: string | string[];
+    "x-forwarded-proto"?: string | string[];
+  };
+};

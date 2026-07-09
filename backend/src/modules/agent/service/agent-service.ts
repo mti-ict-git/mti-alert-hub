@@ -122,6 +122,7 @@ type CreateAgentSessionInput = {
 
 type NegotiateRealtimeInput = {
   deviceIdentifier: string;
+  requestBaseUrl?: string;
 };
 
 type HeartbeatInput = {
@@ -260,7 +261,11 @@ export class AgentService {
     });
 
     return {
-      connectionUrl: this.buildRealtimeUrl(connectionIdentifier, input.deviceIdentifier),
+      connectionUrl: this.buildRealtimeUrl(
+        connectionIdentifier,
+        input.deviceIdentifier,
+        input.requestBaseUrl,
+      ),
       accessToken: session.sessionToken,
       connectionId: connectionIdentifier,
       transport: "SSE",
@@ -1211,14 +1216,20 @@ export class AgentService {
     this.ensureIsoDate(value, fieldName);
   }
 
-  private buildRealtimeUrl(connectionId: string, deviceIdentifier: string) {
-    const port = this.env.BACKEND_PORT;
-    const host = this.env.NODE_ENV === "production" ? "localhost" : "localhost";
-    const query = new URLSearchParams({
-      connectionId,
-      deviceIdentifier,
-    });
-    return `http://${host}:${port}/agent/realtime-hub?${query.toString()}`;
+  private buildRealtimeUrl(
+    connectionId: string,
+    deviceIdentifier: string,
+    requestBaseUrl?: string,
+  ) {
+    const baseUrl = (
+      this.env.BACKEND_PUBLIC_BASE_URL ??
+      requestBaseUrl ??
+      `http://localhost:${this.env.BACKEND_PORT}`
+    ).replace(/\/+$/, "");
+    const url = new URL(`${baseUrl}/agent/realtime-hub`);
+    url.searchParams.set("connectionId", connectionId);
+    url.searchParams.set("deviceIdentifier", deviceIdentifier);
+    return url.toString();
   }
 
   private serializeDevice(device: DeviceRecord) {

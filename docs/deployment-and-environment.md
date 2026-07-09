@@ -104,6 +104,10 @@ Examples:
 - stale connection thresholds
 - reconnect policy values
 
+Current implementation baseline:
+- `POST /agent/realtime/negotiate` now builds `connectionUrl` from the inbound request host by default, so shared-environment and remote Windows Agent clients do not receive a loopback-only `localhost` stream URL.
+- Reverse-proxied or split-host deployments may override that derived value with `BACKEND_PUBLIC_BASE_URL` when the externally reachable realtime base URL differs from the immediate request host.
+
 ### Authentication Configuration
 Examples:
 - LDAP or Active Directory host
