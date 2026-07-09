@@ -177,6 +177,47 @@ The current runtime baseline has now been explicitly validated against the serve
 - publishing a Windows Agent-targeted communication while connected emits `messages.available`
 - after reconnect, the agent can still recover the same pending communication through both `messages.snapshot` and `GET /agent/messages`
 
+## Earliest Client Test Start Point
+The Windows Agent engineer can start real integration testing against the server now.
+
+The current server baseline is already sufficient for the first client-server test loop when the client can do at least:
+- persist or reuse a stable `deviceIdentifier`
+- call `POST /agent/session`
+- call `POST /agent/realtime/negotiate`
+- open `GET /agent/realtime-hub` over `SSE`
+- call `POST /agent/heartbeat`
+- call `GET /agent/messages` for reconciliation
+
+This means the client engineer does **not** need to wait for:
+- WhatsApp delivery work
+- dashboard or reporting endpoints
+- richer admin monitoring beyond the current thin visibility baseline
+- final production-grade realtime technology beyond the current `SSE` transport
+- complete reminder local-execution coverage for every future scenario
+
+### Minimum First Integration Test
+The first practical client-server integration test should cover only this narrow loop:
+1. create or refresh the agent session
+2. negotiate and open the realtime stream
+3. send heartbeat successfully
+4. receive `connected`
+5. receive `messages.snapshot`
+6. publish a Windows Agent-targeted communication from the admin side
+7. observe `messages.available`
+8. reconnect and recover the same communication through `GET /agent/messages`
+
+### Recommended Implementation Order For The Client Engineer
+To keep pace with the current backend readiness, implement and test in this order:
+1. local device identity persistence
+2. session creation
+3. realtime negotiation and `SSE` stream handling
+4. heartbeat loop
+5. startup and reconnect reconciliation through `GET /agent/messages`
+6. basic message rendering
+7. displayed and read reporting
+8. workflow response submission
+9. reminder policy synchronization and local routine execution
+
 ## Authentication And Session Model
 ### Current Direction
 The current safe direction is:
@@ -528,6 +569,7 @@ The engineer should therefore avoid baking in assumptions that are not explicitl
 ## Recommended Handoff Package
 The Windows Agent engineer should receive at least:
 - `docs/windows-agent-client-specification.md`
+- `docs/windows-agent-integration-checklist.md`
 - `docs/technical-implementation-plan.md`
 - `docs/functional-specification.md`
 - `docs/openapi.yaml`
@@ -548,3 +590,6 @@ The main caution is to keep the implementation:
 - policy-driven
 - resilient to disconnection
 - tolerant of contract evolution
+
+For the most practical execution order, endpoint-by-endpoint success criteria, and first integration test loop, use:
+- `docs/windows-agent-integration-checklist.md`

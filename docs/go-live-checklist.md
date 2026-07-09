@@ -59,6 +59,20 @@ The first live release does **not** require:
 - Backend build and typecheck pass.
 - Frontend build passes for any admin flow required by the chosen go-live path.
 
+### Windows Client Test Start Point
+The Windows client engineer may begin real client-server integration testing now when the client can cover this minimum loop:
+- create a device session through `POST /agent/session`
+- negotiate realtime through `POST /agent/realtime/negotiate`
+- open the `SSE` stream through `GET /agent/realtime-hub`
+- send heartbeat through `POST /agent/heartbeat`
+- recover pending communications through `GET /agent/messages`
+
+The first client test pass does not need to wait for:
+- WhatsApp connector work
+- dashboards or reporting endpoints
+- richer admin-side analytics
+- any transport beyond the currently validated `SSE` baseline
+
 ### Acceptable For First Release
 - Organization reference endpoints may return empty-state payloads.
 - `GET /employees` and `GET /devices` may return empty-state payloads.
