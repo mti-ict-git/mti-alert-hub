@@ -177,6 +177,8 @@ Current implementation baseline:
 - Every HTTP response now echoes `X-Request-Id`, using the inbound header when supplied or a generated value otherwise.
 - Backend request lifecycle logs now include `requestId` and `actorUsername` where available for request-level correlation.
 - `GET /health/diagnostics` now returns explicit warning and critical `alerts` in addition to raw counters so operators can prioritize expiring sessions, stale realtime connections, and other degraded states more quickly during desktop-first live operations.
+- A desktop-first container baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, and `.env.docker.example`.
+- The frontend Docker build must use `NITRO_PRESET=node-server`; the default local Lovable build preset remains Cloudflare-oriented and is not the correct runtime target for the current Docker path.
 
 ## Secret Handling Rules
 - Never hardcode secrets in source code or documentation examples.
@@ -203,6 +205,39 @@ Current command conventions:
 4. Deploy to a non-production environment first when the change is meaningful.
 5. Run smoke verification for auth, communication flow, and critical health endpoints.
 6. Promote to production only when verification evidence is acceptable.
+
+## Docker Baseline
+### Scope
+The current Docker baseline is intended for:
+- local parity across frontend, backend, and PostgreSQL
+- shared integration bring-up for the desktop-first stack
+- early staging or pre-production rehearsal once environment secrets are provided
+
+The current Docker baseline is not yet a full production platform package. In particular:
+- LDAP certificate and network requirements remain environment-specific
+- reverse proxy or TLS termination is still expected to be handled outside this compose file
+- external managed PostgreSQL can still replace the bundled container by changing `POSTGRES_URL`
+
+### Artifacts
+- `Dockerfile.backend`
+- `Dockerfile.frontend`
+- `docker-compose.yml`
+- `.env.docker.example`
+- `.dockerignore`
+
+### Usage
+1. Copy `.env.docker.example` to `.env.docker`.
+2. Replace placeholder PostgreSQL and LDAP values.
+3. Run `docker-compose --env-file .env.docker up --build`.
+4. Access the admin UI on `http://localhost:8080` and backend API on `http://localhost:4019`.
+
+If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
+
+### Runtime Notes
+- The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
+- The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
+- `VITE_API_URL` should remain a browser-reachable URL such as `http://localhost:4019`; do not point it at the internal Compose hostname because the browser cannot resolve container-only names.
+- Keep `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent` for the approved desktop-first live scope.
 
 ## Smoke Verification Checklist
 - service starts successfully
@@ -254,6 +289,7 @@ Latest verification evidence:
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4029` confirmed the new diagnostics and device-revocation baseline end to end: admin login succeeded, a Windows Agent session and SSE negotiation established one persisted and in-memory realtime connection, `GET /health/diagnostics` returned database/session/realtime summaries with TTL values, `POST /devices/{deviceId}/revoke-session` revoked the active device token and disconnected the realtime connection, and a subsequent `POST /agent/heartbeat` with the revoked token failed with `401 UNAUTHORIZED`.
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4030` confirmed the new admin session rotation and directory-security baseline: `POST /auth/rotate-session` returned a new bearer token for the current admin account, the previous token immediately failed against `GET /auth/me` with `401`, and a separate production-mode startup on `BACKEND_PORT=4031` failed fast when `LDAP_URL=ldap://...` was supplied without an explicit insecure override.
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4032` confirmed the observability hardening baseline: the backend echoed `X-Request-Id=phase4-observability-request` from an authenticated `GET /health/diagnostics`, diagnostics returned warning alerts for expiring admin and agent sessions when TTL values were intentionally reduced to `10` minutes, and backend stdout included a matching `http.request.completed` log entry with the same request ID for correlation.
+- `2026-07-14`: the desktop-first Docker baseline was added through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `.dockerignore`, and `.env.docker.example`; focused verification confirmed `npm run backend:build` still passed, `NITRO_PRESET=node-server npm run build` generated a Node-runnable `.output/server/index.mjs`, and the resulting frontend runtime listened successfully on `http://127.0.0.1:4090`.
 
 ## Operational Dependencies
 ### Enterprise Identity

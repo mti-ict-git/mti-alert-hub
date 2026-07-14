@@ -10,10 +10,11 @@ The platform is designed around one unified communication model for alerts, remi
 
 ## Current Status
 - `Phase 1 - Core Backend Foundation` is completed.
-- `Phase 2 - Delivery Orchestration` is now the active implementation phase.
+- `Phase 4 - Hardening And Expansion` is now the active implementation phase.
 - The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
 - Backend implementation continues in phases through the roadmap under `docs/`.
 - Versioned backend migrations now exist under `backend/migrations/` for the Phase 1 foundation schema.
+- A desktop-first Docker baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, and `.env.docker.example`.
 
 ## Source Of Truth
 The source of truth for product scope, workflow, architecture, API contract, and data model is under `docs/`.
@@ -43,6 +44,10 @@ Supporting references may also exist under `docs/`, such as:
 ├── backend/                 # Backend scaffold and modular server implementation
 ├── public/                  # Static assets
 ├── src/                     # Admin application source code
+├── Dockerfile.backend       # Backend production image
+├── Dockerfile.frontend      # Frontend SSR production image
+├── docker-compose.yml       # Desktop-first local container stack
+├── .env.docker.example      # Docker environment template
 ├── AGENTS.md                # Working method and guardrails for AI agents
 ├── README.md                # Repository entry point
 ├── package.json             # Project package manifest
@@ -101,6 +106,28 @@ Reference files:
 1. `AGENTS.md`
 2. `docs/implementation-roadmap.md`
 3. The active phase source documents
+
+## Docker Baseline
+The current desktop-first stack can now be started with Docker for local parity and shared-environment bring-up.
+
+1. Copy `.env.docker.example` to `.env.docker` and replace the placeholder LDAP and PostgreSQL secrets.
+2. Build and start the stack:
+
+```bash
+docker-compose --env-file .env.docker up --build
+```
+
+If your machine uses the newer plugin form, `docker compose --env-file .env.docker up --build` is equivalent.
+
+3. Access:
+- admin frontend: `http://localhost:8080`
+- backend API: `http://localhost:4019`
+- PostgreSQL: `localhost:5432`
+
+Implementation notes:
+- the backend container runs migrations before starting the HTTP server
+- the frontend container builds TanStack Start with `NITRO_PRESET=node-server` so it can run as a normal Node SSR process inside Docker
+- the first live desktop scope still expects `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
 
 ## MVP Highlights
 - Unified communication engine across multiple content types

@@ -30,6 +30,11 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 - `VITE_API_URL`
 - `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
 
+### Docker Baseline
+- Use `.env.docker` derived from `.env.docker.example` for container-focused startup instead of overwriting the local `.env` used by non-Docker development.
+- Build the frontend container with `NITRO_PRESET=node-server`.
+- Keep `VITE_API_URL` browser-reachable, such as `http://localhost:4019`, even when the frontend itself runs inside Docker.
+
 ## Deployment Procedure
 1. Confirm `docs/openapi.yaml`, `docs/implementation-roadmap.md`, and this runbook reflect the intended release behavior.
 2. Confirm database backup or snapshot readiness before applying production migrations.
@@ -40,6 +45,15 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 7. Start the backend with production configuration and `ENABLED_DELIVERY_CHANNELS=WindowsAgent`.
 8. Start the admin frontend with `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`.
 9. Execute the desktop go-live smoke checklist before declaring the release healthy.
+
+### Docker Deployment Path
+1. Copy `.env.docker.example` to `.env.docker` and populate environment-specific secrets.
+2. Run `docker-compose --env-file .env.docker up --build`.
+3. Wait for the `postgres`, `backend`, and `frontend` healthchecks to pass.
+4. Confirm the backend applied migrations during container startup before handing traffic to operators.
+5. Execute the desktop go-live smoke against `http://localhost:8080` and `http://localhost:4019`.
+
+If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
 
 ## Desktop Go-Live Smoke
 1. `POST /auth/login` succeeds with a valid admin account.
@@ -68,6 +82,7 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 1. Check `/health`.
 2. Review backend logs for PostgreSQL connectivity or LDAP startup failure.
 3. Restart the backend only after confirming configuration and database reachability.
+4. If running in Docker, also confirm the `postgres` container healthcheck is green and that `POSTGRES_URL` still targets the intended host.
 
 ### Realtime Push Degraded
 1. Confirm `POST /agent/realtime/negotiate` still returns a valid SSE URL.

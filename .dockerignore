@@ -1,0 +1,15 @@
+.env
+.env.*
+.git
+.gitignore
+.output
+.tanstack
+.vinxi
+.wrangler
+node_modules
+dist
+dist-ssr
+coverage
+tmp
+*.log
+MTI.Alert.Agent

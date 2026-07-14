@@ -6,7 +6,7 @@
 - Last Updated: `2026-07-09`
 
 ## Active Phase
-- `Phase 2 - Delivery Orchestration`
+- `Phase 4 - Hardening And Expansion`
 
 ## Roadmap Execution Gate
 - Every roadmap checklist step must include a matching challenge/verification activity before it can be marked complete.
@@ -421,3 +421,5 @@ Prepare the platform for broader rollout and future channels.
 - `2026-07-14`: backend request tracing now has a lightweight correlation baseline: every HTTP response echoes `X-Request-Id`, and request lifecycle logs include the same `requestId` plus `actorUsername` where available.
 - `2026-07-14`: `GET /health/diagnostics` now returns explicit warning and critical `alerts` for expiring sessions, stale realtime connectivity, device staleness, and database reachability so live operators can prioritize degraded conditions without manually interpreting raw counters.
 - `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `node backend/tmp/phase4-observability-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4032` with `ADMIN_SESSION_TTL_MINUTES=10` and `AGENT_SESSION_TTL_MINUTES=10`, confirmed `GET /health/diagnostics` echoed `X-Request-Id=phase4-observability-request`, returned `ADMIN_SESSIONS_EXPIRING_SOON` plus `AGENT_SESSIONS_EXPIRING_SOON` alerts, and wrote a matching `http.request.completed` log line with the same request ID for correlation.
+- `2026-07-14`: a desktop-first Docker deployment baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `.dockerignore`, and `.env.docker.example`, giving the project a reproducible local container path for frontend, backend, and PostgreSQL.
+- `2026-07-14`: focused Docker-baseline verification passed with `npm run backend:build`, `NITRO_PRESET=node-server npm run build`, and a direct runtime check of `node .output/server/index.mjs`; the frontend Node SSR output listened successfully on `127.0.0.1:4090`, confirming the Docker-targeted `node-server` preset is viable for the current TanStack Start stack.
