@@ -35,6 +35,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
+import { workflowsService } from "@/services/workflows.service";
 import type { Category, Channel, Notification, TargetType } from "@/types";
 import { format } from "date-fns";
 import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
@@ -68,6 +69,10 @@ function NotificationDetailPage() {
     queryKey: ["employee-reference"],
     queryFn: referenceService.listEmployees,
   });
+  const { data: workflows = [] } = useQuery({
+    queryKey: ["workflow-definitions"],
+    queryFn: workflowsService.list,
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -98,6 +103,7 @@ function NotificationDetailPage() {
           targetEmployeeId: payload.targetEmployeeId || undefined,
           channels: payload.channels,
           requireAck: payload.requireAck,
+          workflowId: payload.requireAck ? payload.workflowId || null : null,
           instruction: payload.instruction,
           priority: n.priority,
         });
@@ -242,6 +248,7 @@ function NotificationDetailPage() {
       targetEmployeeId: n.targetEmployeeId ?? "",
       channels: n.channels.filter(isEditableChannel),
       requireAck: n.requireAck,
+      workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
     });
     setEditOpen(true);
@@ -676,6 +683,28 @@ function NotificationDetailPage() {
                 />
               </div>
 
+              {draftForm.requireAck && (
+                <div className="space-y-2">
+                  <Label>Response Workflow</Label>
+                  <Select
+                    value={draftForm.workflowId}
+                    onValueChange={(value) => setDraftForm({ ...draftForm, workflowId: value })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select workflow" /></SelectTrigger>
+                    <SelectContent>
+                      {workflows.map((workflow) => (
+                        <SelectItem key={workflow.id} value={workflow.id}>
+                          {workflow.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Select the reusable workflow definition for this draft.
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div>
                   <Label className="text-sm">Require Acknowledgement</Label>
@@ -686,7 +715,14 @@ function NotificationDetailPage() {
                 <Checkbox
                   checked={draftForm.requireAck}
                   onCheckedChange={(checked) =>
-                    setDraftForm({ ...draftForm, requireAck: checked === true })
+                    setDraftForm({
+                      ...draftForm,
+                      requireAck: checked === true,
+                      workflowId:
+                        checked === true
+                          ? draftForm.workflowId || workflows[0]?.id || ""
+                          : "",
+                    })
                   }
                 />
               </div>
@@ -703,6 +739,7 @@ function NotificationDetailPage() {
                 !draftForm.title.trim() ||
                 !draftForm.message.trim() ||
                 draftForm.channels.length === 0 ||
+                (draftForm.requireAck && !draftForm.workflowId) ||
                 !hasRequiredTargetSelection(draftForm) ||
                 updateDraftMutation.isPending
               }
@@ -870,6 +907,7 @@ type EditDraftForm = {
   targetEmployeeId: string;
   channels: Channel[];
   requireAck: boolean;
+  workflowId: string;
   instruction: string;
 };
 

@@ -299,7 +299,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - publish, cancel, override rejection, response, and representative state transitions produce explicit audit evidence
   - audit evidence is queryable enough for operator/support investigation
 - Current status:
-  - this is the main remaining open slice in Phase 3
+  - append-only audit log persistence and admin retrieval baseline are implemented
 - Done when:
   - representative lifecycle events are not only inferable from delivery tables but intentionally recorded as audit history
   - support teams can reconstruct a communication lifecycle without reading raw infrastructure logs
@@ -315,7 +315,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 
 ### Checklist
 - `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
-- `[ ]` Workflow management: implement workflow option validation rules.
+- `[x]` Workflow management: implement workflow option validation rules.
 - `[ ]` Response handling: implement response submission for Windows Agent and compatible channel responses.
 - `[x]` Response handling: enforce `response implies ack` semantics in the backend.
 - `[x]` Response handling: store actor context as optional audit metadata where available.
@@ -359,6 +359,8 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run backend:migrate`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4024` that temporarily set the seeded workflow timeout to `0`, published a response-required `Alert` to `device-mti-ops-01`, triggered `GET /agent/messages`, and then confirmed `GET /communications/{communicationId}/deliveries` returned a `Device` recipient with `responseState = Overdue`, an `Overdue` delivery event, a re-queued `Pending` delivery job for recipient-only follow-up, and updated dashboard overdue counts.
 - `2026-07-09`: the backend now exposes `GET /audit-logs` as the first audit trail baseline, backed by append-only `audit_logs` rows for publish acceptance, cancel acceptance, template override rejection, agent response recording, overdue transitions, and recipient-only follow-up queue events; the admin `Audit Logs` page now reads this backend endpoint instead of mock seed data.
 - `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run backend:migrate`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4025` that forced a template override rejection, published a response-required Windows Agent communication, submitted an agent response, cancelled the communication, and then confirmed `GET /audit-logs` returned `TemplateOverrideRejected`, `PublishCommunication`, `CommunicationStatusChanged`, `RecordResponse`, `RecipientResponseStateChanged`, and `CancelCommunication` entries tied to the exercised lifecycle.
+- `2026-07-09`: the backend now exposes `GET /workflows` as the workflow-definition source of truth for admin authoring and runtime workflow resolution, returning rows from `response_workflows` plus ordered `response_workflow_options`; the workflow service also enforces definition validation rules for blank options, duplicate option keys, invalid free-text combinations, and non-positive timeout settings before a definition can be used by the runtime.
+- `2026-07-09`: the admin create/edit draft flows now load workflow definitions from `GET /workflows`, require a real `workflowId` when `requireAck` is enabled, and no longer hardcode workflow `11111111-1111-1111-1111-111111111111` inside the compose/update payload path.
 
 ## Phase 4 - Hardening And Expansion
 ### Status

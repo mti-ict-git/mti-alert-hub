@@ -28,6 +28,8 @@ tags:
     description: Communication draft lifecycle endpoints.
   - name: Templates
     description: Template and policy retrieval endpoints.
+  - name: Workflows
+    description: Reusable response workflow definition endpoints.
   - name: Audience
     description: Audience resolution and publish preview endpoints.
   - name: Reference
@@ -433,6 +435,29 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /workflows:
+    get:
+      tags: [Workflows]
+      summary: List reusable response workflow definitions
+      description: Returns the validated workflow definitions currently available for communication drafting and response evaluation.
+      operationId: listWorkflowDefinitions
+      x-implementation-phase: Phase 3
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Workflow definition list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowDefinitionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /reference/organization:
     get:
@@ -2410,6 +2435,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardContentTypeRollup"
+
+    WorkflowDefinitionListResponse:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowDefinition"
+        page:
+          $ref: "#/components/schemas/PageMeta"
 
     AuditLogRecord:
       type: object

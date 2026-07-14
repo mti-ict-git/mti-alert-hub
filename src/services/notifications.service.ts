@@ -269,6 +269,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     targetEmployeeId:
       primaryTarget?.targetType === "Employee" ? primaryTarget.targetValue : undefined,
     channels: item.channelSelections.map(mapChannelFromApi),
+    workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     scheduledAt: item.scheduledAt ?? null,
     instruction: item.workflow?.id ? "Response workflow configured by template or operator." : "",
@@ -423,7 +424,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     body: input.message,
     channelSelections: input.channels.map(mapChannelToApi),
     targets: buildTargetsFromNotification(input),
-    workflowId: input.requireAck ? "11111111-1111-1111-1111-111111111111" : null,
+    workflowId: input.requireAck ? input.workflowId ?? null : null,
     windowsAgentPresentation:
       input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null,
     deliveryStrategy: null,
@@ -458,7 +459,7 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
   }
 
   if (input.requireAck !== undefined) {
-    payload.workflowId = input.requireAck ? "11111111-1111-1111-1111-111111111111" : null;
+    payload.workflowId = input.requireAck ? input.workflowId ?? null : null;
   }
 
   return payload;

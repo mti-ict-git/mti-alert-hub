@@ -18,6 +18,8 @@ import { ResponseOverdueService } from "../../modules/communications/service/res
 import { AccessProfileService } from "../../modules/access/service/access-profile-service.js";
 import { registerDashboardRoutes } from "../../modules/dashboard/controller/register-dashboard-routes.js";
 import { DashboardReadService } from "../../modules/dashboard/service/dashboard-read-service.js";
+import { registerWorkflowRoutes } from "../../modules/workflows/controller/register-workflow-routes.js";
+import { WorkflowDefinitionService } from "../../modules/workflows/service/workflow-definition-service.js";
 import { registerDeviceRoutes } from "../../modules/devices/controller/register-device-routes.js";
 import { DeviceReadService } from "../../modules/devices/service/device-read-service.js";
 import { registerHealthRoutes } from "../../modules/health/controller/register-health-routes.js";
@@ -40,6 +42,7 @@ export async function createBackendApp() {
   const deviceReadService = new DeviceReadService(database.client);
   const dashboardReadService = new DashboardReadService(database.client);
   const auditLogService = new AuditLogService(database.client);
+  const workflowDefinitionService = new WorkflowDefinitionService(database.client);
   const responseOverdueService = new ResponseOverdueService(database.client, auditLogService);
   const agentService = new AgentService(
     database.client,
@@ -60,6 +63,7 @@ export async function createBackendApp() {
     audiencePreviewService,
     agentService,
     auditLogService,
+    workflowDefinitionService,
   );
   const authService = new AuthService(
     ldapAuthenticator,
@@ -88,6 +92,9 @@ export async function createBackendApp() {
       }),
       ...registerDashboardRoutes({
         dashboardReadService,
+      }),
+      ...registerWorkflowRoutes({
+        workflowDefinitionService,
       }),
       ...registerAuditRoutes({
         auditLogService,

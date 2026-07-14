@@ -19,6 +19,7 @@ import { DesktopPreview } from "@/components/notifications/DesktopPreview";
 import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { templatesService } from "@/services/templates.service";
+import { workflowsService } from "@/services/workflows.service";
 import type { Category, Channel, Priority, TargetType, Template } from "@/types";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
@@ -45,6 +46,10 @@ function CreateNotificationPage() {
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/notifications/new" });
   const { data: templates = [] } = useQuery({ queryKey: ["templates"], queryFn: templatesService.list });
+  const { data: workflows = [] } = useQuery({
+    queryKey: ["workflow-definitions"],
+    queryFn: workflowsService.list,
+  });
   const { data: organizationReference } = useQuery({
     queryKey: ["organization-reference"],
     queryFn: referenceService.getOrganizationReference,
@@ -70,6 +75,7 @@ function CreateNotificationPage() {
   const [employeeId, setEmployeeId] = useState<string>("");
   const [channels, setChannels] = useState<Channel[]>(["DesktopAgent"]);
   const [requireAck, setRequireAck] = useState(false);
+  const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [instruction, setInstruction] = useState("");
@@ -91,6 +97,7 @@ function CreateNotificationPage() {
     setCategory(t.category);
     setChannels(t.defaultChannels);
     setRequireAck(t.requireAck);
+    setWorkflowId(t.defaultWorkflowId ?? "");
   }, [search.template, templates]);
 
   useEffect(() => {
@@ -111,8 +118,9 @@ function CreateNotificationPage() {
     if (priority === "Emergency" || priority === "Critical") {
       setChannels(["DesktopAgent", "WhatsApp", "Email", "DigitalSignage"]);
       setRequireAck(true);
+      setWorkflowId((current) => current || selectedTemplate?.defaultWorkflowId || workflows[0]?.id || "");
     }
-  }, [priority]);
+  }, [priority, selectedTemplate?.defaultWorkflowId, workflows]);
 
   const isEmergency = priority === "Emergency" || priority === "Critical";
   const availableAreas = useMemo(
@@ -154,6 +162,7 @@ function CreateNotificationPage() {
     () => (selectedTemplate ? getAllowedAuthoringTargetTypes(selectedTemplate) : TARGET_TYPES),
     [selectedTemplate],
   );
+  const workflowSelectLocked = Boolean(selectedTemplate?.lockedFields?.includes("workflowId"));
 
   const toggleChannel = (c: Channel) => {
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -217,6 +226,7 @@ function CreateNotificationPage() {
       targetEmployeeId: employeeId || undefined,
       channels,
       requireAck,
+      workflowId: requireAck ? workflowId || null : null,
       instruction,
       scheduledAt: scheduleLater && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       scheduleLater,
@@ -230,7 +240,12 @@ function CreateNotificationPage() {
     (targetType === "Department" && Boolean(department)) ||
     (targetType === "Section" && Boolean(section)) ||
     (targetType === "Employee" && Boolean(employeeId));
-  const canSubmit = title && message && channels.length > 0 && hasRequiredTargetSelection;
+  const canSubmit =
+    title &&
+    message &&
+    channels.length > 0 &&
+    hasRequiredTargetSelection &&
+    (!requireAck || Boolean(workflowId));
 
   return (
     <div>
@@ -421,7 +436,15 @@ function CreateNotificationPage() {
                 <Label className="text-sm">Require Acknowledgement</Label>
                 <p className="text-xs text-muted-foreground">Recipients must confirm they received the notification.</p>
               </div>
-              <Switch checked={requireAck} onCheckedChange={setRequireAck} />
+              <Switch
+                checked={requireAck}
+                onCheckedChange={(checked) => {
+                  setRequireAck(checked);
+                  if (checked && !workflowId) {
+                    setWorkflowId(selectedTemplate?.defaultWorkflowId ?? workflows[0]?.id ?? "");
+                  }
+                }}
+              />
             </div>
 
             <div className="space-y-2 rounded-md border p-3">
@@ -446,6 +469,33 @@ function CreateNotificationPage() {
               <Label>Instruction</Label>
               <Textarea rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="What should recipients do?" />
             </div>
+
+            {requireAck && (
+              <div className="space-y-2">
+                <Label>Response Workflow</Label>
+                <Select
+                  value={workflowId}
+                  onValueChange={setWorkflowId}
+                  disabled={workflowSelectLocked}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select workflow" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workflows.map((workflow) => (
+                      <SelectItem key={workflow.id} value={workflow.id}>
+                        {workflow.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {workflowSelectLocked
+                    ? "This template locks the workflow selection."
+                    : "Choose the reusable workflow definition that recipients must complete."}
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => nav({ to: "/notifications" })}>Cancel</Button>

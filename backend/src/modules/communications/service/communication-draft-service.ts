@@ -3,6 +3,7 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
+import type { WorkflowDefinitionService } from "../../workflows/service/workflow-definition-service.js";
 import type {
   ChannelPlanItem,
   ExecutionAudienceResolution,
@@ -267,6 +268,7 @@ export class CommunicationDraftService {
     private readonly audiencePreviewService: AudiencePreviewService,
     private readonly agentService: AgentService,
     private readonly auditLogService: AuditLogService,
+    private readonly workflowDefinitionService: WorkflowDefinitionService,
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
@@ -1275,38 +1277,10 @@ export class CommunicationDraftService {
   }
 
   private async getWorkflowSummary(workflowId: string): Promise<WorkflowSummary | null> {
-    const workflowRows = await this.database.query<WorkflowRow>(
-      `
-        select
-          id::text as id,
-          name::text as name,
-          allow_free_text as "allowFreeText",
-          require_free_text as "requireFreeText",
-          escalation_timeout_minutes as "escalationTimeoutMinutes",
-          escalation_mode::text as "escalationMode",
-          response_implies_ack as "responseImpliesAck"
-        from public.response_workflows
-        where id::text = $1
-        limit 1
-      `,
-      [workflowId],
-    );
-    const workflow = workflowRows[0];
+    const workflow = await this.workflowDefinitionService.getWorkflowDefinition(workflowId);
     if (!workflow) {
       return null;
     }
-
-    const optionRows = await this.database.query<WorkflowOptionRow>(
-      `
-        select
-          option_key::text as key,
-          option_label::text as label
-        from public.response_workflow_options
-        where workflow_id::text = $1
-        order by sort_order asc, option_key asc
-      `,
-      [workflowId],
-    );
 
     return {
       id: workflow.id,
@@ -1316,7 +1290,7 @@ export class CommunicationDraftService {
       escalationTimeoutMinutes: workflow.escalationTimeoutMinutes,
       escalationMode: workflow.escalationMode,
       responseImpliesAck: workflow.responseImpliesAck,
-      options: optionRows.map((option) => ({
+      options: workflow.options.map((option) => ({
         key: option.key,
         label: option.label,
       })),
@@ -1450,7 +1424,7 @@ export class CommunicationDraftService {
     }
 
     if (finalWorkflowId) {
-      await assertWorkflowExists(this.database, finalWorkflowId);
+      await this.workflowDefinitionService.getWorkflowDefinitionOrThrow(finalWorkflowId);
     }
 
     return {

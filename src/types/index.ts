@@ -94,6 +94,7 @@ export interface Notification {
   targetSection?: string;
   targetEmployeeId?: string;
   templateId?: string | null;
+  workflowId?: string | null;
   channels: Channel[];
   requireAck: boolean;
   scheduledAt?: string | null;
@@ -208,6 +209,20 @@ export interface Template {
   allowedTargetTypes?: TargetType[];
   lockedFields?: string[];
   editableFields?: string[];
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  allowFreeText: boolean;
+  requireFreeText: boolean;
+  escalationTimeoutMinutes?: number | null;
+  escalationMode?: "RecipientOnly" | null;
+  responseImpliesAck: boolean;
+  options: Array<{
+    key: string;
+    label: string;
+  }>;
 }
 
 export interface AuditLog {
