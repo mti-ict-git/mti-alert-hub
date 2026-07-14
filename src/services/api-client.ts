@@ -1,8 +1,9 @@
 import { sessionService } from "@/services/session.service";
 
-const BASE_URL =
-  (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL ??
-  "http://127.0.0.1:4000";
+const configuredBaseUrl = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env
+  .VITE_API_URL;
+
+const BASE_URL = configuredBaseUrl ?? (typeof window !== "undefined" ? "/api" : "http://127.0.0.1:4000");
 
 type ApiErrorPayload = {
   code?: string;

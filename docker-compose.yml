@@ -45,7 +45,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:4019}
+        VITE_API_URL: ${DOCKER_VITE_API_URL:-/api}
         VITE_ENABLED_DELIVERY_CHANNELS: ${VITE_ENABLED_DELIVERY_CHANNELS:-DesktopAgent}
     restart: unless-stopped
     depends_on:
@@ -56,8 +56,8 @@ services:
       PORT: ${FRONTEND_PORT:-8080}
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: ${FRONTEND_PORT:-8080}
-    ports:
-      - "${FRONTEND_HOST_PORT:-8080}:${FRONTEND_PORT:-8080}"
+    expose:
+      - "${FRONTEND_PORT:-8080}"
     healthcheck:
       test:
         [
@@ -67,3 +67,16 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    volumes:
+      - ./docker/nginx.admin-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"

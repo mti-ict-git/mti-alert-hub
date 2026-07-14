@@ -29,11 +29,12 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 ### Frontend
 - `VITE_API_URL`
 - `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
+- `DOCKER_VITE_API_URL=/api` for the Docker publish path so browser traffic stays same-origin through the admin gateway
 
 ### Docker Baseline
 - Use `.env.docker` derived from `.env.docker.example` for container-focused startup instead of overwriting the local `.env` used by non-Docker development.
 - Build the frontend container with `NITRO_PRESET=node-server`.
-- Keep `VITE_API_URL` browser-reachable, such as `http://localhost:4019`, even when the frontend itself runs inside Docker.
+- The Docker publish path now exposes the admin UI through an `nginx` gateway; keep browser API traffic same-origin by using `DOCKER_VITE_API_URL=/api` for container builds.
 - The base `docker-compose.yml` assumes PostgreSQL is already managed outside Docker.
 - Use `docker-compose.with-postgres.yml` only when a local PostgreSQL container is actually needed.
 
@@ -54,7 +55,8 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 3. If PostgreSQL should run in Docker too, run `docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build`.
 4. Wait for the active service healthchecks to pass.
 5. Confirm the backend applied migrations during container startup before handing traffic to operators.
-6. Execute the desktop go-live smoke against `http://localhost:8080` and `http://localhost:4019`.
+6. Route public admin traffic to the gateway port, not directly to the frontend container port.
+7. Execute the desktop go-live smoke against the admin origin and the backend health path.
 
 If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
 
@@ -71,6 +73,8 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 10. Confirm `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, and `POST /agent/messages/{messageId}/response` succeed for response-required messages.
 11. Confirm `GET /communications/{communicationId}/deliveries`, `GET /communications/{communicationId}/responses`, and `GET /audit-logs` show the expected persisted evidence.
 12. Challenge `POST /devices/{deviceId}/revoke-session` for an active test device and confirm the existing device token is rejected afterward.
+
+For Docker HTTPS deployments, challenge login from the public admin origin and confirm the browser issues `POST /api/auth/login` to the same origin instead of calling a raw backend IP or triggering mixed-content / CORS failures.
 
 ## Rollback Procedure
 1. Stop accepting new release traffic to the backend instance.

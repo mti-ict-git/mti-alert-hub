@@ -177,8 +177,9 @@ Current implementation baseline:
 - Every HTTP response now echoes `X-Request-Id`, using the inbound header when supplied or a generated value otherwise.
 - Backend request lifecycle logs now include `requestId` and `actorUsername` where available for request-level correlation.
 - `GET /health/diagnostics` now returns explicit warning and critical `alerts` in addition to raw counters so operators can prioritize expiring sessions, stale realtime connections, and other degraded states more quickly during desktop-first live operations.
-- A desktop-first container baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, and `.env.docker.example`.
+- A desktop-first container baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `docker/nginx.admin-gateway.conf`, and `.env.docker.example`.
 - The frontend Docker build must use `NITRO_PRESET=node-server`; the default local Lovable build preset remains Cloudflare-oriented and is not the correct runtime target for the current Docker path.
+- The containerized admin publish path now uses a same-origin reverse proxy: browser requests go to `/api/*` on the admin host, and the gateway forwards them to the internal backend service. This avoids mixed-content and browser-visible backend host leakage when the public admin site is served over HTTPS.
 
 ## Secret Handling Rules
 - Never hardcode secrets in source code or documentation examples.
@@ -223,6 +224,7 @@ The current Docker baseline is not yet a full production platform package. In pa
 - `Dockerfile.frontend`
 - `docker-compose.yml`
 - `docker-compose.with-postgres.yml`
+- `docker/nginx.admin-gateway.conf`
 - `.env.docker.example`
 - `.dockerignore`
 
@@ -239,9 +241,11 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 - The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
-- `VITE_API_URL` should remain a browser-reachable URL such as `http://localhost:4019`; do not point it at the internal Compose hostname because the browser cannot resolve container-only names.
+- The admin gateway container exposes the browser-facing frontend port and proxies `/api/*` to `backend:${BACKEND_PORT}` inside the Compose network.
+- Dockerized frontend builds should use `DOCKER_VITE_API_URL=/api` so browser requests stay same-origin through the gateway rather than embedding the backend host directly in frontend assets.
+- Non-Docker development may still use `VITE_API_URL` with a browser-reachable backend URL such as `http://localhost:4019`.
 - Keep `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent` for the approved desktop-first live scope.
-- The base `docker-compose.yml` assumes PostgreSQL already exists and only starts `frontend` plus `backend`.
+- The base `docker-compose.yml` assumes PostgreSQL already exists and starts `backend`, `frontend`, plus the browser-facing `gateway`.
 - `docker-compose.with-postgres.yml` is an optional overlay that adds a local PostgreSQL container and rewires `POSTGRES_URL` to `postgres:5432`.
 
 ## Smoke Verification Checklist

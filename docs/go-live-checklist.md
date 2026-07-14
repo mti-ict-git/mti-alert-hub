@@ -144,6 +144,7 @@ Capture this evidence before declaring release-ready:
 - admin session rotation and production LDAP guardrail smoke passed
 - request-correlation and diagnostics-alert smoke passed
 - desktop-first Docker baseline validated for frontend, backend, and PostgreSQL startup
+- Docker publish path validated with same-origin `/api` gateway routing so browser login does not expose raw backend hosts or trigger mixed-content failures
 - login and Windows Agent-targeted publish smoke test passed
 - agent session, heartbeat, reconciliation, and lifecycle evidence smoke test passed
 - realtime hub connect and publish-push smoke test passed
