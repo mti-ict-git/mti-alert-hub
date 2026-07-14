@@ -41,10 +41,25 @@ export class AuthService {
     return this.adminSessionStore.getSession(sessionToken);
   }
 
+  rotateSession(sessionToken: string): AdminSession {
+    const rotatedSession = this.adminSessionStore.rotateSession(sessionToken);
+    if (!rotatedSession) {
+      throw new Error("Authenticated session was missing during rotation.");
+    }
+
+    this.logger.info("auth.session.rotated", {
+      username: rotatedSession.user.username,
+      roleType: rotatedSession.accessProfile.roleType,
+    });
+
+    return rotatedSession;
+  }
+
   logout(sessionToken: string): void {
+    const session = this.adminSessionStore.getSession(sessionToken);
     this.adminSessionStore.deleteSession(sessionToken);
     this.logger.info("auth.logout.completed", {
-      sessionToken,
+      username: session?.user.username ?? "unknown",
     });
   }
 }

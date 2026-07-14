@@ -226,7 +226,7 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 
 ## Phase 3 - Response Workflow And Monitoring
 ### Status
-- `In Progress`
+- `Completed`
 
 ### Objective
 Implement recipient response workflows, overdue behavior, monitoring, and audit-ready reporting on top of the persisted delivery foundation from Phase 2.
@@ -257,7 +257,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - workflow option constraints are validated consistently during submission
 - Current status:
   - draft selection and workflow snapshots are already used by the runtime
-  - managed seed loading or CRUD management remains open
+  - managed seed loading now reconciles the canonical workflow baseline during backend bootstrap
 - Done when:
   - operators can only use valid workflow definitions and valid option sets
   - runtime no longer depends on undocumented workflow assumptions
@@ -267,8 +267,8 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - Windows Agent response submission persists workflow result, actor context, and optional note
   - `response implies ack` behavior is enforced when configured by the workflow
 - Current status:
-  - Windows Agent response submission baseline is in place
-  - actor context and `response implies ack` are already persisted
+  - Windows Agent and compatible-channel response submission baselines are in place
+  - actor context and `response implies ack` are already persisted across both ingestion paths
 - Done when:
   - required-response messages move from `AwaitingResponse` to `Responded`
   - monitoring endpoints can explain who responded, what option was chosen, and when it happened
@@ -314,9 +314,9 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - operator UI is a faithful read-model of backend monitoring state for the MVP release path
 
 ### Checklist
-- `[ ]` Workflow management: implement workflow definition CRUD or managed seed loading.
+- `[x]` Workflow management: implement workflow definition CRUD or managed seed loading.
 - `[x]` Workflow management: implement workflow option validation rules.
-- `[ ]` Response handling: implement response submission for Windows Agent and compatible channel responses.
+- `[x]` Response handling: implement response submission for Windows Agent and compatible channel responses.
 - `[x]` Response handling: enforce `response implies ack` semantics in the backend.
 - `[x]` Response handling: store actor context as optional audit metadata where available.
 - `[x]` Monitoring: implement communication-level monitoring endpoints.
@@ -331,7 +331,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - Backend supports monitored response workflows and operational reporting.
 - Reporting and monitoring are backed by persisted delivery, response, and audit records.
 - Operators can identify required-response progress, overdue recipients, and recipient-only follow-up behavior from backend-backed views.
-- Remaining open Phase 3 work is narrowed to workflow management completion and compatible non-Windows-Agent response handling.
+- Phase 3 response workflow, monitoring, overdue, auditability, and compatible-channel response baselines are complete for the MVP release path.
 
 ### Challenge / Verification
 - Response state transitions are validated.
@@ -361,10 +361,14 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - `2026-07-09`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run backend:migrate`, `npm run build`, and a dedicated runtime smoke on `BACKEND_PORT=4025` that forced a template override rejection, published a response-required Windows Agent communication, submitted an agent response, cancelled the communication, and then confirmed `GET /audit-logs` returned `TemplateOverrideRejected`, `PublishCommunication`, `CommunicationStatusChanged`, `RecordResponse`, `RecipientResponseStateChanged`, and `CancelCommunication` entries tied to the exercised lifecycle.
 - `2026-07-09`: the backend now exposes `GET /workflows` as the workflow-definition source of truth for admin authoring and runtime workflow resolution, returning rows from `response_workflows` plus ordered `response_workflow_options`; the workflow service also enforces definition validation rules for blank options, duplicate option keys, invalid free-text combinations, and non-positive timeout settings before a definition can be used by the runtime.
 - `2026-07-09`: the admin create/edit draft flows now load workflow definitions from `GET /workflows`, require a real `workflowId` when `requireAck` is enabled, and no longer hardcode workflow `11111111-1111-1111-1111-111111111111` inside the compose/update payload path.
+- `2026-07-14`: backend bootstrap now runs managed workflow seed loading before the HTTP server is exposed, reconciling the canonical `Critical Acknowledgement` and `Reminder Confirmation` definitions plus their ordered response options so workflow authoring no longer depends on a one-time migration seed remaining untouched.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and `node backend/tmp/phase3-workflow-seeds-smoke.mjs`; the smoke deliberately drifted the seeded workflow name and deleted the reminder option, then confirmed a dedicated runtime on `BACKEND_PORT=4026` restored canonical `/workflows` output with `totalItems = 2`, `Critical Acknowledgement` option count `3`, and `Reminder Confirmation` option label `Acknowledged`.
+- `2026-07-14`: the backend now exposes `POST /communications/{communicationId}/deliveries/{deliveryJobId}/response` as the thin compatible-channel response ingestion baseline for non-Windows-Agent delivery jobs, reusing persisted workflow snapshots to validate the selected response option, recording `Responded` delivery events, updating recipient response state, and applying `response implies ack` semantics before full provider callback modules exist.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and `node backend/tmp/phase3-compatible-channel-response-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4027`, published a `Reminder` to an employee over `WhatsApp`, confirmed `GET /communications/{communicationId}/deliveries` returned a `ContactEndpoint` recipient with `channelEndpoint = +628000000001`, submitted response option `done` through the new delivery-response endpoint, and then confirmed both `GET /communications/{communicationId}/responses` and `GET /audit-logs` reflected the persisted `WhatsApp` response evidence.
 
 ## Phase 4 - Hardening And Expansion
 ### Status
-- `Pending`
+- `In Progress`
 
 ### Objective
 Prepare the platform for broader rollout and future channels.
@@ -379,6 +383,8 @@ Prepare the platform for broader rollout and future channels.
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
+- `docs/operational-runbook.md`
+- `docs/security-and-access-model.md`
 
 ### Checklist
 - `[ ]` Channel expansion: define and document the email connector contract.
@@ -386,12 +392,12 @@ Prepare the platform for broader rollout and future channels.
 - `[ ]` Channel expansion: define and document the digital signage connector contract.
 - `[ ]` Channel expansion: implement digital signage orchestration if included in scope.
 - `[ ]` Observability: harden logging, tracing, and operational alerting.
-- `[ ]` Observability: improve connector-health and realtime-hub diagnostics.
-- `[ ]` Security: harden session handling, token rotation, and agent trust controls.
-- `[ ]` Security: review directory integration security settings and environment handling.
+- `[x]` Observability: improve connector-health and realtime-hub diagnostics.
+- `[x]` Security: harden session handling, token rotation, and agent trust controls.
+- `[x]` Security: review directory integration security settings and environment handling.
 - `[ ]` Reporting: expand historical reporting and export capability.
-- `[ ]` Operations: define deployment, rollback, and incident-response runbook guidance.
-- `[ ]` Documentation: update source docs and supporting docs for any post-MVP contract changes.
+- `[x]` Operations: define deployment, rollback, and incident-response runbook guidance.
+- `[x]` Documentation: update source docs and supporting docs for any post-MVP contract changes.
 
 ### Output
 - Hardened platform with clearer path to post-MVP expansion.
@@ -402,3 +408,13 @@ Prepare the platform for broader rollout and future channels.
 - Operational failure recovery is challenged.
 - Security-sensitive actions are re-verified.
 - Production-oriented deployment and rollback assumptions are challenged.
+- `2026-07-14`: Phase 4 is now active with a desktop-first go-live hardening slice; the current release decision is to keep `WindowsAgent` enabled for the first live path while `WhatsApp`, `Email`, and `Digital Signage` remain deferred unless explicitly enabled for a controlled environment.
+- `2026-07-14`: backend and admin authoring now honor release-scope channel guardrails through `ENABLED_DELIVERY_CHANNELS` and `VITE_ENABLED_DELIVERY_CHANNELS`, so out-of-scope channels are hidden in the compose/edit UI and rejected by the backend with `422 CHANNEL_NOT_ENABLED`.
+- `2026-07-14`: new operational and security guidance is now documented in `docs/operational-runbook.md` and `docs/security-and-access-model.md`, covering deployment, rollback, incident escalation, device-centric trust assumptions, and production release-scope enforcement for the desktop-first live path.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and `node backend/tmp/phase4-release-scope-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4028` with `ENABLED_DELIVERY_CHANNELS=WindowsAgent`, confirmed a desktop-targeted draft could still be created, and confirmed a `WhatsApp` draft request was rejected with `422 CHANNEL_NOT_ENABLED`.
+- `2026-07-14`: authenticated operational diagnostics are now available through `GET /health/diagnostics`, returning database reachability, enabled delivery channels, configurable admin and agent session TTL summaries, realtime connection counts, and device connectivity summaries for desktop-first go-live checks.
+- `2026-07-14`: baseline device trust revocation is now available through `POST /devices/{deviceId}/revoke-session`, which deletes persisted device sessions, disconnects active realtime streams, marks the device offline, and records a `RevokeDeviceSession` audit entry.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `node backend/tmp/phase4-diagnostics-and-revoke-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4029` with `ADMIN_SESSION_TTL_MINUTES=120`, `AGENT_SESSION_TTL_MINUTES=30`, and `ENABLED_DELIVERY_CHANNELS=WindowsAgent`, confirmed `GET /health/diagnostics` returned the expected database/session/realtime summaries, revoked an active device through `POST /devices/{deviceId}/revoke-session`, and then confirmed the old agent token failed on `POST /agent/heartbeat` with `401 UNAUTHORIZED`.
+- `2026-07-14`: admin session rotation is now available through `POST /auth/rotate-session`, immediately invalidating the prior bearer token while issuing a fresh session token for the same authenticated operator.
+- `2026-07-14`: directory integration security and environment handling are now hardened for the desktop-first live path: production startup rejects `LDAP_URL=ldap://...` unless `LDAP_ALLOW_INSECURE_URL=true` is set explicitly, production also rejects `LDAP_SKIP_TLS_VERIFY=true`, and structured backend logs now redact common secret-bearing keys such as `password`, `token`, and `authorization`.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `node backend/tmp/phase4-security-hardening-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4030`, confirmed `POST /auth/rotate-session` returned a new bearer token, confirmed the old token failed on `GET /auth/me` with `401 UNAUTHORIZED`, and then confirmed a separate production-mode startup on `BACKEND_PORT=4031` failed fast for `LDAP_URL=ldap://directory.example.internal` without an explicit insecure override.

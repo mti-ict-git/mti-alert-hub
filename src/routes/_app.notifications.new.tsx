@@ -20,17 +20,19 @@ import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { templatesService } from "@/services/templates.service";
 import { workflowsService } from "@/services/workflows.service";
+import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
 import type { Category, Channel, Priority, TargetType, Template } from "@/types";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
 import { toast } from "sonner";
 
-const CHANNELS: { key: Channel; label: string }[] = [
+const ALL_CHANNELS: { key: Channel; label: string }[] = [
   { key: "DesktopAgent", label: "Desktop Agent" },
   { key: "WhatsApp", label: "WhatsApp" },
   { key: "Email", label: "Email" },
   { key: "DigitalSignage", label: "Digital Signage" },
 ];
+const CHANNELS = ALL_CHANNELS.filter((channel) => enabledDeliveryChannels.includes(channel.key));
 
 const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee"];
 
@@ -73,7 +75,7 @@ function CreateNotificationPage() {
   const [department, setDepartment] = useState<string>("");
   const [section, setSection] = useState<string>("");
   const [employeeId, setEmployeeId] = useState<string>("");
-  const [channels, setChannels] = useState<Channel[]>(["DesktopAgent"]);
+  const [channels, setChannels] = useState<Channel[]>([...enabledDeliveryChannels]);
   const [requireAck, setRequireAck] = useState(false);
   const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
@@ -95,7 +97,7 @@ function CreateNotificationPage() {
     setInstruction(t.defaultInstruction);
     setPriority(t.priority);
     setCategory(t.category);
-    setChannels(t.defaultChannels);
+    setChannels(filterEnabledDeliveryChannels(t.defaultChannels));
     setRequireAck(t.requireAck);
     setWorkflowId(t.defaultWorkflowId ?? "");
   }, [search.template, templates]);
@@ -116,7 +118,7 @@ function CreateNotificationPage() {
   // Critical authoring uses stronger defaults.
   useEffect(() => {
     if (priority === "Emergency" || priority === "Critical") {
-      setChannels(["DesktopAgent", "WhatsApp", "Email", "DigitalSignage"]);
+      setChannels([...enabledDeliveryChannels]);
       setRequireAck(true);
       setWorkflowId((current) => current || selectedTemplate?.defaultWorkflowId || workflows[0]?.id || "");
     }
@@ -427,8 +429,11 @@ function CreateNotificationPage() {
                 ))}
               </div>
               {isEmergency && (
-                <p className="text-xs text-emergency">Critical priority auto-enables all channels.</p>
+                <p className="text-xs text-emergency">Critical priority auto-enables all channels in the current release scope.</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Current go-live scope exposes: {CHANNELS.map((channel) => channel.label).join(", ")}.
+              </p>
             </div>
 
             <div className="flex items-center justify-between rounded-md border p-3">

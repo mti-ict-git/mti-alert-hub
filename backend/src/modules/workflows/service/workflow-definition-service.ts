@@ -38,8 +38,186 @@ type ListWorkflowDefinitionsOptions = {
   search?: string;
 };
 
+type ManagedWorkflowSeed = {
+  id: string;
+  name: string;
+  description: string;
+  workflowType: "TemplateSelected";
+  allowFreeText: boolean;
+  requireFreeText: boolean;
+  escalationTimeoutMinutes: number | null;
+  escalationMode: "RecipientOnly" | null;
+  responseImpliesAck: boolean;
+  options: Array<{
+    id: string;
+    key: string;
+    label: string;
+    sortOrder: number;
+  }>;
+};
+
+const managedWorkflowSeeds: ManagedWorkflowSeed[] = [
+  {
+    id: "11111111-1111-1111-1111-111111111111",
+    name: "Critical Acknowledgement",
+    description: "Baseline critical workflow for alert acknowledgement and assistance requests.",
+    workflowType: "TemplateSelected",
+    allowFreeText: false,
+    requireFreeText: false,
+    escalationTimeoutMinutes: 15,
+    escalationMode: "RecipientOnly",
+    responseImpliesAck: true,
+    options: [
+      {
+        id: "11111111-aaaa-1111-aaaa-111111111111",
+        key: "safe",
+        label: "Safe",
+        sortOrder: 1,
+      },
+      {
+        id: "11111111-bbbb-1111-bbbb-111111111111",
+        key: "assist",
+        label: "Need Assistance",
+        sortOrder: 2,
+      },
+      {
+        id: "11111111-cccc-1111-cccc-111111111111",
+        key: "away",
+        label: "Not In Area",
+        sortOrder: 3,
+      },
+    ],
+  },
+  {
+    id: "22222222-2222-2222-2222-222222222222",
+    name: "Reminder Confirmation",
+    description: "Simple reminder confirmation workflow.",
+    workflowType: "TemplateSelected",
+    allowFreeText: false,
+    requireFreeText: false,
+    escalationTimeoutMinutes: null,
+    escalationMode: "RecipientOnly",
+    responseImpliesAck: true,
+    options: [
+      {
+        id: "22222222-aaaa-2222-aaaa-222222222222",
+        key: "done",
+        label: "Acknowledged",
+        sortOrder: 1,
+      },
+    ],
+  },
+];
+
 export class WorkflowDefinitionService {
   constructor(private readonly database: DatabaseClient) {}
+
+  async ensureManagedWorkflowDefinitions() {
+    for (const seed of managedWorkflowSeeds) {
+      assertValidWorkflowDefinition({
+        id: seed.id,
+        name: seed.name,
+        allowFreeText: seed.allowFreeText,
+        requireFreeText: seed.requireFreeText,
+        escalationTimeoutMinutes: seed.escalationTimeoutMinutes,
+        escalationMode: seed.escalationMode,
+        responseImpliesAck: seed.responseImpliesAck,
+        options: seed.options.map((option) => ({
+          key: option.key,
+          label: option.label,
+        })),
+      });
+    }
+
+    await this.database.withTransaction(async (transaction) => {
+      for (const seed of managedWorkflowSeeds) {
+        await transaction.query(
+          `
+            insert into public.response_workflows (
+              id,
+              name,
+              description,
+              workflow_type,
+              allow_free_text,
+              require_free_text,
+              escalation_timeout_minutes,
+              escalation_mode,
+              response_implies_ack
+            )
+            values (
+              $1::uuid,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9
+            )
+            on conflict (id) do update
+            set
+              name = excluded.name,
+              description = excluded.description,
+              workflow_type = excluded.workflow_type,
+              allow_free_text = excluded.allow_free_text,
+              require_free_text = excluded.require_free_text,
+              escalation_timeout_minutes = excluded.escalation_timeout_minutes,
+              escalation_mode = excluded.escalation_mode,
+              response_implies_ack = excluded.response_implies_ack
+          `,
+          [
+            seed.id,
+            seed.name,
+            seed.description,
+            seed.workflowType,
+            seed.allowFreeText,
+            seed.requireFreeText,
+            seed.escalationTimeoutMinutes,
+            seed.escalationMode,
+            seed.responseImpliesAck,
+          ],
+        );
+
+        await transaction.query(
+          `
+            delete from public.response_workflow_options
+            where workflow_id = $1::uuid
+              and not (id::text = any($2::text[]))
+          `,
+          [seed.id, seed.options.map((option) => option.id)],
+        );
+
+        for (const option of seed.options) {
+          await transaction.query(
+            `
+              insert into public.response_workflow_options (
+                id,
+                workflow_id,
+                option_key,
+                option_label,
+                sort_order
+              )
+              values (
+                $1::uuid,
+                $2::uuid,
+                $3,
+                $4,
+                $5
+              )
+              on conflict (id) do update
+              set
+                workflow_id = excluded.workflow_id,
+                option_key = excluded.option_key,
+                option_label = excluded.option_label,
+                sort_order = excluded.sort_order
+            `,
+            [option.id, seed.id, option.key, option.label, option.sortOrder],
+          );
+        }
+      }
+    });
+  }
 
   async listWorkflowDefinitions(options: ListWorkflowDefinitionsOptions) {
     const where = buildWorkflowWhereClause(options.search);

@@ -37,7 +37,8 @@ export class LdapAuthenticator {
       timeout: 5000,
       connectTimeout: 5000,
       tlsOptions: {
-        rejectUnauthorized: false,
+        rejectUnauthorized:
+          this.env.NODE_ENV === "production" ? !this.env.LDAP_SKIP_TLS_VERIFY : false,
       },
     });
 

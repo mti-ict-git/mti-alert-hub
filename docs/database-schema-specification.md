@@ -313,6 +313,9 @@ Key columns:
 - `created_at`
 - `updated_at`
 
+Current implementation note:
+- The MVP baseline currently uses managed seed loading during backend bootstrap to reconcile canonical workflow definitions with stable UUIDs, ensuring the expected `Critical Acknowledgement` and `Reminder Confirmation` workflows remain available even if the underlying seed rows drift after the original migration.
+
 ### response_workflow_options
 - `id`
 - `workflow_id`
@@ -325,14 +328,14 @@ Key columns:
 Dedicated normalized response rows are deferred in the current MVP runtime.
 
 Current implementation note:
-- Windows Agent response evidence is currently persisted in `delivery_events` with `event_type = Responded`.
+- Windows Agent and compatible-channel response evidence are currently persisted in `delivery_events` with `event_type = Responded`.
 - Response state is mirrored onto `communication_recipients.response_state`, including persisted `Overdue` transitions when recipient-only timeout evaluation triggers.
 - Workflows with `response_implies_ack = true` also update `communication_recipients.ack_state` to `Acknowledged`.
 - Recipient-only overdue follow-up is currently tracked by `communication_recipients.follow_up_triggered_at` so the same recipient is re-alerted only once in the MVP baseline.
 - `delivery_events.event_payload_json` currently carries:
   - `responseOptionKey`
   - `responseNote` when the workflow allows free text
-  - `activeUserIdentifier` when the device reports actor context
+  - `activeUserIdentifier` when the reporting channel can provide actor context
 
 ## Delivery Tables
 ### delivery_jobs

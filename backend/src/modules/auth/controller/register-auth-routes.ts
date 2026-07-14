@@ -62,6 +62,21 @@ export function registerAuthRoutes(options: RegisterAuthRoutesOptions): AppRoute
         };
       },
     },
+    {
+      method: "POST",
+      path: "/auth/rotate-session",
+      requiresAuth: true,
+      async handler({ auth }) {
+        if (!auth) {
+          throw new Error("Authenticated route invoked without auth context.");
+        }
+
+        return {
+          statusCode: 200,
+          body: serializeSession(options.authService.rotateSession(auth.session.sessionToken)),
+        };
+      },
+    },
   ];
 }
 

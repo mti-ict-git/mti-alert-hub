@@ -36,6 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { workflowsService } from "@/services/workflows.service";
+import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
 import type { Category, Channel, Notification, TargetType } from "@/types";
 import { format } from "date-fns";
 import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
@@ -246,7 +247,7 @@ function NotificationDetailPage() {
       targetDepartment: n.targetDepartment ?? "",
       targetSection: n.targetSection ?? "",
       targetEmployeeId: n.targetEmployeeId ?? "",
-      channels: n.channels.filter(isEditableChannel),
+      channels: filterEnabledDeliveryChannels(n.channels.filter(isEditableChannel)),
       requireAck: n.requireAck,
       workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
@@ -670,6 +671,9 @@ function NotificationDetailPage() {
                     </Label>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Current go-live scope exposes: {EDITABLE_CHANNELS.map((channel) => channel.label).join(", ")}.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -919,12 +923,15 @@ const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
   "Section",
   "Employee",
 ];
-const EDITABLE_CHANNELS: Array<{ key: Channel; label: string }> = [
+const EDITABLE_CHANNEL_OPTIONS: Array<{ key: Channel; label: string }> = [
   { key: "DesktopAgent", label: "Desktop Agent" },
   { key: "WhatsApp", label: "WhatsApp" },
   { key: "Email", label: "Email" },
   { key: "DigitalSignage", label: "Digital Signage" },
 ];
+const EDITABLE_CHANNELS = EDITABLE_CHANNEL_OPTIONS.filter((channel) =>
+  enabledDeliveryChannels.includes(channel.key),
+);
 
 function normalizeEditableTargetType(targetType: Notification["targetType"]): EditableTargetType {
   if (
@@ -941,7 +948,7 @@ function normalizeEditableTargetType(targetType: Notification["targetType"]): Ed
 }
 
 function isEditableChannel(channel: Notification["channels"][number]): channel is Channel {
-  return EDITABLE_CHANNELS.some((candidate) => candidate.key === channel);
+  return EDITABLE_CHANNEL_OPTIONS.some((candidate) => candidate.key === channel);
 }
 
 function hasRequiredTargetSelection(form: EditDraftForm) {

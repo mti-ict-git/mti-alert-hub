@@ -3,10 +3,15 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Open`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-14`
 
 ## Purpose
 This document records unresolved product and technical questions. No implementation should silently assume answers where these decisions materially affect behavior.
+
+## Current Release Decision
+- The current first live release remains desktop-first.
+- `WindowsAgent` is the only delivery channel enabled for the current live path by default.
+- `WhatsApp`, `Email`, and `Digital Signage` remain deferred unless a controlled environment explicitly enables them.
 
 ## Open Questions
 ### OQ-1. SignalR-Style Realtime Technology Choice

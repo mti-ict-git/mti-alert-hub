@@ -1,6 +1,7 @@
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
+import type { DeliveryChannel } from "../../../app/config/env.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type { WorkflowDefinitionService } from "../../workflows/service/workflow-definition-service.js";
@@ -95,6 +96,12 @@ type PublicationActor = {
   ipAddress?: string | null;
 };
 
+type ResponseActor = {
+  userIdentifier: string;
+  username: string;
+  ipAddress?: string | null;
+};
+
 type ListCommunicationOptions = {
   page: number;
   pageSize: number;
@@ -156,6 +163,13 @@ type ListCommunicationResponsesOptions = {
   communicationId: string;
   page: number;
   pageSize: number;
+};
+
+type SubmitCompatibleChannelResponseInput = {
+  responseOptionKey: string;
+  responseNote?: string | null;
+  occurredAt?: string | null;
+  actorUserIdentifier?: string | null;
 };
 
 type CommunicationDeliveryRecipientRow = {
@@ -230,6 +244,18 @@ type CommunicationResponseRow = {
   respondedAt: string;
 };
 
+type CompatibleChannelResponseTargetRow = {
+  deliveryJobId: string;
+  communicationId: string;
+  communicationRecipientId: string;
+  channel: Channel;
+  jobStatus: DeliveryJobStatus;
+  requiresResponse: boolean;
+  responseState: RecipientResponseState;
+  ackState: RecipientAckState;
+  workflowSnapshot: unknown;
+};
+
 type WorkflowRow = {
   id: string;
   name: string;
@@ -269,6 +295,7 @@ export class CommunicationDraftService {
     private readonly agentService: AgentService,
     private readonly auditLogService: AuditLogService,
     private readonly workflowDefinitionService: WorkflowDefinitionService,
+    private readonly enabledDeliveryChannels: DeliveryChannel[],
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
@@ -664,6 +691,150 @@ export class CommunicationDraftService {
     };
   }
 
+  async submitCompatibleChannelResponse(
+    communicationId: string,
+    deliveryJobId: string,
+    input: SubmitCompatibleChannelResponseInput,
+    actor: ResponseActor,
+  ) {
+    assertOptionalIsoDate(input.occurredAt, "occurredAt");
+    const respondedAt = input.occurredAt ?? new Date().toISOString();
+    const target = await this.getCompatibleChannelResponseTarget(communicationId, deliveryJobId);
+
+    if (target.channel === "WindowsAgent") {
+      throw new AppError({
+        statusCode: 409,
+        code: "WINDOWS_AGENT_RESPONSE_NOT_SUPPORTED",
+        message: "Windows Agent responses must be submitted through the dedicated agent endpoint.",
+      });
+    }
+
+    if (!target.requiresResponse) {
+      throw new AppError({
+        statusCode: 409,
+        code: "RESPONSE_NOT_REQUIRED",
+        message: "This delivery does not require a response.",
+      });
+    }
+
+    if (target.jobStatus === "Failed") {
+      throw new AppError({
+        statusCode: 409,
+        code: "DELIVERY_NOT_ACTIVE",
+        message: "This delivery job is no longer active for response submission.",
+      });
+    }
+
+    const workflow = parseWorkflowSummary(target.workflowSnapshot);
+    if (!workflow) {
+      throw new AppError({
+        statusCode: 409,
+        code: "WORKFLOW_NOT_AVAILABLE",
+        message: "The response workflow snapshot is not available for this delivery.",
+      });
+    }
+
+    validateWorkflowResponseInput(workflow, input);
+    const existingResponse = await this.findExistingResponseForDeliveryJob(deliveryJobId);
+    if (existingResponse) {
+      return serializeRecipientResponse(
+        existingResponse.id,
+        existingResponse.recipientId,
+        existingResponse.channel,
+        existingResponse.responseOptionKey,
+        existingResponse.responseNote,
+        existingResponse.actorUserIdentifier,
+        existingResponse.respondedAt,
+      );
+    }
+
+    const responseEvent = await this.database.withTransaction(async (transaction) => {
+      const event = await insertDeliveryEvent(transaction, {
+        deliveryJobId,
+        eventType: "Responded",
+        eventSource: "AdminApi",
+        occurredAt: respondedAt,
+        payload: {
+          responseOptionKey: input.responseOptionKey,
+          responseNote: input.responseNote ?? null,
+          activeUserIdentifier: input.actorUserIdentifier ?? null,
+        },
+      });
+
+      await updateDeliveryAttemptStatus(transaction, deliveryJobId, "Responded", respondedAt, {
+        source: "CompatibleChannelResponse",
+        responseOptionKey: input.responseOptionKey,
+        responseNote: input.responseNote ?? null,
+        activeUserIdentifier: input.actorUserIdentifier ?? null,
+      });
+      await advanceDeliveryJobStatus(transaction, deliveryJobId, "Responded", respondedAt);
+      await transaction.query(
+        `
+          update public.communication_recipients
+          set
+            response_state = 'Responded',
+            ack_state = case when $2 then 'Acknowledged' else ack_state end
+          where id::text = $1
+        `,
+        [target.communicationRecipientId, workflow.responseImpliesAck],
+      );
+
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "RecordResponse",
+        moduleName: "Communications",
+        entityType: "CommunicationRecipient",
+        entityId: target.communicationRecipientId,
+        description: `Recorded compatible channel response "${input.responseOptionKey}" for communication ${target.communicationId} delivery ${deliveryJobId}.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          communicationId: target.communicationId,
+          deliveryJobId,
+          channel: target.channel,
+          responseOptionKey: input.responseOptionKey,
+          responseImpliesAck: workflow.responseImpliesAck,
+          hasResponseNote: Boolean(input.responseNote),
+          actorUserIdentifier: input.actorUserIdentifier ?? null,
+        },
+        createdAt: respondedAt,
+      });
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "RecipientResponseStateChanged",
+        moduleName: "Communications",
+        entityType: "CommunicationRecipient",
+        entityId: target.communicationRecipientId,
+        description: `Communication ${target.communicationId} recipient ${target.communicationRecipientId} response state changed from ${target.responseState} to Responded via ${target.channel}.`,
+        ipAddress: actor.ipAddress ?? null,
+        metadata: {
+          communicationId: target.communicationId,
+          deliveryJobId,
+          channel: target.channel,
+          previousResponseState: target.responseState,
+          nextResponseState: "Responded",
+          responseOptionKey: input.responseOptionKey,
+          ackStateChanged: workflow.responseImpliesAck,
+          previousAckState: target.ackState,
+        },
+        createdAt: respondedAt,
+      });
+
+      return event;
+    });
+
+    return serializeRecipientResponse(
+      responseEvent.id,
+      target.communicationRecipientId,
+      target.channel,
+      input.responseOptionKey,
+      input.responseNote ?? null,
+      input.actorUserIdentifier ?? null,
+      respondedAt,
+    );
+  }
+
   async updateDraft(communicationId: string, input: UpdateCommunicationDraftInput) {
     const existing = await this.getCommunicationDetailRow(communicationId);
     if (!existing) {
@@ -806,7 +977,7 @@ export class CommunicationDraftService {
     validateTargets(targets);
 
     const channelSelections = normalizeChannelArray(existing.channelSelections);
-    validateChannelSelections(channelSelections);
+    validateChannelSelections(channelSelections, this.enabledDeliveryChannels);
     validatePublishRequest(existing, input, channelSelections);
 
     const template = await this.resolveActiveTemplatePolicy(existing);
@@ -1212,6 +1383,69 @@ export class CommunicationDraftService {
     return rows[0];
   }
 
+  private async getCompatibleChannelResponseTarget(
+    communicationId: string,
+    deliveryJobId: string,
+  ): Promise<CompatibleChannelResponseTargetRow> {
+    const rows = await this.database.query<CompatibleChannelResponseTargetRow>(
+      `
+        select
+          dj.id::text as "deliveryJobId",
+          c.id::text as "communicationId",
+          cr.id::text as "communicationRecipientId",
+          dj.channel::text as channel,
+          dj.job_status::text as "jobStatus",
+          c.requires_response as "requiresResponse",
+          cr.response_state::text as "responseState",
+          cr.ack_state::text as "ackState",
+          cr.workflow_snapshot_json as "workflowSnapshot"
+        from public.delivery_jobs dj
+        inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+        inner join public.communications c on c.id = dj.communication_id
+        where c.id::text = $1
+          and dj.id::text = $2
+        limit 1
+      `,
+      [communicationId, deliveryJobId],
+    );
+
+    const target = rows[0];
+    if (!target) {
+      throw new AppError({
+        statusCode: 404,
+        code: "DELIVERY_JOB_NOT_FOUND",
+        message: "The requested delivery job was not found for this communication.",
+      });
+    }
+
+    return target;
+  }
+
+  private async findExistingResponseForDeliveryJob(deliveryJobId: string) {
+    const rows = await this.database.query<CommunicationResponseRow>(
+      `
+        select
+          de.id::text as id,
+          cr.id::text as "recipientId",
+          dj.channel::text as channel,
+          (de.event_payload_json ->> 'responseOptionKey')::text as "responseOptionKey",
+          (de.event_payload_json ->> 'activeUserIdentifier')::text as "actorUserIdentifier",
+          (de.event_payload_json ->> 'responseNote')::text as "responseNote",
+          de.occurred_at::text as "respondedAt"
+        from public.delivery_events de
+        inner join public.delivery_jobs dj on dj.id = de.delivery_job_id
+        inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+        where dj.id::text = $1
+          and de.event_type = 'Responded'
+        order by de.occurred_at asc, de.created_at asc
+        limit 1
+      `,
+      [deliveryJobId],
+    );
+
+    return rows[0] ?? null;
+  }
+
   private async listTargets(communicationId: string) {
     const rows = await this.database.query<TargetRule>(
       `
@@ -1369,7 +1603,7 @@ export class CommunicationDraftService {
     deliveryStrategy: DeliveryStrategy | null;
   }): Promise<CommunicationWriteModel> {
     validateTargets(input.targets);
-    validateChannelSelections(input.channelSelections);
+    validateChannelSelections(input.channelSelections, this.enabledDeliveryChannels);
 
     const template = input.template;
     const finalWorkflowId = template?.defaultWorkflowId ?? input.workflowId;
@@ -1473,7 +1707,7 @@ function validateTargets(targets: TargetRule[]) {
   }
 }
 
-function validateChannelSelections(channels: Channel[]) {
+function validateChannelSelections(channels: Channel[], enabledDeliveryChannels: DeliveryChannel[]) {
   if (channels.length === 0) {
     throw new AppError({
       statusCode: 422,
@@ -1481,6 +1715,17 @@ function validateChannelSelections(channels: Channel[]) {
       message: "At least one delivery channel must be selected.",
     });
   }
+
+  const unsupportedChannel = channels.find((channel) => !enabledDeliveryChannels.includes(channel));
+  if (!unsupportedChannel) {
+    return;
+  }
+
+  throw new AppError({
+    statusCode: 422,
+    code: "CHANNEL_NOT_ENABLED",
+    message: `Channel "${unsupportedChannel}" is not enabled for the current release scope.`,
+  });
 }
 
 function validateAllowedTargetTypes(template: CommunicationTemplatePolicy, targets: TargetRule[]) {
@@ -2493,28 +2738,6 @@ async function markDeliveryJobsCancelled(
   }
 }
 
-async function assertWorkflowExists(database: DatabaseClient, workflowId: string) {
-  const rows = await database.query<{ id: string }>(
-    `
-      select id::text as id
-      from public.response_workflows
-      where id::text = $1
-      limit 1
-    `,
-    [workflowId],
-  );
-
-  if (rows[0]) {
-    return;
-  }
-
-  throw new AppError({
-    statusCode: 422,
-    code: "WORKFLOW_NOT_FOUND",
-    message: "The selected workflow does not exist.",
-  });
-}
-
 function buildCommunicationListWhereClause(options: ListCommunicationOptions) {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -2671,6 +2894,220 @@ function serializeRecipientResponseRecord(row: CommunicationResponseRow) {
   };
 }
 
+function serializeRecipientResponse(
+  id: string,
+  recipientId: string,
+  channel: Channel,
+  responseOptionKey: string,
+  responseNote: string | null,
+  actorUserIdentifier: string | null,
+  respondedAt: string,
+) {
+  return {
+    id,
+    recipientId,
+    channel,
+    responseOptionKey,
+    actorUserIdentifier,
+    responseNote,
+    respondedAt,
+  };
+}
+
+async function insertDeliveryEvent(
+  transaction: TransactionClient,
+  options: {
+    deliveryJobId: string;
+    eventType: "Responded";
+    eventSource: "AdminApi" | "Provider";
+    occurredAt: string;
+    payload: Record<string, unknown>;
+  },
+) {
+  const rows = await transaction.query<{ id: string }>(
+    `
+      insert into public.delivery_events (
+        delivery_job_id,
+        event_type,
+        event_source,
+        event_payload_json,
+        occurred_at
+      )
+      values (
+        $1::uuid,
+        $2,
+        $3,
+        $4::jsonb,
+        $5::timestamptz
+      )
+      returning id::text as id
+    `,
+    [
+      options.deliveryJobId,
+      options.eventType,
+      options.eventSource,
+      JSON.stringify(options.payload),
+      options.occurredAt,
+    ],
+  );
+
+  const eventId = rows[0]?.id;
+  if (!eventId) {
+    throw new AppError({
+      statusCode: 500,
+      code: "DELIVERY_EVENT_CREATE_FAILED",
+      message: "The delivery response event could not be recorded.",
+    });
+  }
+
+  return { id: eventId };
+}
+
+async function updateDeliveryAttemptStatus(
+  transaction: TransactionClient,
+  deliveryJobId: string,
+  attemptStatus: "Responded",
+  occurredAt: string,
+  payload: Record<string, unknown>,
+) {
+  await transaction.query(
+    `
+      update public.delivery_attempts
+      set
+        attempt_status = $2,
+        attempted_at = $3::timestamptz,
+        response_payload_json = $4::jsonb
+      where id = (
+        select id
+        from public.delivery_attempts
+        where delivery_job_id = $1::uuid
+        order by attempt_number desc
+        limit 1
+      )
+    `,
+    [deliveryJobId, attemptStatus, occurredAt, JSON.stringify(payload)],
+  );
+}
+
+async function advanceDeliveryJobStatus(
+  transaction: TransactionClient,
+  deliveryJobId: string,
+  nextStatus: "Responded",
+  occurredAt: string,
+) {
+  const statusRank = deliveryStatusRank(nextStatus);
+  await transaction.query(
+    `
+      update public.delivery_jobs
+      set
+        job_status = case
+          when $2::int > case job_status
+            when 'Pending' then 0
+            when 'Sent' then 1
+            when 'Delivered' then 2
+            when 'Displayed' then 3
+            when 'Read' then 4
+            when 'Responded' then 5
+            else 99
+          end then $3
+          else job_status
+        end,
+        started_at = coalesce(started_at, $4::timestamptz),
+        completed_at = coalesce(completed_at, $4::timestamptz)
+      where id::text = $1
+    `,
+    [deliveryJobId, statusRank, nextStatus, occurredAt],
+  );
+}
+
+function deliveryStatusRank(status: "Responded") {
+  switch (status) {
+    case "Responded":
+      return 5;
+  }
+}
+
+function parseWorkflowSummary(value: unknown): WorkflowSummary | null {
+  const parsedValue = parseJsonRecord(value);
+  if (!parsedValue) {
+    return null;
+  }
+
+  if (typeof parsedValue.id !== "string" || typeof parsedValue.name !== "string") {
+    return null;
+  }
+
+  return {
+    id: parsedValue.id,
+    name: parsedValue.name,
+    allowFreeText: parsedValue.allowFreeText === true,
+    requireFreeText: parsedValue.requireFreeText === true,
+    escalationTimeoutMinutes:
+      typeof parsedValue.escalationTimeoutMinutes === "number"
+        ? parsedValue.escalationTimeoutMinutes
+        : null,
+    escalationMode: parsedValue.escalationMode === "RecipientOnly" ? "RecipientOnly" : null,
+    responseImpliesAck: parsedValue.responseImpliesAck === true,
+    options: Array.isArray(parsedValue.options)
+      ? parsedValue.options
+          .filter(
+            (option): option is { key: string; label: string } =>
+              isRecord(option) && typeof option.key === "string" && typeof option.label === "string",
+          )
+          .map((option) => ({
+            key: option.key,
+            label: option.label,
+          }))
+      : [],
+  };
+}
+
+function validateWorkflowResponseInput(
+  workflow: WorkflowSummary,
+  input: SubmitCompatibleChannelResponseInput,
+) {
+  const selectedOption = workflow.options.find((option) => option.key === input.responseOptionKey);
+  if (!selectedOption) {
+    throw new AppError({
+      statusCode: 422,
+      code: "RESPONSE_OPTION_INVALID",
+      message: "The selected response option is not valid for this workflow.",
+    });
+  }
+
+  const normalizedNote = input.responseNote?.trim() ?? "";
+  if (!workflow.allowFreeText && normalizedNote) {
+    throw new AppError({
+      statusCode: 422,
+      code: "RESPONSE_NOTE_NOT_ALLOWED",
+      message: "This workflow does not allow a free-text response note.",
+    });
+  }
+
+  if (workflow.requireFreeText && !normalizedNote) {
+    throw new AppError({
+      statusCode: 422,
+      code: "RESPONSE_NOTE_REQUIRED",
+      message: "This workflow requires a free-text response note.",
+    });
+  }
+}
+
+function assertOptionalIsoDate(value: string | null | undefined, fieldName: string) {
+  if (!value) {
+    return;
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    throw new AppError({
+      statusCode: 422,
+      code: "VALIDATION_ERROR",
+      message: `${fieldName} must be a valid ISO-8601 timestamp.`,
+    });
+  }
+}
+
 function buildDeliveryEventDetail(
   eventType: DeliveryEventType,
   eventSource: string | null,
@@ -2714,16 +3151,34 @@ function buildDeliveryEventDetail(
 }
 
 function readDeliveryEventText(payload: unknown, field: string) {
-  if (!isRecord(payload)) {
+  const parsedPayload = parseJsonRecord(payload);
+  if (!parsedPayload) {
     return null;
   }
 
-  const value = payload[field];
+  const value = parsedPayload[field];
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (isRecord(value)) {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function toTimestampValue(value: string | null | undefined) {

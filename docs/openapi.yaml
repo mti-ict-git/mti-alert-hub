@@ -13,9 +13,9 @@ info:
     - future delivery, response, dashboard, and Windows Agent integration contracts
 
     Phase note:
-    - `Phase 2` is the current implementation focus for delivery orchestration.
-    - Operations marked with `x-implementation-phase` greater than `Phase 2`
-      remain documented for downstream alignment, especially for the Windows Agent.
+    - `Phase 4` is the current implementation focus for hardening and production-oriented rollout.
+    - Operations marked with `x-implementation-phase` greater than `Phase 4`
+      remain documented for downstream alignment.
 servers:
   - url: https://api.example.com
     description: Production placeholder
@@ -38,6 +38,8 @@ tags:
     description: Sync-safe employee directory read models.
   - name: Devices
     description: Registered Windows Agent device read models for admin use.
+  - name: Health
+    description: Service health and operational diagnostics endpoints.
   - name: Agent
     description: Windows Agent session, realtime, heartbeat, and message endpoints.
   - name: Deliveries
@@ -51,6 +53,50 @@ tags:
 security:
   - AdminSessionAuth: []
 paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Get public service health
+      operationId: getHealth
+      security: []
+      parameters:
+        - name: verbose
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /health/diagnostics:
+    get:
+      tags: [Health]
+      summary: Get authenticated operational diagnostics
+      description: |
+        Returns backend diagnostics intended for operator troubleshooting and go-live validation.
+
+        Current Phase 4 note:
+        - Confirms database reachability, current enabled release-scope channels, admin and agent session counts, and realtime-hub/device connectivity summaries.
+        - This endpoint is admin-protected because it exposes operational detail that should not be public.
+      operationId: getHealthDiagnostics
+      x-implementation-phase: Phase 4
+      responses:
+        "200":
+          description: Operational diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthDiagnosticsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /auth/login:
     post:
       tags: [Auth]
@@ -107,6 +153,28 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /auth/rotate-session:
+    post:
+      tags: [Auth]
+      summary: Rotate current admin session token
+      description: |
+        Rotates the current authenticated admin session token and invalidates the previous bearer token immediately.
+
+        Current Phase 4 note:
+        - This is the baseline admin token-rotation control for the desktop-first live path.
+        - Clients must replace the stored bearer token with the returned `sessionToken`.
+      operationId: rotateAdminSession
+      x-implementation-phase: Phase 4
+      responses:
+        "200":
+          description: Rotated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /communications:
     get:
       tags: [Communications]
@@ -135,6 +203,7 @@ paths:
     post:
       tags: [Communications]
       summary: Create a communication draft
+      description: Creates a communication draft using delivery channels currently enabled for the active release scope.
       operationId: createCommunicationDraft
       x-implementation-phase: Phase 1
       requestBody:
@@ -183,7 +252,7 @@ paths:
     patch:
       tags: [Communications]
       summary: Update a communication draft
-      description: Only drafts may be updated. Template-locked fields must be rejected if overridden.
+      description: Only drafts may be updated. Template-locked fields must be rejected if overridden, and channel selections outside the enabled release scope must be rejected.
       operationId: updateCommunicationDraft
       x-implementation-phase: Phase 1
       parameters:
@@ -274,6 +343,7 @@ paths:
         - `publishMode = Scheduled` is accepted into a scheduled backend state with persisted timezone context.
         - `publishMode = Recurring` is accepted into a recurring schedule foundation with persisted execution mode and validity metadata.
         - Publish acceptance now also writes immutable recipient snapshots, queued delivery job foundations, initial delivery attempts, and queue lifecycle events for the accepted execution record.
+        - The selected channels must remain within the currently enabled release scope, such as `WindowsAgent` for the desktop-first live path.
         - Materialized Windows Agent reminder policies and downstream delivery orchestration remain implemented in later Phase 2 slices.
       operationId: publishCommunication
       x-implementation-phase: Phase 2
@@ -370,7 +440,7 @@ paths:
 
         Current Phase 3 note:
         - The response list is derived from persisted `Responded` delivery events for the communication.
-        - `actorUserIdentifier` is sourced from the Windows Agent response payload when available.
+        - `actorUserIdentifier` is sourced from the Windows Agent or compatible-channel response payload when available.
         - This endpoint supports thin operator monitoring and response drill-down before broader reporting and dashboard slices are completed.
       operationId: listCommunicationResponses
       x-implementation-phase: Phase 3
@@ -391,6 +461,46 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /communications/{communicationId}/deliveries/{deliveryJobId}/response:
+    post:
+      tags: [Responses]
+      summary: Record a compatible-channel response for a delivery job
+      description: |
+        Records a workflow response for a non-Windows-Agent delivery job using the persisted workflow snapshot on the recipient.
+
+        Current Phase 3 note:
+        - This is the thin compatible-channel response ingestion baseline for `ContactEndpoint`-style deliveries before full provider callback modules are implemented.
+        - A successful response writes a `Responded` delivery event, updates `communication_recipients.response_state`, and applies `response implies ack` semantics when configured by the workflow snapshot.
+        - Windows Agent responses must continue using `POST /agent/messages/{messageId}/response`.
+      operationId: submitCompatibleChannelResponse
+      x-implementation-phase: Phase 3
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+        - $ref: "#/components/parameters/DeliveryJobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompatibleChannelResponseRequest"
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipientResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
 
   /templates:
     get:
@@ -440,7 +550,7 @@ paths:
     get:
       tags: [Workflows]
       summary: List reusable response workflow definitions
-      description: Returns the validated workflow definitions currently available for communication drafting and response evaluation.
+      description: Returns the validated workflow definitions currently available for communication drafting and response evaluation. The current MVP baseline serves a managed canonical workflow set that is reconciled during backend bootstrap.
       operationId: listWorkflowDefinitions
       x-implementation-phase: Phase 3
       parameters:
@@ -620,6 +730,34 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /devices/{deviceId}/revoke-session:
+    post:
+      tags: [Devices]
+      summary: Revoke active device access
+      description: |
+        Revokes persisted Windows Agent sessions for a device, disconnects active realtime connections, and marks the device offline.
+
+        Current Phase 4 note:
+        - This is the baseline device trust control for the desktop-first release path.
+        - Existing device tokens become invalid immediately after revocation.
+      operationId: revokeDeviceSession
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: Device access revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSessionRevocationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /agent/session:
     post:
@@ -1055,6 +1193,12 @@ components:
       required: true
       schema:
         type: string
+    DeviceId:
+      in: path
+      name: deviceId
+      required: true
+      schema:
+        type: string
     TemplateId:
       in: path
       name: templateId
@@ -1064,6 +1208,12 @@ components:
     MessageId:
       in: path
       name: messageId
+      required: true
+      schema:
+        type: string
+    DeliveryJobId:
+      in: path
+      name: deliveryJobId
       required: true
       schema:
         type: string
@@ -1956,6 +2106,121 @@ components:
         page:
           $ref: "#/components/schemas/PageMeta"
 
+    HealthResponse:
+      type: object
+      required: [status, service, environment]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        service:
+          type: string
+        environment:
+          type: string
+        uptimeSeconds:
+          type: integer
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SessionDiagnostics:
+      type: object
+      required: [activeCount, expiringWithin15MinutesCount, ttlMinutes]
+      properties:
+        activeCount:
+          type: integer
+        expiringWithin15MinutesCount:
+          type: integer
+        ttlMinutes:
+          type: integer
+
+    DatabaseDiagnostics:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        error:
+          type: string
+          nullable: true
+
+    RealtimeHubDiagnostics:
+      type: object
+      required: [inMemoryActiveStreams, persistedConnectedCount, stalePersistedConnectedCount]
+      properties:
+        inMemoryActiveStreams:
+          type: integer
+        persistedConnectedCount:
+          type: integer
+        stalePersistedConnectedCount:
+          type: integer
+
+    DeviceConnectivityDiagnostics:
+      type: object
+      required: [onlineCount, staleCount, offlineCount]
+      properties:
+        onlineCount:
+          type: integer
+        staleCount:
+          type: integer
+        offlineCount:
+          type: integer
+
+    HealthDiagnosticsResponse:
+      type: object
+      required:
+        [status, service, environment, startedAt, uptimeSeconds, enabledDeliveryChannels, database, adminSessions, agentSessions, realtimeHub, devices]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        service:
+          type: string
+        environment:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        uptimeSeconds:
+          type: integer
+        enabledDeliveryChannels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+        database:
+          $ref: "#/components/schemas/DatabaseDiagnostics"
+        adminSessions:
+          $ref: "#/components/schemas/SessionDiagnostics"
+        agentSessions:
+          $ref: "#/components/schemas/SessionDiagnostics"
+        realtimeHub:
+          $ref: "#/components/schemas/RealtimeHubDiagnostics"
+        devices:
+          $ref: "#/components/schemas/DeviceConnectivityDiagnostics"
+
+    DeviceSessionRevocationResponse:
+      type: object
+      required:
+        [deviceId, revokedSessionCount, disconnectedRealtimeConnectionCount, resultingStatus, revokedAt]
+      properties:
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        revokedSessionCount:
+          type: integer
+        disconnectedRealtimeConnectionCount:
+          type: integer
+        resultingStatus:
+          $ref: "#/components/schemas/DeviceStatus"
+        revokedAt:
+          type: string
+          format: date-time
+
     AgentSessionRequest:
       type: object
       required: [deviceIdentifier]
@@ -2062,6 +2327,23 @@ components:
           format: date-time
           nullable: true
         activeUserIdentifier:
+          type: string
+          nullable: true
+
+    CompatibleChannelResponseRequest:
+      type: object
+      required: [responseOptionKey]
+      properties:
+        responseOptionKey:
+          type: string
+        responseNote:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+        actorUserIdentifier:
           type: string
           nullable: true
 

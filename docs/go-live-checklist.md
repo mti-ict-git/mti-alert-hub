@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Working Checklist`
-- Last Updated: `2026-07-09`
+- Last Updated: `2026-07-14`
 - Audience: `Product Owner`, `Tech Lead`, `Backend Engineers`, `Frontend Engineers`
 
 ## Purpose
@@ -45,6 +45,10 @@ The first live release does **not** require:
 - advanced multi-channel delivery rollups
 - non-Windows-Agent channels
 
+Current live-scope enforcement:
+- backend must run with `ENABLED_DELIVERY_CHANNELS=WindowsAgent`
+- admin frontend must run with `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
+
 ## Release Scope
 ### Must Work Before Go-Live
 - `POST /auth/login`, `POST /auth/logout`, and `GET /auth/me` work from the UI and directly at API level.
@@ -85,6 +89,8 @@ The first client test pass does not need to wait for:
 - HR or organization baseline ingestion
 - real audience resolution accuracy from imported org and device data
 - WhatsApp outbound delivery and callback ingestion
+- email delivery
+- digital signage delivery
 - monitoring dashboards, audit-heavy reporting, and delivery analytics
 - provider-specific delivery normalization outside the Windows Agent path
 
@@ -133,6 +139,9 @@ Capture this evidence before declaring release-ready:
 - backend `build` passed
 - backend `migrate` passed
 - frontend `build` passed if the admin UI is in release scope
+- desktop-first release-scope smoke passed with non-Windows-Agent channels rejected
+- diagnostics and device session revocation smoke passed
+- admin session rotation and production LDAP guardrail smoke passed
 - login and Windows Agent-targeted publish smoke test passed
 - agent session, heartbeat, reconciliation, and lifecycle evidence smoke test passed
 - realtime hub connect and publish-push smoke test passed

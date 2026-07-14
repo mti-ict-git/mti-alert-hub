@@ -1,4 +1,8 @@
-import { loadEnv } from "../config/env.js";
+import {
+  loadEnv,
+  resolveEnabledDeliveryChannels,
+  validateSecuritySensitiveEnv,
+} from "../config/env.js";
 import { createHttpServer } from "../http/create-server.js";
 import { bootstrapDatabase } from "../../infrastructure/db/connection.js";
 import { registerAgentRoutes } from "../../modules/agent/controller/register-agent-routes.js";
@@ -29,20 +33,26 @@ import { createLogger } from "../../shared/observability/logger.js";
 
 export async function createBackendApp() {
   const env = loadEnv();
+  validateSecuritySensitiveEnv(env);
+  const enabledDeliveryChannels = resolveEnabledDeliveryChannels(env);
   const logger = createLogger(env.LOG_LEVEL);
   const startedAt = new Date();
 
   const database = bootstrapDatabase(env, logger);
   await database.client.ping();
   const accessProfileService = new AccessProfileService();
-  const adminSessionStore = new AdminSessionStore();
-  const agentSessionStore = new AgentSessionStore(database.client);
+  const adminSessionStore = new AdminSessionStore(env.ADMIN_SESSION_TTL_MINUTES * 60 * 1000);
+  const agentSessionStore = new AgentSessionStore(
+    database.client,
+    env.AGENT_SESSION_TTL_MINUTES * 60 * 1000,
+  );
   const ldapAuthenticator = new LdapAuthenticator(env, logger);
   const organizationReadService = new OrganizationReadService(database.client);
   const deviceReadService = new DeviceReadService(database.client);
   const dashboardReadService = new DashboardReadService(database.client);
   const auditLogService = new AuditLogService(database.client);
   const workflowDefinitionService = new WorkflowDefinitionService(database.client);
+  await workflowDefinitionService.ensureManagedWorkflowDefinitions();
   const responseOverdueService = new ResponseOverdueService(database.client, auditLogService);
   const agentService = new AgentService(
     database.client,
@@ -64,6 +74,7 @@ export async function createBackendApp() {
     agentService,
     auditLogService,
     workflowDefinitionService,
+    enabledDeliveryChannels,
   );
   const authService = new AuthService(
     ldapAuthenticator,
@@ -80,6 +91,11 @@ export async function createBackendApp() {
       ...registerHealthRoutes({
         env,
         startedAt,
+        database: database.client,
+        adminSessionStore,
+        agentSessionStore,
+        agentService,
+        enabledDeliveryChannels,
       }),
       ...registerAuthRoutes({
         authService,
@@ -89,6 +105,7 @@ export async function createBackendApp() {
       }),
       ...registerDeviceRoutes({
         deviceReadService,
+        agentService,
       }),
       ...registerDashboardRoutes({
         dashboardReadService,

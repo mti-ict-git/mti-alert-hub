@@ -98,6 +98,13 @@ const publishCommunicationSchema = z.object({
   confirmedPreview: z.boolean(),
 });
 
+const compatibleChannelResponseSchema = z.object({
+  responseOptionKey: z.string().trim().min(1),
+  responseNote: z.string().trim().optional().nullable(),
+  occurredAt: z.string().trim().optional().nullable(),
+  actorUserIdentifier: z.string().trim().optional().nullable(),
+});
+
 type RegisterCommunicationRoutesOptions = {
   communicationDraftService: CommunicationDraftService;
   communicationTemplateService: CommunicationTemplateService;
@@ -299,6 +306,27 @@ export function registerCommunicationRoutes(
             page: query.page,
             pageSize: query.pageSize,
           }),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/communications/{communicationId}/deliveries/{deliveryJobId}/response",
+      requiresAuth: true,
+      async handler({ params, json, auth, request }) {
+        const payload = validateWithSchema(compatibleChannelResponseSchema, await json());
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.submitCompatibleChannelResponse(
+            params.communicationId ?? "",
+            params.deliveryJobId ?? "",
+            payload,
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: resolveRequestIpAddress(request),
+            },
+          ),
         };
       },
     },

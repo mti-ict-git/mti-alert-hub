@@ -18,14 +18,15 @@ type CreateAgentSessionOptions = {
   device: AgentSessionDevice;
 };
 
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-
 export class AgentSessionStore {
-  constructor(private readonly database: DatabaseClient) {}
+  constructor(
+    private readonly database: DatabaseClient,
+    private readonly sessionTtlMs: number,
+  ) {}
 
   async createSession(options: CreateAgentSessionOptions): Promise<AgentSession> {
     const sessionToken = randomUUID();
-    const expiresAt = buildSessionExpiry();
+    const expiresAt = this.buildSessionExpiry();
 
     const session: AgentSession = {
       sessionToken,
@@ -87,7 +88,7 @@ export class AgentSessionStore {
       return undefined;
     }
 
-    const expiresAt = buildSessionExpiry();
+    const expiresAt = this.buildSessionExpiry();
     await this.database.query(
       `
         update public.device_sessions
@@ -101,6 +102,49 @@ export class AgentSessionStore {
       ...mapPersistedSession(sessionToken, persistedSession),
       expiresAt,
     };
+  }
+
+  async revokeDeviceSessions(deviceId: string) {
+    const rows = await this.database.query<{ id: string }>(
+      `
+        delete from public.device_sessions
+        where device_id = $1::uuid
+        returning device_id::text as id
+      `,
+      [deviceId],
+    );
+
+    return rows.length;
+  }
+
+  async getDiagnostics() {
+    const [activeRows, expiringRows] = await Promise.all([
+      this.database.query<{ totalItems: number }>(
+        `
+          select count(*)::int as "totalItems"
+          from public.device_sessions
+          where expires_at > now()
+        `,
+      ),
+      this.database.query<{ totalItems: number }>(
+        `
+          select count(*)::int as "totalItems"
+          from public.device_sessions
+          where expires_at > now()
+            and expires_at <= now() + interval '15 minutes'
+        `,
+      ),
+    ]);
+
+    return {
+      activeCount: activeRows[0]?.totalItems ?? 0,
+      expiringWithin15MinutesCount: expiringRows[0]?.totalItems ?? 0,
+      ttlMinutes: Math.floor(this.sessionTtlMs / 60000),
+    };
+  }
+
+  private buildSessionExpiry() {
+    return new Date(Date.now() + this.sessionTtlMs).toISOString();
   }
 
   private async findPersistedSession(sessionToken: string) {
@@ -144,10 +188,6 @@ type PersistedAgentSessionRow = {
 
 function hashSessionToken(sessionToken: string) {
   return createHash("sha256").update(sessionToken).digest("hex");
-}
-
-function buildSessionExpiry() {
-  return new Date(Date.now() + SESSION_TTL_MS).toISOString();
 }
 
 function isExpired(expiresAt: string) {

@@ -645,6 +645,124 @@ export class AgentService {
     });
   }
 
+  async getOperationalDiagnostics() {
+    const [realtimeRows, deviceStatusRows] = await Promise.all([
+      this.database.query<{
+        connectedCount: number;
+        staleConnectedCount: number;
+      }>(
+        `
+          select
+            count(*) filter (where status = 'Connected')::int as "connectedCount",
+            count(*) filter (
+              where status = 'Connected'
+                and coalesce(last_seen_at, connected_at) < now() - interval '2 minutes'
+            )::int as "staleConnectedCount"
+          from public.device_realtime_connections
+        `,
+      ),
+      this.database.query<{
+        onlineCount: number;
+        staleCount: number;
+        offlineCount: number;
+      }>(
+        `
+          select
+            count(*) filter (where status = 'Online')::int as "onlineCount",
+            count(*) filter (where status = 'Stale')::int as "staleCount",
+            count(*) filter (where status = 'Offline')::int as "offlineCount"
+          from public.devices
+        `,
+      ),
+    ]);
+
+    return {
+      realtimeHub: {
+        inMemoryActiveStreams: this.realtimeConnections.size,
+        persistedConnectedCount: realtimeRows[0]?.connectedCount ?? 0,
+        stalePersistedConnectedCount: realtimeRows[0]?.staleConnectedCount ?? 0,
+      },
+      devices: {
+        onlineCount: deviceStatusRows[0]?.onlineCount ?? 0,
+        staleCount: deviceStatusRows[0]?.staleCount ?? 0,
+        offlineCount: deviceStatusRows[0]?.offlineCount ?? 0,
+      },
+    };
+  }
+
+  async revokeDeviceAccess(
+    deviceId: string,
+    actor: { userIdentifier: string; username: string; ipAddress?: string | null },
+  ) {
+    const device = await this.requireDeviceById(deviceId);
+    const activeConnection = this.findConnectionForDevice(deviceId);
+    if (activeConnection) {
+      this.writeRealtimeEvent(activeConnection.response, "session.revoked", {
+        deviceId,
+        revokedAt: new Date().toISOString(),
+      });
+      activeConnection.response.end();
+      clearInterval(activeConnection.keepAliveTimer);
+      this.realtimeConnections.delete(activeConnection.connectionId);
+    }
+
+    const revokedAt = new Date().toISOString();
+    const [revokedSessionCount, disconnectedConnectionRows] = await Promise.all([
+      this.sessionStore.revokeDeviceSessions(deviceId),
+      this.database.query<{ id: string }>(
+        `
+          update public.device_realtime_connections
+          set
+            status = 'Disconnected',
+            disconnected_at = coalesce(disconnected_at, $2::timestamptz),
+            last_seen_at = coalesce(last_seen_at, $2::timestamptz)
+          where device_id = $1::uuid
+            and status = 'Connected'
+          returning id::text as id
+        `,
+        [deviceId, revokedAt],
+      ),
+    ]);
+
+    await this.database.query(
+      `
+        update public.devices
+        set
+          status = 'Offline',
+          updated_at = now()
+        where id::text = $1
+      `,
+      [deviceId],
+    );
+
+    await this.auditLogService.recordNow({
+      actorUserId: actor.userIdentifier,
+      actorUsername: actor.username,
+      actionType: "RevokeDeviceSession",
+      moduleName: "Devices",
+      entityType: "Device",
+      entityId: deviceId,
+      description: `Revoked active access for device ${device.deviceIdentifier ?? device.hostname}.`,
+      ipAddress: actor.ipAddress ?? null,
+      metadata: {
+        deviceIdentifier: device.deviceIdentifier,
+        hostname: device.hostname,
+        revokedSessionCount,
+        disconnectedRealtimeConnectionCount: disconnectedConnectionRows.length,
+      },
+      createdAt: revokedAt,
+    });
+
+    return {
+      deviceId,
+      deviceIdentifier: device.deviceIdentifier,
+      revokedSessionCount,
+      disconnectedRealtimeConnectionCount: disconnectedConnectionRows.length,
+      resultingStatus: "Offline" as const,
+      revokedAt,
+    };
+  }
+
   private async requireSession(sessionToken: string, options?: { renew?: boolean }) {
     const session = options?.renew
       ? await this.sessionStore.renewSession(sessionToken)
@@ -877,7 +995,7 @@ export class AgentService {
 
   private writeRealtimeEvent(
     response: ServerResponse,
-    eventName: "connected" | "messages.snapshot" | "messages.available",
+    eventName: "connected" | "messages.snapshot" | "messages.available" | "session.revoked",
     payload: unknown,
   ) {
     if (response.writableEnded) {

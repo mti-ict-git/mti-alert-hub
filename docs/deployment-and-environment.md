@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-09`
+- Last Updated: `2026-07-14`
 - Owner: `Engineering / Operations`
 
 ## Purpose
@@ -83,6 +83,11 @@ Examples:
 - environment name
 - public base URL for admin application
 - internal API base URLs
+- enabled delivery channels for the current release scope
+
+Current implementation baseline:
+- `ENABLED_DELIVERY_CHANNELS` now controls which backend delivery channels may be used by create, update, and publish flows. The desktop-first live default is `WindowsAgent`.
+- `VITE_ENABLED_DELIVERY_CHANNELS` now controls which delivery channels are shown in the admin compose and edit flows. The desktop-first live default is `DesktopAgent`.
 
 ### Database Configuration
 Examples:
@@ -119,12 +124,16 @@ Examples:
 Current implementation baseline:
 - Phase 1 currently uses LDAP-backed admin authentication.
 - Phase 1 currently issues opaque bearer session tokens from an in-memory session store.
+- `POST /auth/rotate-session` now provides an authenticated admin token-rotation baseline and invalidates the previous bearer token immediately.
+- `ADMIN_SESSION_TTL_MINUTES` and `AGENT_SESSION_TTL_MINUTES` now control the default session expiry windows for admin and Windows Agent sessions.
 - Group-based access admission may be controlled through `LDAP_ALLOWED_GROUPS`.
 - `LDAP_ALLOWED_GROUPS` should be configured as either:
   - a single full LDAP group DN
   - multiple full group DNs separated by `;`
   - a JSON array of full group DNs
 - Comma-separated parsing is unsafe for LDAP DNs because a single DN already contains commas.
+- `LDAP_URL` must use `ldaps://` in production unless `LDAP_ALLOW_INSECURE_URL=true` is set explicitly for a controlled exception path.
+- `LDAP_SKIP_TLS_VERIFY=true` is rejected in production; local and shared-development runtimes may still use relaxed TLS verification for internal directory infrastructure.
 
 ### Baseline Data Import
 Examples:
@@ -233,7 +242,12 @@ Latest verification evidence:
 - `2026-07-09`: a dedicated verification runtime on `BACKEND_PORT=4024` confirmed the Phase 3 overdue baseline end to end: the seeded response workflow timeout was temporarily set to `0` for the smoke, a response-required Windows Agent `Alert` was published to `device-mti-ops-01`, `GET /agent/messages` triggered server-side timeout evaluation, and `GET /communications/{communicationId}/deliveries` then returned `responseState = Overdue`, an `Overdue` delivery event, and a re-queued `Pending` job for recipient-only follow-up; the workflow timeout was restored after verification.
 - `2026-07-09`: `npm run backend:migrate` also applied migration `0009_phase3_audit_logs.up.sql`, which created the append-only `audit_logs` baseline table with `actor_username`, `metadata_json`, and indexed `created_at` / entity lookup support for audit queries.
 - `2026-07-09`: a dedicated verification runtime on `BACKEND_PORT=4025` confirmed the Phase 3 auditability baseline end to end: a template override rejection was forced against template `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`, a response-required Windows Agent `Alert` was published to `device-mti-ops-01`, an agent response was submitted, the communication was cancelled, and `GET /audit-logs` then returned matching `TemplateOverrideRejected`, `PublishCommunication`, `CommunicationStatusChanged`, `RecordResponse`, `RecipientResponseStateChanged`, and `CancelCommunication` rows with actor usernames and request IP addresses.
-- `2026-07-09`: a dedicated verification runtime on `BACKEND_PORT=4026` confirmed the Phase 3 workflow baseline end to end: admin login succeeded, `GET /workflows` returned persisted definitions from `response_workflows` plus ordered `response_workflow_options`, and the seeded workflow `11111111-1111-1111-1111-111111111111` remained available for draft authoring against the isolated runtime.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4026` confirmed the Phase 3 workflow baseline end to end: after intentionally drifting the canonical workflow seed in PostgreSQL, backend bootstrap restored the managed workflow baseline before serving traffic, and admin login plus `GET /workflows` then returned `totalItems = 2` with the canonical `Critical Acknowledgement` and `Reminder Confirmation` definitions plus their expected ordered options.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4027` confirmed the Phase 3 compatible-channel response baseline end to end: an admin published a `Reminder` to an employee over `WhatsApp`, `GET /communications/{communicationId}/deliveries` returned a `ContactEndpoint` delivery job with `channelEndpoint = +628000000001`, `POST /communications/{communicationId}/deliveries/{deliveryJobId}/response` then recorded response option `done`, and the same runtime confirmed `GET /communications/{communicationId}/responses` plus `GET /audit-logs` both reflected the new `WhatsApp` response evidence.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4028` confirmed the Phase 4 desktop-first release-scope guardrail baseline: with `ENABLED_DELIVERY_CHANNELS=WindowsAgent`, admin login still succeeded, a `WindowsAgent` draft could still be created, and a `WhatsApp` draft request was rejected with `422 CHANNEL_NOT_ENABLED`.
+- `2026-07-14`: Phase 4 security and observability hardening now includes configurable `ADMIN_SESSION_TTL_MINUTES` and `AGENT_SESSION_TTL_MINUTES`, an authenticated `GET /health/diagnostics` endpoint for operational visibility, and `POST /devices/{deviceId}/revoke-session` for device trust revocation during desktop-first live operations.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4029` confirmed the new diagnostics and device-revocation baseline end to end: admin login succeeded, a Windows Agent session and SSE negotiation established one persisted and in-memory realtime connection, `GET /health/diagnostics` returned database/session/realtime summaries with TTL values, `POST /devices/{deviceId}/revoke-session` revoked the active device token and disconnected the realtime connection, and a subsequent `POST /agent/heartbeat` with the revoked token failed with `401 UNAUTHORIZED`.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4030` confirmed the new admin session rotation and directory-security baseline: `POST /auth/rotate-session` returned a new bearer token for the current admin account, the previous token immediately failed against `GET /auth/me` with `401`, and a separate production-mode startup on `BACKEND_PORT=4031` failed fast when `LDAP_URL=ldap://...` was supplied without an explicit insecure override.
 
 ## Operational Dependencies
 ### Enterprise Identity
