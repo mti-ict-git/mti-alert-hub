@@ -142,6 +142,7 @@ Capture this evidence before declaring release-ready:
 - desktop-first release-scope smoke passed with non-Windows-Agent channels rejected
 - diagnostics and device session revocation smoke passed
 - admin session rotation and production LDAP guardrail smoke passed
+- request-correlation and diagnostics-alert smoke passed
 - login and Windows Agent-targeted publish smoke test passed
 - agent session, heartbeat, reconciliation, and lifecycle evidence smoke test passed
 - realtime hub connect and publish-push smoke test passed

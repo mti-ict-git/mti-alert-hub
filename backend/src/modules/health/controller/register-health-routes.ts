@@ -25,6 +25,17 @@ type RegisterHealthRoutesOptions = {
   enabledDeliveryChannels: DeliveryChannel[];
 };
 
+type DiagnosticsAlert = {
+  code:
+    | "DATABASE_UNREACHABLE"
+    | "REALTIME_CONNECTIONS_STALE"
+    | "ADMIN_SESSIONS_EXPIRING_SOON"
+    | "AGENT_SESSIONS_EXPIRING_SOON"
+    | "DEVICES_STALE";
+  severity: "warning" | "critical";
+  message: string;
+};
+
 export function registerHealthRoutes(options: RegisterHealthRoutesOptions): AppRoute[] {
   return [
     {
@@ -63,7 +74,7 @@ export function registerHealthRoutes(options: RegisterHealthRoutesOptions): AppR
       method: "GET",
       path: "/health/diagnostics",
       requiresAuth: true,
-      async handler() {
+      async handler({ requestId }) {
         const [adminSessionDiagnostics, agentSessionDiagnostics, operationalDiagnostics, databaseStatus] =
           await Promise.all([
             Promise.resolve(options.adminSessionStore.getDiagnostics()),
@@ -72,16 +83,19 @@ export function registerHealthRoutes(options: RegisterHealthRoutesOptions): AppR
             probeDatabase(options.database),
           ]);
 
-        const overallStatus =
-          databaseStatus.status === "ok" &&
-          operationalDiagnostics.realtimeHub.stalePersistedConnectedCount === 0
-            ? "ok"
-            : "degraded";
+        const alerts = buildDiagnosticsAlerts({
+          databaseStatus,
+          adminSessionDiagnostics,
+          agentSessionDiagnostics,
+          operationalDiagnostics,
+        });
+        const overallStatus = alerts.length > 0 ? "degraded" : "ok";
 
         return {
           statusCode: 200,
           body: {
             status: overallStatus,
+            requestId,
             service: options.env.APP_NAME,
             environment: options.env.NODE_ENV,
             startedAt: options.startedAt.toISOString(),
@@ -90,6 +104,7 @@ export function registerHealthRoutes(options: RegisterHealthRoutesOptions): AppR
             database: databaseStatus,
             adminSessions: adminSessionDiagnostics,
             agentSessions: agentSessionDiagnostics,
+            alerts,
             ...operationalDiagnostics,
           },
         };
@@ -108,4 +123,63 @@ async function probeDatabase(database: DatabaseClient) {
       error: error instanceof Error ? error.message : "Unknown database error",
     };
   }
+}
+
+function buildDiagnosticsAlerts(input: {
+  databaseStatus: Awaited<ReturnType<typeof probeDatabase>>;
+  adminSessionDiagnostics: {
+    activeCount: number;
+    expiringWithin15MinutesCount: number;
+    ttlMinutes: number;
+  };
+  agentSessionDiagnostics: {
+    activeCount: number;
+    expiringWithin15MinutesCount: number;
+    ttlMinutes: number;
+  };
+  operationalDiagnostics: Awaited<ReturnType<AgentService["getOperationalDiagnostics"]>>;
+}): DiagnosticsAlert[] {
+  const alerts: DiagnosticsAlert[] = [];
+
+  if (input.databaseStatus.status !== "ok") {
+    alerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Database health probe failed for the current backend runtime.",
+    });
+  }
+
+  if (input.operationalDiagnostics.realtimeHub.stalePersistedConnectedCount > 0) {
+    alerts.push({
+      code: "REALTIME_CONNECTIONS_STALE",
+      severity: "warning",
+      message: `${input.operationalDiagnostics.realtimeHub.stalePersistedConnectedCount} realtime connection(s) have gone stale.`,
+    });
+  }
+
+  if (input.adminSessionDiagnostics.expiringWithin15MinutesCount > 0) {
+    alerts.push({
+      code: "ADMIN_SESSIONS_EXPIRING_SOON",
+      severity: "warning",
+      message: `${input.adminSessionDiagnostics.expiringWithin15MinutesCount} admin session(s) expire within 15 minutes.`,
+    });
+  }
+
+  if (input.agentSessionDiagnostics.expiringWithin15MinutesCount > 0) {
+    alerts.push({
+      code: "AGENT_SESSIONS_EXPIRING_SOON",
+      severity: "warning",
+      message: `${input.agentSessionDiagnostics.expiringWithin15MinutesCount} agent session(s) expire within 15 minutes.`,
+    });
+  }
+
+  if (input.operationalDiagnostics.devices.staleCount > 0) {
+    alerts.push({
+      code: "DEVICES_STALE",
+      severity: "warning",
+      message: `${input.operationalDiagnostics.devices.staleCount} device(s) are currently marked stale.`,
+    });
+  }
+
+  return alerts;
 }

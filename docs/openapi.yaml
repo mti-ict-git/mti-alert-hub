@@ -57,6 +57,7 @@ paths:
     get:
       tags: [Health]
       summary: Get public service health
+      description: Returns lightweight service health and echoes `X-Request-Id` for request correlation.
       operationId: getHealth
       security: []
       parameters:
@@ -68,6 +69,9 @@ paths:
       responses:
         "200":
           description: Service health
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
@@ -82,12 +86,16 @@ paths:
 
         Current Phase 4 note:
         - Confirms database reachability, current enabled release-scope channels, admin and agent session counts, and realtime-hub/device connectivity summaries.
+        - Returns explicit `alerts` for warning and critical operational conditions such as expiring sessions or stale realtime connectivity.
         - This endpoint is admin-protected because it exposes operational detail that should not be public.
       operationId: getHealthDiagnostics
       x-implementation-phase: Phase 4
       responses:
         "200":
           description: Operational diagnostics
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
@@ -1174,6 +1182,11 @@ paths:
           $ref: "#/components/responses/Forbidden"
 
 components:
+  headers:
+    RequestId:
+      description: Correlation identifier for tracing the request through backend logs.
+      schema:
+        type: string
   securitySchemes:
     AdminSessionAuth:
       type: http
@@ -2117,6 +2130,9 @@ components:
           type: string
         environment:
           type: string
+        requestId:
+          type: string
+          nullable: true
         uptimeSeconds:
           type: integer
           nullable: true
@@ -2169,14 +2185,36 @@ components:
         offlineCount:
           type: integer
 
+    DiagnosticsAlert:
+      type: object
+      required: [code, severity, message]
+      properties:
+        code:
+          type: string
+          enum:
+            [
+              DATABASE_UNREACHABLE,
+              REALTIME_CONNECTIONS_STALE,
+              ADMIN_SESSIONS_EXPIRING_SOON,
+              AGENT_SESSIONS_EXPIRING_SOON,
+              DEVICES_STALE,
+            ]
+        severity:
+          type: string
+          enum: [warning, critical]
+        message:
+          type: string
+
     HealthDiagnosticsResponse:
       type: object
       required:
-        [status, service, environment, startedAt, uptimeSeconds, enabledDeliveryChannels, database, adminSessions, agentSessions, realtimeHub, devices]
+        [status, requestId, service, environment, startedAt, uptimeSeconds, enabledDeliveryChannels, database, adminSessions, agentSessions, alerts, realtimeHub, devices]
       properties:
         status:
           type: string
           enum: [ok, degraded]
+        requestId:
+          type: string
         service:
           type: string
         environment:
@@ -2196,6 +2234,10 @@ components:
           $ref: "#/components/schemas/SessionDiagnostics"
         agentSessions:
           $ref: "#/components/schemas/SessionDiagnostics"
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticsAlert"
         realtimeHub:
           $ref: "#/components/schemas/RealtimeHubDiagnostics"
         devices:

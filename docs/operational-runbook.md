@@ -45,14 +45,15 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 1. `POST /auth/login` succeeds with a valid admin account.
 2. `GET /health/diagnostics` returns `database.status = ok` and the expected enabled delivery channels.
 3. Confirm the diagnostics payload shows sensible admin session, agent session, and realtime connection counts.
-4. `POST /auth/rotate-session` returns a new bearer token and the previous token is rejected afterward.
-5. Create a desktop-targeted draft with `channelSelections = ["WindowsAgent"]`.
-6. Confirm `POST /communications/{communicationId}/audience-preview` completes.
-7. Confirm `POST /communications/{communicationId}/publish` succeeds.
-8. Confirm `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, and `GET /agent/messages` succeed for the target device.
-9. Confirm `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, and `POST /agent/messages/{messageId}/response` succeed for response-required messages.
-10. Confirm `GET /communications/{communicationId}/deliveries`, `GET /communications/{communicationId}/responses`, and `GET /audit-logs` show the expected persisted evidence.
-11. Challenge `POST /devices/{deviceId}/revoke-session` for an active test device and confirm the existing device token is rejected afterward.
+4. Confirm the response echoes `X-Request-Id` and that the same request ID appears in backend request-completion logs.
+5. `POST /auth/rotate-session` returns a new bearer token and the previous token is rejected afterward.
+6. Create a desktop-targeted draft with `channelSelections = ["WindowsAgent"]`.
+7. Confirm `POST /communications/{communicationId}/audience-preview` completes.
+8. Confirm `POST /communications/{communicationId}/publish` succeeds.
+9. Confirm `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, and `GET /agent/messages` succeed for the target device.
+10. Confirm `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, and `POST /agent/messages/{messageId}/response` succeed for response-required messages.
+11. Confirm `GET /communications/{communicationId}/deliveries`, `GET /communications/{communicationId}/responses`, and `GET /audit-logs` show the expected persisted evidence.
+12. Challenge `POST /devices/{deviceId}/revoke-session` for an active test device and confirm the existing device token is rejected afterward.
 
 ## Rollback Procedure
 1. Stop accepting new release traffic to the backend instance.

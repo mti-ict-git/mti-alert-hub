@@ -391,7 +391,7 @@ Prepare the platform for broader rollout and future channels.
 - `[ ]` Channel expansion: implement email delivery orchestration if included in scope.
 - `[ ]` Channel expansion: define and document the digital signage connector contract.
 - `[ ]` Channel expansion: implement digital signage orchestration if included in scope.
-- `[ ]` Observability: harden logging, tracing, and operational alerting.
+- `[x]` Observability: harden logging, tracing, and operational alerting.
 - `[x]` Observability: improve connector-health and realtime-hub diagnostics.
 - `[x]` Security: harden session handling, token rotation, and agent trust controls.
 - `[x]` Security: review directory integration security settings and environment handling.
@@ -418,3 +418,6 @@ Prepare the platform for broader rollout and future channels.
 - `2026-07-14`: admin session rotation is now available through `POST /auth/rotate-session`, immediately invalidating the prior bearer token while issuing a fresh session token for the same authenticated operator.
 - `2026-07-14`: directory integration security and environment handling are now hardened for the desktop-first live path: production startup rejects `LDAP_URL=ldap://...` unless `LDAP_ALLOW_INSECURE_URL=true` is set explicitly, production also rejects `LDAP_SKIP_TLS_VERIFY=true`, and structured backend logs now redact common secret-bearing keys such as `password`, `token`, and `authorization`.
 - `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `node backend/tmp/phase4-security-hardening-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4030`, confirmed `POST /auth/rotate-session` returned a new bearer token, confirmed the old token failed on `GET /auth/me` with `401 UNAUTHORIZED`, and then confirmed a separate production-mode startup on `BACKEND_PORT=4031` failed fast for `LDAP_URL=ldap://directory.example.internal` without an explicit insecure override.
+- `2026-07-14`: backend request tracing now has a lightweight correlation baseline: every HTTP response echoes `X-Request-Id`, and request lifecycle logs include the same `requestId` plus `actorUsername` where available.
+- `2026-07-14`: `GET /health/diagnostics` now returns explicit warning and critical `alerts` for expiring sessions, stale realtime connectivity, device staleness, and database reachability so live operators can prioritize degraded conditions without manually interpreting raw counters.
+- `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `node backend/tmp/phase4-observability-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4032` with `ADMIN_SESSION_TTL_MINUTES=10` and `AGENT_SESSION_TTL_MINUTES=10`, confirmed `GET /health/diagnostics` echoed `X-Request-Id=phase4-observability-request`, returned `ADMIN_SESSIONS_EXPIRING_SOON` plus `AGENT_SESSIONS_EXPIRING_SOON` alerts, and wrote a matching `http.request.completed` log line with the same request ID for correlation.

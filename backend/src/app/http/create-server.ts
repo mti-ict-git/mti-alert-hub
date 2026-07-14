@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import type { AdminRoleType } from "../../modules/access/model/admin-access.js";
@@ -16,6 +17,7 @@ export type AppRouteHandlerContext = {
   response: ServerResponse;
   url: URL;
   params: Record<string, string>;
+  requestId: string;
   auth?: AuthContext;
   json: () => Promise<unknown>;
 };
@@ -45,7 +47,10 @@ export function createHttpServer(options: CreateServerOptions) {
   return createServer(async (request, response) => {
     const startedAt = Date.now();
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
+    const requestId = resolveRequestId(request);
+    let auth: AuthContext | undefined;
     applyCorsHeaders(request, response, options.allowedOrigins);
+    response.setHeader("X-Request-Id", requestId);
 
     try {
       if (request.method === "OPTIONS") {
@@ -54,7 +59,7 @@ export function createHttpServer(options: CreateServerOptions) {
         return;
       }
 
-      const auth = resolveAuthContext(request, options.resolveSession);
+      auth = resolveAuthContext(request, options.resolveSession);
       const matchedRoute = options.routes
         .filter((candidate) => candidate.method === request.method)
         .map((candidate) => ({
@@ -101,6 +106,7 @@ export function createHttpServer(options: CreateServerOptions) {
         response,
         url: requestUrl,
         params: matchedRoute?.match ?? {},
+        requestId,
         auth,
         json: () => parseJsonBody(request),
       });
@@ -119,6 +125,7 @@ export function createHttpServer(options: CreateServerOptions) {
         });
       } else {
         options.logger.error("http.request.unhandled_error", {
+          requestId,
           method: request.method,
           path: requestUrl.pathname,
           error: error instanceof Error ? error.message : "Unknown error",
@@ -130,13 +137,24 @@ export function createHttpServer(options: CreateServerOptions) {
       }
     } finally {
       options.logger.info("http.request.completed", {
+        requestId,
         method: request.method,
         path: requestUrl.pathname,
         statusCode: response.statusCode,
         durationMs: Date.now() - startedAt,
+        actorUsername: auth?.session.user.username ?? null,
       });
     }
   });
+}
+
+function resolveRequestId(request: IncomingMessage) {
+  const candidate = request.headers["x-request-id"];
+  if (typeof candidate === "string" && candidate.trim().length > 0) {
+    return candidate.trim();
+  }
+
+  return randomUUID();
 }
 
 function applyCorsHeaders(

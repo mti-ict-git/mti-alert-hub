@@ -173,6 +173,11 @@ Examples:
 - metrics export settings
 - tracing or correlation settings
 
+Current implementation baseline:
+- Every HTTP response now echoes `X-Request-Id`, using the inbound header when supplied or a generated value otherwise.
+- Backend request lifecycle logs now include `requestId` and `actorUsername` where available for request-level correlation.
+- `GET /health/diagnostics` now returns explicit warning and critical `alerts` in addition to raw counters so operators can prioritize expiring sessions, stale realtime connections, and other degraded states more quickly during desktop-first live operations.
+
 ## Secret Handling Rules
 - Never hardcode secrets in source code or documentation examples.
 - Keep local development secrets separate from shared and production credentials.
@@ -248,6 +253,7 @@ Latest verification evidence:
 - `2026-07-14`: Phase 4 security and observability hardening now includes configurable `ADMIN_SESSION_TTL_MINUTES` and `AGENT_SESSION_TTL_MINUTES`, an authenticated `GET /health/diagnostics` endpoint for operational visibility, and `POST /devices/{deviceId}/revoke-session` for device trust revocation during desktop-first live operations.
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4029` confirmed the new diagnostics and device-revocation baseline end to end: admin login succeeded, a Windows Agent session and SSE negotiation established one persisted and in-memory realtime connection, `GET /health/diagnostics` returned database/session/realtime summaries with TTL values, `POST /devices/{deviceId}/revoke-session` revoked the active device token and disconnected the realtime connection, and a subsequent `POST /agent/heartbeat` with the revoked token failed with `401 UNAUTHORIZED`.
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4030` confirmed the new admin session rotation and directory-security baseline: `POST /auth/rotate-session` returned a new bearer token for the current admin account, the previous token immediately failed against `GET /auth/me` with `401`, and a separate production-mode startup on `BACKEND_PORT=4031` failed fast when `LDAP_URL=ldap://...` was supplied without an explicit insecure override.
+- `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4032` confirmed the observability hardening baseline: the backend echoed `X-Request-Id=phase4-observability-request` from an authenticated `GET /health/diagnostics`, diagnostics returned warning alerts for expiring admin and agent sessions when TTL values were intentionally reduced to `10` minutes, and backend stdout included a matching `http.request.completed` log entry with the same request ID for correlation.
 
 ## Operational Dependencies
 ### Enterprise Identity
