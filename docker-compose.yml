@@ -1,29 +1,9 @@
 services:
-  # postgres:
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-  #     POSTGRES_DB: ${POSTGRES_DB:-ictMTIAlertHub}
-  #   ports:
-  #     - "${POSTGRES_HOST_PORT:-5432}:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       APP_NAME: ${APP_NAME:-MTI Alert Backend}
       NODE_ENV: ${NODE_ENV:-production}
@@ -33,7 +13,7 @@ services:
       ENABLED_DELIVERY_CHANNELS: ${ENABLED_DELIVERY_CHANNELS:-WindowsAgent}
       ADMIN_SESSION_TTL_MINUTES: ${ADMIN_SESSION_TTL_MINUTES:-480}
       AGENT_SESSION_TTL_MINUTES: ${AGENT_SESSION_TTL_MINUTES:-480}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/ictMTIAlertHub}
+      POSTGRES_URL: ${POSTGRES_URL}
       POSTGRES_USERNAME: ${POSTGRES_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DATABASE: ${POSTGRES_DATABASE:-ictMTIAlertHub}
@@ -87,6 +67,3 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-
-volumes:
-  postgres_data:

@@ -34,6 +34,8 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 - Use `.env.docker` derived from `.env.docker.example` for container-focused startup instead of overwriting the local `.env` used by non-Docker development.
 - Build the frontend container with `NITRO_PRESET=node-server`.
 - Keep `VITE_API_URL` browser-reachable, such as `http://localhost:4019`, even when the frontend itself runs inside Docker.
+- The base `docker-compose.yml` assumes PostgreSQL is already managed outside Docker.
+- Use `docker-compose.with-postgres.yml` only when a local PostgreSQL container is actually needed.
 
 ## Deployment Procedure
 1. Confirm `docs/openapi.yaml`, `docs/implementation-roadmap.md`, and this runbook reflect the intended release behavior.
@@ -48,10 +50,11 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 
 ### Docker Deployment Path
 1. Copy `.env.docker.example` to `.env.docker` and populate environment-specific secrets.
-2. Run `docker-compose --env-file .env.docker up --build`.
-3. Wait for the `postgres`, `backend`, and `frontend` healthchecks to pass.
-4. Confirm the backend applied migrations during container startup before handing traffic to operators.
-5. Execute the desktop go-live smoke against `http://localhost:8080` and `http://localhost:4019`.
+2. If PostgreSQL is already available outside Docker, run `docker-compose --env-file .env.docker up --build`.
+3. If PostgreSQL should run in Docker too, run `docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build`.
+4. Wait for the active service healthchecks to pass.
+5. Confirm the backend applied migrations during container startup before handing traffic to operators.
+6. Execute the desktop go-live smoke against `http://localhost:8080` and `http://localhost:4019`.
 
 If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
 
@@ -82,7 +85,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 1. Check `/health`.
 2. Review backend logs for PostgreSQL connectivity or LDAP startup failure.
 3. Restart the backend only after confirming configuration and database reachability.
-4. If running in Docker, also confirm the `postgres` container healthcheck is green and that `POSTGRES_URL` still targets the intended host.
+4. If running with the PostgreSQL overlay, also confirm the `postgres` container healthcheck is green; otherwise confirm `POSTGRES_URL` still targets the intended external host.
 
 ### Realtime Push Degraded
 1. Confirm `POST /agent/realtime/negotiate` still returns a valid SSE URL.

@@ -14,7 +14,7 @@ The platform is designed around one unified communication model for alerts, remi
 - The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
 - Backend implementation continues in phases through the roadmap under `docs/`.
 - Versioned backend migrations now exist under `backend/migrations/` for the Phase 1 foundation schema.
-- A desktop-first Docker baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, and `.env.docker.example`.
+- A desktop-first Docker baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, and `.env.docker.example`.
 
 ## Source Of Truth
 The source of truth for product scope, workflow, architecture, API contract, and data model is under `docs/`.
@@ -46,7 +46,8 @@ Supporting references may also exist under `docs/`, such as:
 ├── src/                     # Admin application source code
 ├── Dockerfile.backend       # Backend production image
 ├── Dockerfile.frontend      # Frontend SSR production image
-├── docker-compose.yml       # Desktop-first local container stack
+├── docker-compose.yml       # Desktop-first stack using an external PostgreSQL
+├── docker-compose.with-postgres.yml # Optional PostgreSQL container overlay
 ├── .env.docker.example      # Docker environment template
 ├── AGENTS.md                # Working method and guardrails for AI agents
 ├── README.md                # Repository entry point
@@ -111,10 +112,16 @@ Reference files:
 The current desktop-first stack can now be started with Docker for local parity and shared-environment bring-up.
 
 1. Copy `.env.docker.example` to `.env.docker` and replace the placeholder LDAP and PostgreSQL secrets.
-2. Build and start the stack:
+2. For an existing PostgreSQL server, build and start the stack:
 
 ```bash
 docker-compose --env-file .env.docker up --build
+```
+
+3. If you want Docker to also start PostgreSQL locally, use the optional overlay:
+
+```bash
+docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build
 ```
 
 If your machine uses the newer plugin form, `docker compose --env-file .env.docker up --build` is equivalent.
