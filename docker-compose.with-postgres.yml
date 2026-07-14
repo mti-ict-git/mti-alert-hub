@@ -21,7 +21,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://postgres:postgres@postgres:5432/ictMTIAlertHub}
+      POSTGRES_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ictMTIAlertHub}
 
 volumes:
   postgres_data:
