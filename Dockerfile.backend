@@ -19,6 +19,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/migrations ./backend/migrations
 
 EXPOSE 4019
 

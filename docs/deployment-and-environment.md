@@ -237,6 +237,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 
 ### Runtime Notes
 - The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
+- The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
 - `VITE_API_URL` should remain a browser-reachable URL such as `http://localhost:4019`; do not point it at the internal Compose hostname because the browser cannot resolve container-only names.
 - Keep `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent` for the approved desktop-first live scope.
