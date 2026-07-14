@@ -16,12 +16,13 @@ import {
 } from "@/components/ui/dialog";
 import { WhatsAppPreview } from "@/components/notifications/WhatsAppPreview";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
+import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { templatesService } from "@/services/templates.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
-import type { Category, Channel, Priority, TargetType, Template } from "@/types";
+import type { Category, Channel, CommunicationType, Priority, TargetType, Template } from "@/types";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
 import { toast } from "sonner";
@@ -34,7 +35,7 @@ const ALL_CHANNELS: { key: Channel; label: string }[] = [
 ];
 const CHANNELS = ALL_CHANNELS.filter((channel) => enabledDeliveryChannels.includes(channel.key));
 
-const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee"];
+const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee", "Device"];
 
 interface Search { template?: string }
 
@@ -60,6 +61,10 @@ function CreateNotificationPage() {
     queryKey: ["employee-reference"],
     queryFn: referenceService.listEmployees,
   });
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: devicesService.list,
+  });
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === search.template),
     [search.template, templates],
@@ -67,6 +72,7 @@ function CreateNotificationPage() {
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [communicationType, setCommunicationType] = useState<CommunicationType>("Alert");
   const [priority, setPriority] = useState<Priority>("Info");
   const [category, setCategory] = useState<Category>("General");
   const [targetType, setTargetType] = useState<TargetType>("All");
@@ -75,6 +81,7 @@ function CreateNotificationPage() {
   const [department, setDepartment] = useState<string>("");
   const [section, setSection] = useState<string>("");
   const [employeeId, setEmployeeId] = useState<string>("");
+  const [deviceId, setDeviceId] = useState<string>("");
   const [channels, setChannels] = useState<Channel[]>([...enabledDeliveryChannels]);
   const [requireAck, setRequireAck] = useState(false);
   const [workflowId, setWorkflowId] = useState("");
@@ -94,6 +101,7 @@ function CreateNotificationPage() {
     if (!t) return;
     setTitle(t.name);
     setMessage(t.defaultMessage);
+    setCommunicationType(t.communicationType);
     setInstruction(t.defaultInstruction);
     setPriority(t.priority);
     setCategory(t.category);
@@ -125,6 +133,7 @@ function CreateNotificationPage() {
   }, [priority, selectedTemplate?.defaultWorkflowId, workflows]);
 
   const isEmergency = priority === "Emergency" || priority === "Critical";
+  const isReminder = communicationType === "Reminder";
   const availableAreas = useMemo(
     () => areas.filter((item) => !site || item.siteId === site),
     [areas, site],
@@ -190,6 +199,10 @@ function CreateNotificationPage() {
     if (nextTargetType !== "Employee") {
       setEmployeeId("");
     }
+
+    if (nextTargetType !== "Device") {
+      setDeviceId("");
+    }
   }
 
   const createMut = useMutation({
@@ -216,7 +229,7 @@ function CreateNotificationPage() {
     createMut.mutate({
       title,
       message,
-      communicationType: selectedTemplate?.communicationType,
+      communicationType: communicationType,
       priority,
       category,
       templateId: search.template,
@@ -226,6 +239,7 @@ function CreateNotificationPage() {
       targetDepartment: department || undefined,
       targetSection: section || undefined,
       targetEmployeeId: employeeId || undefined,
+      targetDeviceId: deviceId || undefined,
       channels,
       requireAck,
       workflowId: requireAck ? workflowId || null : null,
@@ -241,7 +255,8 @@ function CreateNotificationPage() {
     (targetType === "Area" && Boolean(area)) ||
     (targetType === "Department" && Boolean(department)) ||
     (targetType === "Section" && Boolean(section)) ||
-    (targetType === "Employee" && Boolean(employeeId));
+    (targetType === "Employee" && Boolean(employeeId)) ||
+    (targetType === "Device" && Boolean(deviceId));
   const canSubmit =
     title &&
     message &&
@@ -274,6 +289,28 @@ function CreateNotificationPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
+                <Label>Content Type</Label>
+                <Select
+                  value={communicationType}
+                  onValueChange={(value) => setCommunicationType(value as CommunicationType)}
+                  disabled={Boolean(selectedTemplate)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(
+                      ["Alert", "Reminder", "OperationalNotice", "News", "Article", "KnowledgeUpdate"] as CommunicationType[]
+                    ).map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {selectedTemplate
+                    ? `Template fixes the communication type as ${selectedTemplate.communicationType}.`
+                    : "Reminder drafts can later be published as recurring schedules with server or local execution."}
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>Priority</Label>
                 <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -296,6 +333,17 @@ function CreateNotificationPage() {
                 </Select>
               </div>
             </div>
+
+            {isReminder && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                <div className="text-sm font-medium">Hybrid Reminder Draft</div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Recurrence rule, timezone, execution mode, and validity window are configured when
+                  you publish this draft from the detail page. That publish step supports both
+                  `ServerGenerated` and `AgentLocalRoutine` reminder execution.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Target Type</Label>
@@ -411,6 +459,23 @@ function CreateNotificationPage() {
                     {availableEmployees.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.employeeNumber} - {item.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Target Device</Label>
+                <Select
+                  value={deviceId}
+                  onValueChange={setDeviceId}
+                  disabled={targetType !== "Device"}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select device" /></SelectTrigger>
+                  <SelectContent>
+                    {devices.map((item) => (
+                      <SelectItem key={item.id} value={item.deviceId}>
+                        {item.deviceId} - {item.hostname}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -533,16 +598,23 @@ function CreateNotificationPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEmergency ? "Confirm Critical Draft" : "Confirm Draft Creation"}</DialogTitle>
+            <DialogTitle>
+              {isEmergency ? "Confirm Critical Draft" : isReminder ? "Confirm Reminder Draft" : "Confirm Draft Creation"}
+            </DialogTitle>
             <DialogDescription>
               {isEmergency
                 ? "This will create a critical communication draft with stronger defaults for later publishing."
-                : `You are about to create a communication draft using ${channels.length} channel(s).`}
+                : isReminder
+                  ? "This will create a reminder draft. Recurrence and execution strategy are confirmed during publish."
+                  : `You are about to create a communication draft using ${channels.length} channel(s).`}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
             <div className="font-medium">{title}</div>
             <p className="mt-1 text-muted-foreground">{message}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Type: {communicationType} · Channels: {channels.join(", ")}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>

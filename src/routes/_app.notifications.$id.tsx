@@ -33,11 +33,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
-import type { Category, Channel, Notification, TargetType } from "@/types";
+import type { Category, Channel, Notification, ScheduleExecutionMode, TargetType } from "@/types";
 import { format } from "date-fns";
 import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +59,11 @@ function NotificationDetailPage() {
     queryKey: ["notification-responses", id],
     queryFn: () => notificationsService.responses(id),
   });
+  const { data: reminderActivity } = useQuery({
+    queryKey: ["notification-reminder-activity", id],
+    queryFn: () => notificationsService.reminderActivity(id),
+    enabled: n?.communicationType === "Reminder",
+  });
   const { data: audiencePreview } = useQuery({
     queryKey: ["audience-preview", id],
     queryFn: () => notificationsService.audiencePreview(id),
@@ -70,6 +76,10 @@ function NotificationDetailPage() {
     queryKey: ["employee-reference"],
     queryFn: referenceService.listEmployees,
   });
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: devicesService.list,
+  });
   const { data: workflows = [] } = useQuery({
     queryKey: ["workflow-definitions"],
     queryFn: workflowsService.list,
@@ -78,9 +88,12 @@ function NotificationDetailPage() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [draftForm, setDraftForm] = useState<EditDraftForm | null>(null);
-  const [publishMode, setPublishMode] = useState<"Now" | "Scheduled">("Now");
+  const [publishMode, setPublishMode] = useState<"Now" | "Scheduled" | "Recurring">("Now");
   const [scheduledPublishAt, setScheduledPublishAt] = useState("");
   const [publishTimezone, setPublishTimezone] = useState(getLocalTimeZone());
+  const [recurrenceRule, setRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
+  const [executionMode, setExecutionMode] = useState<ScheduleExecutionMode>("ServerGenerated");
+  const [validUntil, setValidUntil] = useState("");
   const sites = organizationReference?.sites ?? [];
   const areas = organizationReference?.areas ?? [];
   const departments = organizationReference?.departments ?? [];
@@ -102,6 +115,7 @@ function NotificationDetailPage() {
           targetDepartment: payload.targetDepartment || undefined,
           targetSection: payload.targetSection || undefined,
           targetEmployeeId: payload.targetEmployeeId || undefined,
+          targetDeviceId: payload.targetDeviceId || undefined,
           channels: payload.channels,
           requireAck: payload.requireAck,
           workflowId: payload.requireAck ? payload.workflowId || null : null,
@@ -134,6 +148,20 @@ function NotificationDetailPage() {
         });
       }
 
+      if (publishMode === "Recurring") {
+        return notificationsService.publish(id, {
+          publishMode: "Recurring",
+          scheduledAt: scheduledPublishAt.trim()
+            ? normalizeScheduledDateTime(scheduledPublishAt)
+            : null,
+          recurrenceRule: recurrenceRule.trim(),
+          timezone: publishTimezone.trim(),
+          executionMode,
+          validUntil: validUntil.trim() ? normalizeScheduledDateTime(validUntil) : null,
+          confirmedPreview: true,
+        });
+      }
+
       return notificationsService.publish(id, {
         publishMode: "Now",
         confirmedPreview: true,
@@ -144,6 +172,7 @@ function NotificationDetailPage() {
         qc.invalidateQueries({ queryKey: ["notifications"] }),
         qc.invalidateQueries({ queryKey: ["notification", id] }),
         qc.invalidateQueries({ queryKey: ["audience-preview", id] }),
+        qc.invalidateQueries({ queryKey: ["notification-reminder-activity", id] }),
       ]);
       setPublishOpen(false);
       toast.success(
@@ -230,11 +259,34 @@ function NotificationDetailPage() {
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
   const isDraft = n.status === "Draft";
+  const isReminder = n.communicationType === "Reminder";
+  const hasDesktopAgentChannel = n.channels.includes("DesktopAgent");
+  const eligibleDeviceRecipientCount = audiencePreview?.deviceRecipients ?? 0;
+  const isRoutinePriority = n.priority !== "Emergency" && n.priority !== "Critical";
+  const agentLocalRoutineGuardrails = {
+    hasDesktopAgentChannel,
+    hasEligibleDeviceAudience: eligibleDeviceRecipientCount > 0,
+    hasValidUntil: Boolean(validUntil.trim()),
+    isRoutinePriority,
+    usesExplicitDeviceTarget: n.targetType === "Device",
+  };
+  const agentLocalRoutineInvalid =
+    publishMode === "Recurring" &&
+    executionMode === "AgentLocalRoutine" &&
+    (!agentLocalRoutineGuardrails.hasDesktopAgentChannel ||
+      !agentLocalRoutineGuardrails.hasEligibleDeviceAudience ||
+      !agentLocalRoutineGuardrails.hasValidUntil ||
+      !agentLocalRoutineGuardrails.isRoutinePriority);
   const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
   const canPublish = isDraft;
   const scheduledPublishInvalid =
     publishMode === "Scheduled" &&
     (!scheduledPublishAt.trim() || !publishTimezone.trim());
+  const recurringPublishInvalid =
+    publishMode === "Recurring" &&
+    (!recurrenceRule.trim() ||
+      !publishTimezone.trim() ||
+      (validUntil.trim() && !isValidDateTimeInput(validUntil)));
 
   function openEditDialog() {
     setDraftForm({
@@ -247,6 +299,7 @@ function NotificationDetailPage() {
       targetDepartment: n.targetDepartment ?? "",
       targetSection: n.targetSection ?? "",
       targetEmployeeId: n.targetEmployeeId ?? "",
+      targetDeviceId: n.targetDeviceId ?? "",
       channels: filterEnabledDeliveryChannels(n.channels.filter(isEditableChannel)),
       requireAck: n.requireAck,
       workflowId: n.workflowId ?? "",
@@ -259,6 +312,9 @@ function NotificationDetailPage() {
     setPublishMode("Now");
     setScheduledPublishAt("");
     setPublishTimezone(getLocalTimeZone());
+    setRecurrenceRule(n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
+    setExecutionMode(n.reminderSchedule?.executionMode ?? "ServerGenerated");
+    setValidUntil(n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "");
     setPublishOpen(true);
   }
 
@@ -305,6 +361,11 @@ function NotificationDetailPage() {
             <TabsTrigger value="logs">Delivery Logs ({logs.length})</TabsTrigger>
             <TabsTrigger value="responses">Responses ({responses.length})</TabsTrigger>
             <TabsTrigger value="ack">Audience Summary</TabsTrigger>
+            {n.communicationType === "Reminder" && (
+              <TabsTrigger value="reminders">
+                Reminder Activity ({reminderActivity?.events.length ?? 0})
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
@@ -313,6 +374,7 @@ function NotificationDetailPage() {
                 <Info label="Message" value={n.message} />
                 <Info label="Instruction" value={n.instruction || "—"} />
                 <Info label="Channels" value={n.channels.join(", ")} />
+                <Info label="Content Type" value={n.communicationType} />
                 <Info label="Require Ack" value={n.requireAck ? "Yes" : "No"} />
                 <Info label="Created By" value={n.createdBy} />
                 <Info label="Created At" value={format(new Date(n.createdAt), "dd MMM yyyy HH:mm")} />
@@ -320,6 +382,21 @@ function NotificationDetailPage() {
                 <Info label="Recipients" value={`${recipientCount || audiencePreview?.totalRecipients || 0}`} />
               </CardContent>
             </Card>
+            {n.reminderSchedule && (
+              <Card className="mt-4">
+                <CardHeader><CardTitle className="text-base">Reminder Schedule</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+                  <Info label="Schedule Type" value={n.reminderSchedule.scheduleType} />
+                  <Info label="Schedule Version" value={`${n.reminderSchedule.scheduleVersion}`} />
+                  <Info label="Recurrence Rule" value={n.reminderSchedule.recurrenceRule || "—"} />
+                  <Info label="Timezone" value={n.reminderSchedule.timezone || "—"} />
+                  <Info label="Execution Mode" value={n.reminderSchedule.executionMode || "—"} />
+                  <Info label="Active Policy" value={n.reminderSchedule.isActive ? "Yes" : "No"} />
+                  <Info label="Valid From" value={formatOptionalDate(n.reminderSchedule.validFrom)} />
+                  <Info label="Valid Until" value={formatOptionalDate(n.reminderSchedule.validUntil)} />
+                </CardContent>
+              </Card>
+            )}
             {audiencePreview && (
               <Card className="mt-4">
                 <CardHeader><CardTitle className="text-base">Channel Plan</CardTitle></CardHeader>
@@ -479,6 +556,90 @@ function NotificationDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {n.communicationType === "Reminder" && (
+            <TabsContent value="reminders" className="mt-4">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Reminder Policies</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Device</TableHead>
+                          <TableHead>Schedule Version</TableHead>
+                          <TableHead>Recurrence</TableHead>
+                          <TableHead>Timezone</TableHead>
+                          <TableHead>Valid Until</TableHead>
+                          <TableHead>Last Synced</TableHead>
+                          <TableHead>State</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reminderActivity?.policies.map((policy) => (
+                          <TableRow key={policy.policyId}>
+                            <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
+                            <TableCell>{policy.scheduleVersion}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{policy.recurrenceRule}</TableCell>
+                            <TableCell>{policy.timezone}</TableCell>
+                            <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
+                            <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
+                            <TableCell><StatusBadge status={policy.isActive ? "Active" : "Cancelled"} /></TableCell>
+                          </TableRow>
+                        ))}
+                        {(reminderActivity?.policies.length ?? 0) === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                              No reminder policies have been materialized for this communication yet.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Reminder Events</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Device</TableHead>
+                          <TableHead>Event</TableHead>
+                          <TableHead>Active User</TableHead>
+                          <TableHead>Metadata</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reminderActivity?.events.map((event) => (
+                          <TableRow key={event.eventId}>
+                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                              {format(new Date(event.occurredAt), "dd MMM HH:mm:ss")}
+                            </TableCell>
+                            <TableCell>{event.deviceIdentifier ?? event.hostname ?? event.deviceId}</TableCell>
+                            <TableCell><StatusBadge status={event.eventType} /></TableCell>
+                            <TableCell>{event.activeUserIdentifier || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {event.metadata ? JSON.stringify(event.metadata) : "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {(reminderActivity?.events.length ?? 0) === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                              No reminder events have been reported by Windows Agent yet.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -541,6 +702,7 @@ function NotificationDetailPage() {
                           : "",
                         targetSection: value === "Section" ? draftForm.targetSection : "",
                         targetEmployeeId: value === "Employee" ? draftForm.targetEmployeeId : "",
+                        targetDeviceId: value === "Device" ? draftForm.targetDeviceId : "",
                       })
                     }
                     className="grid grid-cols-2 gap-2"
@@ -596,7 +758,7 @@ function NotificationDetailPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label>Target Department</Label>
                   <Select
@@ -641,6 +803,23 @@ function NotificationDetailPage() {
                       {availableEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.employeeNumber} - {employee.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Device</Label>
+                  <Select
+                    value={draftForm.targetDeviceId}
+                    onValueChange={(value) => setDraftForm({ ...draftForm, targetDeviceId: value })}
+                    disabled={draftForm.targetType !== "Device"}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select device" /></SelectTrigger>
+                    <SelectContent>
+                      {devices.map((device) => (
+                        <SelectItem key={device.id} value={device.deviceId}>
+                          {device.deviceId} - {device.hostname}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -767,7 +946,7 @@ function NotificationDetailPage() {
               <Label>Publish Mode</Label>
               <RadioGroup
                 value={publishMode}
-                onValueChange={(value) => setPublishMode(value as "Now" | "Scheduled")}
+                onValueChange={(value) => setPublishMode(value as "Now" | "Scheduled" | "Recurring")}
                 className="grid grid-cols-1 gap-2"
               >
                 <Label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
@@ -778,6 +957,12 @@ function NotificationDetailPage() {
                   <RadioGroupItem value="Scheduled" />
                   Schedule for a specific future time
                 </Label>
+                {n.communicationType === "Reminder" && (
+                  <Label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+                    <RadioGroupItem value="Recurring" />
+                    Publish a recurring reminder with explicit execution mode
+                  </Label>
+                )}
               </RadioGroup>
             </div>
 
@@ -805,11 +990,109 @@ function NotificationDetailPage() {
               </div>
             )}
 
+            {publishMode === "Recurring" && (
+              <div className="space-y-4 rounded-md border p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>First Occurrence</Label>
+                    <Input
+                      type="datetime-local"
+                      value={scheduledPublishAt}
+                      onChange={(event) => setScheduledPublishAt(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Leave empty to allow the backend to start immediately.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valid Until</Label>
+                    <Input
+                      type="datetime-local"
+                      value={validUntil}
+                      onChange={(event) => setValidUntil(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Timezone</Label>
+                    <Input
+                      value={publishTimezone}
+                      onChange={(event) => setPublishTimezone(event.target.value)}
+                      placeholder="e.g. Asia/Jakarta"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Execution Mode</Label>
+                    <Select
+                      value={executionMode}
+                      onValueChange={(value) => setExecutionMode(value as ScheduleExecutionMode)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
+                        <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      `AgentLocalRoutine` keeps the server as source of truth, but Windows Agent executes
+                      the reminder locally from a synchronized policy.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Recurrence Rule</Label>
+                  <Input
+                    value={recurrenceRule}
+                    onChange={(event) => setRecurrenceRule(event.target.value)}
+                    placeholder="e.g. FREQ=DAILY;INTERVAL=1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use an RFC5545-style recurrence rule. Example: `FREQ=DAILY;INTERVAL=1`.
+                  </p>
+                </div>
+
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <div className="font-medium">Reminder Publish Summary</div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                    <div>Execution mode: {executionMode}</div>
+                    <div>Eligible device recipients: {eligibleDeviceRecipientCount}</div>
+                    <div>Timezone: {publishTimezone || "—"}</div>
+                    <div>Valid until: {validUntil || "Required for AgentLocalRoutine"}</div>
+                    <div>Priority: {n.priority}</div>
+                    <div>Target type: {n.targetType}</div>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {executionMode === "AgentLocalRoutine"
+                      ? "Windows Agent will execute this reminder locally from a synchronized policy while the validity window remains active."
+                      : "The server will remain responsible for triggering each recurring reminder occurrence."}
+                  </p>
+                </div>
+
+                {executionMode === "AgentLocalRoutine" && (
+                  <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+                    <div className="font-medium">AgentLocalRoutine Guardrails</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                      <li>{agentLocalRoutineGuardrails.hasDesktopAgentChannel ? "OK" : "Missing"}: Desktop Agent channel must remain enabled.</li>
+                      <li>{agentLocalRoutineGuardrails.hasEligibleDeviceAudience ? "OK" : "Missing"}: audience preview must resolve to at least one eligible Windows Agent device.</li>
+                      <li>{agentLocalRoutineGuardrails.hasValidUntil ? "OK" : "Missing"}: validity window is required so the local policy remains bounded.</li>
+                      <li>{agentLocalRoutineGuardrails.isRoutinePriority ? "OK" : "Missing"}: routine reminders should not use Emergency or Critical priority.</li>
+                      <li>{agentLocalRoutineGuardrails.usesExplicitDeviceTarget ? "Good practice" : "Recommended"}: target a specific Device when the routine should be bound to a known Windows Agent endpoint.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="rounded-md border p-3 text-sm">
               <div className="font-medium">{n.title}</div>
               <p className="mt-1 text-muted-foreground">{n.message}</p>
               <p className="mt-3 text-xs text-muted-foreground">
-                By continuing, the operator confirms the latest audience preview and allows the backend to create delivery jobs for the selected channels.
+                {publishMode === "Recurring"
+                  ? "By continuing, the operator confirms the latest audience preview and publishes a recurring reminder with explicit execution semantics."
+                  : "By continuing, the operator confirms the latest audience preview and allows the backend to create delivery jobs for the selected channels."}
               </p>
             </div>
           </div>
@@ -819,10 +1102,17 @@ function NotificationDetailPage() {
             </Button>
             <Button
               onClick={() => publishMutation.mutate()}
-              disabled={publishMutation.isPending || scheduledPublishInvalid}
+              disabled={
+                publishMutation.isPending ||
+                scheduledPublishInvalid ||
+                recurringPublishInvalid ||
+                agentLocalRoutineInvalid
+              }
             >
               {publishMutation.isPending
                 ? "Publishing..."
+                : publishMode === "Recurring"
+                  ? "Publish Recurring Reminder"
                 : publishMode === "Scheduled"
                   ? "Schedule"
                   : "Publish Now"}
@@ -897,7 +1187,7 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-type EditableTargetType = "All" | "Site" | "Area" | "Department" | "Section" | "Employee";
+type EditableTargetType = "All" | "Site" | "Area" | "Department" | "Section" | "Employee" | "Device";
 
 type EditDraftForm = {
   title: string;
@@ -909,6 +1199,7 @@ type EditDraftForm = {
   targetDepartment: string;
   targetSection: string;
   targetEmployeeId: string;
+  targetDeviceId: string;
   channels: Channel[];
   requireAck: boolean;
   workflowId: string;
@@ -922,6 +1213,7 @@ const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
   "Department",
   "Section",
   "Employee",
+  "Device",
 ];
 const EDITABLE_CHANNEL_OPTIONS: Array<{ key: Channel; label: string }> = [
   { key: "DesktopAgent", label: "Desktop Agent" },
@@ -939,7 +1231,8 @@ function normalizeEditableTargetType(targetType: Notification["targetType"]): Ed
     targetType === "Area" ||
     targetType === "Department" ||
     targetType === "Section" ||
-    targetType === "Employee"
+    targetType === "Employee" ||
+    targetType === "Device"
   ) {
     return targetType;
   }
@@ -976,6 +1269,10 @@ function hasRequiredTargetSelection(form: EditDraftForm) {
     return Boolean(form.targetEmployeeId);
   }
 
+  if (form.targetType === "Device") {
+    return Boolean(form.targetDeviceId);
+  }
+
   return false;
 }
 
@@ -992,6 +1289,8 @@ function buildNotificationDescription(notification: Notification) {
     parts.push(notification.targetSection);
   } else if (notification.targetEmployeeId) {
     parts.push(notification.targetEmployeeId);
+  } else if (notification.targetDeviceId) {
+    parts.push(notification.targetDeviceId);
   }
 
   return parts.join(" · ");
@@ -1004,6 +1303,33 @@ function normalizeScheduledDateTime(value: string) {
   }
 
   return scheduledDate.toISOString();
+}
+
+function isValidDateTimeInput(value: string) {
+  return !Number.isNaN(new Date(value).getTime());
+}
+
+function toDateTimeLocalInput(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatOptionalDate(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format(date, "dd MMM yyyy HH:mm");
 }
 
 function getLocalTimeZone() {

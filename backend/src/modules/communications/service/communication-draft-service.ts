@@ -139,6 +139,46 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   updatedAt: string | null;
 };
 
+type CommunicationScheduleDetailRow = {
+  scheduleType: "Immediate" | "Scheduled" | "Recurring";
+  scheduledAt: string | null;
+  recurrenceRule: string | null;
+  timezone: string | null;
+  executionMode: ScheduleExecutionMode | null;
+  scheduleVersion: number;
+  validFrom: string | null;
+  validUntil: string | null;
+  isActive: boolean;
+};
+
+type ReminderPolicySummaryRow = {
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier: string | null;
+  hostname: string | null;
+  scheduleVersion: number;
+  recurrenceRule: string;
+  timezone: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+  updatedAt: string | null;
+};
+
+type ReminderEventRow = {
+  eventId: string;
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier: string | null;
+  hostname: string | null;
+  eventType: string;
+  occurredAt: string;
+  reportedAt: string;
+  activeUserIdentifier: string | null;
+  metadata: unknown;
+};
+
 type DeliveryJobStatus =
   | "Pending"
   | "Sent"
@@ -445,6 +485,76 @@ export class CommunicationDraftService {
     }
 
     return this.serializeCommunicationDetail(detail);
+  }
+
+  async getCommunicationReminderActivity(communicationId: string) {
+    const detail = await this.getCommunicationDetailRow(communicationId);
+    if (!detail) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    const [policies, events] = await Promise.all([
+      this.database.query<ReminderPolicySummaryRow>(
+        `
+          select
+            arp.id::text as "policyId",
+            arp.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            arp.schedule_version as "scheduleVersion",
+            arp.recurrence_rule::text as "recurrenceRule",
+            arp.timezone::text as timezone,
+            coalesce(arp.valid_from, cs.valid_from)::text as "validFrom",
+            arp.valid_until::text as "validUntil",
+            arp.is_active as "isActive",
+            arp.last_synced_at::text as "lastSyncedAt",
+            arp.updated_at::text as "updatedAt"
+          from public.agent_reminder_policies arp
+          inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
+          left join public.devices d on d.id = arp.device_id
+          where arp.communication_id::text = $1
+          order by arp.created_at desc, arp.updated_at desc
+        `,
+        [communicationId],
+      ),
+      this.database.query<ReminderEventRow>(
+        `
+          select
+            are.id::text as "eventId",
+            are.agent_reminder_policy_id::text as "policyId",
+            are.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            are.event_type::text as "eventType",
+            are.occurred_at::text as "occurredAt",
+            are.created_at::text as "reportedAt",
+            are.active_user_identifier::text as "activeUserIdentifier",
+            are.metadata_json as metadata
+          from public.agent_reminder_events are
+          inner join public.agent_reminder_policies arp on arp.id = are.agent_reminder_policy_id
+          left join public.devices d on d.id = are.device_id
+          where arp.communication_id::text = $1
+          order by are.occurred_at desc, are.created_at desc
+          limit 200
+        `,
+        [communicationId],
+      ),
+    ]);
+
+    return {
+      policies,
+      events: events.map((event) => ({
+        ...event,
+        metadata:
+          event.metadata && typeof event.metadata === "object"
+            ? (event.metadata as Record<string, unknown>)
+            : null,
+      })),
+    };
   }
 
   async listCommunicationDeliveries(options: ListCommunicationDeliveriesOptions) {
@@ -1312,9 +1422,10 @@ export class CommunicationDraftService {
   }
 
   private async serializeCommunicationDetail(detail: CommunicationDetailRow) {
-    const [targets, workflow] = await Promise.all([
+    const [targets, workflow, schedule] = await Promise.all([
       this.listTargets(detail.id),
       detail.workflowId ? this.getWorkflowSummary(detail.workflowId) : Promise.resolve(null),
+      this.getLatestCommunicationSchedule(detail.id),
     ]);
 
     return {
@@ -1335,6 +1446,7 @@ export class CommunicationDraftService {
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
       deliveryStrategy: detail.deliveryStrategy,
+      schedule,
       workflow,
       targets,
       updatedAt: detail.updatedAt,
@@ -1381,6 +1493,30 @@ export class CommunicationDraftService {
     );
 
     return rows[0];
+  }
+
+  private async getLatestCommunicationSchedule(communicationId: string) {
+    const rows = await this.database.query<CommunicationScheduleDetailRow>(
+      `
+        select
+          schedule_type::text as "scheduleType",
+          scheduled_at::text as "scheduledAt",
+          recurrence_rule::text as "recurrenceRule",
+          timezone::text as timezone,
+          execution_mode::text as "executionMode",
+          schedule_version as "scheduleVersion",
+          valid_from::text as "validFrom",
+          valid_until::text as "validUntil",
+          is_active as "isActive"
+        from public.communication_schedules
+        where communication_id::text = $1
+        order by requested_at desc, created_at desc
+        limit 1
+      `,
+      [communicationId],
+    );
+
+    return rows[0] ?? null;
   }
 
   private async getCompatibleChannelResponseTarget(

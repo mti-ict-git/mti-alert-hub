@@ -69,6 +69,11 @@ This document records unresolved product and technical questions. No implementat
 - Why it matters: This affects user experience, duplicate suppression, audit semantics, and implementation complexity in the agent scheduler.
 - Current safe assumption: skip backlog replay and continue from the next eligible occurrence unless a tighter product rule is later approved.
 
+### OQ-12. Hybrid Reminder Admin Surface
+- Question: Should hybrid recurring reminder controls remain inside the unified communication form, or should reminders receive a dedicated authoring and monitoring flow in the admin UI?
+- Why it matters: This affects operator comprehension, implementation scope, and whether `ServerGenerated` versus `AgentLocalRoutine` behavior can be explained clearly without overloading the generic notification UX.
+- Current safe assumption: keep the shared communication engine, start with the unified form plus reminder-specific sections, and require the admin detail flow to surface reminder schedule and policy state explicitly.
+
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion
 - Risk: Supporting alerts, reminders, news, articles, and knowledge items in one engine can become too broad.

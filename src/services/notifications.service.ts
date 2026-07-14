@@ -1,4 +1,11 @@
-import type { AudiencePreview, DeliveryLog, Notification, Recipient, ResponseRecord } from "@/types";
+import type {
+  AudiencePreview,
+  DeliveryLog,
+  Notification,
+  Recipient,
+  ReminderActivity,
+  ResponseRecord,
+} from "@/types";
 import { apiClient } from "@/services/api-client";
 
 type ApiCommunicationSummary = {
@@ -22,6 +29,17 @@ type ApiCommunicationDetail = ApiCommunicationSummary & {
   category?: string | null;
   requiresResponse?: boolean;
   workflow?: { id: string } | null;
+  schedule?: {
+    scheduleType: "Immediate" | "Scheduled" | "Recurring";
+    scheduledAt?: string | null;
+    recurrenceRule?: string | null;
+    timezone?: string | null;
+    executionMode?: "ServerGenerated" | "AgentLocalRoutine" | null;
+    scheduleVersion: number;
+    validFrom?: string | null;
+    validUntil?: string | null;
+    isActive: boolean;
+  } | null;
   targets: Array<{
     targetType: string;
     targetValue: string;
@@ -122,6 +140,39 @@ type ApiResponseListResponse = {
   page: ApiPageMeta;
 };
 
+type ApiReminderPolicySummary = {
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  scheduleVersion: number;
+  recurrenceRule: string;
+  timezone: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  isActive: boolean;
+  lastSyncedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type ApiReminderEventRecord = {
+  eventId: string;
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  eventType: "Triggered" | "Displayed" | "Read" | "Dismissed" | "Snoozed" | "Responded";
+  occurredAt: string;
+  reportedAt: string;
+  activeUserIdentifier?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type ApiReminderActivityResponse = {
+  policies: ApiReminderPolicySummary[];
+  events: ApiReminderEventRecord[];
+};
+
 type DeliveryVisibility = {
   items: ApiDeliveryRecord[];
   recipients: Recipient[];
@@ -149,6 +200,15 @@ type PublishNotificationInput =
       publishMode: "Scheduled";
       scheduledAt: string;
       timezone: string;
+      confirmedPreview: boolean;
+    }
+  | {
+      publishMode: "Recurring";
+      scheduledAt?: string | null;
+      recurrenceRule: string;
+      timezone: string;
+      executionMode: "ServerGenerated" | "AgentLocalRoutine";
+      validUntil?: string | null;
       confirmedPreview: boolean;
     };
 
@@ -200,6 +260,16 @@ export const notificationsService = {
       respondedAt: item.respondedAt,
     }));
   },
+  async reminderActivity(id: string): Promise<ReminderActivity> {
+    const response = await apiClient.get<ApiReminderActivityResponse>(
+      `/communications/${id}/reminder-activity`,
+    );
+
+    return {
+      policies: response.policies,
+      events: response.events,
+    };
+  },
   async audiencePreview(id: string): Promise<ApiAudiencePreview> {
     return apiClient.post<ApiAudiencePreview>(`/communications/${id}/audience-preview`);
   },
@@ -235,6 +305,7 @@ export const notificationsService = {
 function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
   return {
     id: item.id,
+    communicationType: item.communicationType as Notification["communicationType"],
     title: item.title,
     message: "",
     priority: mapPriorityFromApi(item.priority),
@@ -243,6 +314,7 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
     channels: item.channelSelections.map(mapChannelFromApi),
     requireAck: false,
     scheduledAt: item.scheduledAt ?? null,
+    reminderSchedule: null,
     status: mapStatusFromApi(item.status),
     templateId: item.templateId ?? null,
     createdBy: "System",
@@ -256,6 +328,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
   const primaryTarget = item.targets[0];
   return {
     id: item.id,
+    communicationType: item.communicationType as Notification["communicationType"],
     title: item.title,
     message: item.body,
     priority: mapPriorityFromApi(item.priority),
@@ -269,9 +342,13 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     targetEmployeeId:
       primaryTarget?.targetType === "Employee" ? primaryTarget.targetValue : undefined,
     channels: item.channelSelections.map(mapChannelFromApi),
+    targetDeviceId:
+      primaryTarget?.targetType === "Device" ? primaryTarget.targetValue : undefined,
+    workflowId: item.workflow?.id ?? null,
     workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     scheduledAt: item.scheduledAt ?? null,
+    reminderSchedule: item.schedule ?? null,
     instruction: item.workflow?.id ? "Response workflow configured by template or operator." : "",
     status: mapStatusFromApi(item.status),
     templateId: item.templateId ?? null,
@@ -327,6 +404,7 @@ function mapTargetTypeFromApi(targetType?: string): Notification["targetType"] {
     case "Department":
     case "Section":
     case "Employee":
+    case "Device":
       return targetType;
     default:
       return "Custom";
@@ -480,6 +558,8 @@ function buildTargetsFromNotification(input: UpdateNotificationInput) {
     case "Employee":
     case "Individual":
       return [{ targetType: "Employee", targetValue: input.targetEmployeeId ?? "*" }];
+    case "Device":
+      return [{ targetType: "Device", targetValue: input.targetDeviceId ?? "*" }];
     default:
       return [{ targetType: "Group", targetValue: "custom-selection" }];
   }

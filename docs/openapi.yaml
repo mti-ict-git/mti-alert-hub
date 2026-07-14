@@ -289,6 +289,34 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
 
+  /communications/{communicationId}/reminder-activity:
+    get:
+      tags: [Communications]
+      summary: Get hybrid reminder policy activity and reconciled reminder events
+      description: |
+        Returns reminder-policy materialization state and locally reported reminder evidence for a reminder communication.
+
+        Current Phase 4 note:
+        - This endpoint supports admin monitoring for `AgentLocalRoutine` reminders.
+        - It is intended for reminder-specific operator visibility, not for the Windows Agent sync path itself.
+      operationId: getCommunicationReminderActivity
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Reminder policy activity and reminder events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderActivityResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /communications/{communicationId}/duplicate:
     post:
       tags: [Communications]
@@ -1553,6 +1581,10 @@ components:
               allOf:
                 - $ref: "#/components/schemas/DeliveryStrategy"
               nullable: true
+            schedule:
+              allOf:
+                - $ref: "#/components/schemas/CommunicationScheduleDetail"
+              nullable: true
             workflow:
               allOf:
                 - $ref: "#/components/schemas/WorkflowDefinition"
@@ -1690,6 +1722,140 @@ components:
         confirmedPreview:
           type: boolean
           description: Indicates the operator confirmed the preview and channel plan before publishing.
+
+    CommunicationScheduleDetail:
+      type: object
+      required:
+        - scheduleType
+        - scheduleVersion
+        - isActive
+      properties:
+        scheduleType:
+          type: string
+          enum: [Immediate, Scheduled, Recurring]
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        recurrenceRule:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        executionMode:
+          allOf:
+            - $ref: "#/components/schemas/ScheduleExecutionMode"
+          nullable: true
+        scheduleVersion:
+          type: integer
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+
+    ReminderPolicySummary:
+      type: object
+      required:
+        - policyId
+        - deviceId
+        - scheduleVersion
+        - recurrenceRule
+        - timezone
+        - isActive
+      properties:
+        policyId:
+          type: string
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        scheduleVersion:
+          type: integer
+        recurrenceRule:
+          type: string
+        timezone:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ReminderEventRecord:
+      type: object
+      required:
+        - eventId
+        - policyId
+        - deviceId
+        - eventType
+        - occurredAt
+        - reportedAt
+      properties:
+        eventId:
+          type: string
+        policyId:
+          type: string
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        eventType:
+          type: string
+          enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded]
+        occurredAt:
+          type: string
+          format: date-time
+        reportedAt:
+          type: string
+          format: date-time
+        activeUserIdentifier:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    ReminderActivityResponse:
+      type: object
+      required: [policies, events]
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReminderPolicySummary"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReminderEventRecord"
 
     TargetRule:
       type: object

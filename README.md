@@ -35,6 +35,7 @@ Supporting references may also exist under `docs/`, such as:
 - `docs/deployment-and-environment.md`
 - `docs/integration-contracts.md`
 - `docs/go-live-checklist.md`
+- `docs/reminder-hybrid-ux.md`
 - `docs/template-policy-schema.md`
 
 ## Repository Structure

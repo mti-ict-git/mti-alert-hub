@@ -4,6 +4,13 @@
 export type Priority = "Info" | "Warning" | "Emergency" | "Critical";
 export type Category = "IT" | "OHSE" | "Security" | "Operation" | "HR" | "General";
 export type Channel = "DesktopAgent" | "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage";
+export type CommunicationType =
+  | "Alert"
+  | "Reminder"
+  | "OperationalNotice"
+  | "News"
+  | "Article"
+  | "KnowledgeUpdate";
 export type TargetType =
   | "All"
   | "Site"
@@ -37,6 +44,8 @@ export type DeliveryStatus =
 export type AckStatus = "Safe" | "NeedAssistance" | "NotInArea" | "Acknowledged" | "NoResponse";
 export type DeviceStatus = "Online" | "Offline" | "Stale";
 export type EmployeeStatus = "Active" | "Inactive";
+export type ScheduleExecutionMode = "ServerGenerated" | "AgentLocalRoutine";
+export type CommunicationScheduleType = "Immediate" | "Scheduled" | "Recurring";
 
 export interface User {
   id: string;
@@ -83,6 +92,7 @@ export interface Device {
 
 export interface Notification {
   id: string;
+  communicationType: CommunicationType;
   title: string;
   message: string;
   priority: Priority;
@@ -93,6 +103,7 @@ export interface Notification {
   targetDepartment?: string;
   targetSection?: string;
   targetEmployeeId?: string;
+  targetDeviceId?: string;
   templateId?: string | null;
   workflowId?: string | null;
   channels: Channel[];
@@ -100,10 +111,23 @@ export interface Notification {
   scheduledAt?: string | null;
   instruction?: string;
   status: NotificationStatus;
+  reminderSchedule?: ReminderSchedule | null;
   createdBy: string;
   createdAt: string;
   recipientsCount: number;
   ackCount: number;
+}
+
+export interface ReminderSchedule {
+  scheduleType: CommunicationScheduleType;
+  scheduledAt?: string | null;
+  recurrenceRule?: string | null;
+  timezone?: string | null;
+  executionMode?: ScheduleExecutionMode | null;
+  scheduleVersion: number;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  isActive: boolean;
 }
 
 export interface Recipient {
@@ -223,6 +247,39 @@ export interface WorkflowDefinition {
     key: string;
     label: string;
   }>;
+}
+
+export interface ReminderPolicySummary {
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  scheduleVersion: number;
+  recurrenceRule: string;
+  timezone: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  isActive: boolean;
+  lastSyncedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ReminderEventRecord {
+  eventId: string;
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  eventType: "Triggered" | "Displayed" | "Read" | "Dismissed" | "Snoozed" | "Responded";
+  occurredAt: string;
+  reportedAt: string;
+  activeUserIdentifier?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface ReminderActivity {
+  policies: ReminderPolicySummary[];
+  events: ReminderEventRecord[];
 }
 
 export interface AuditLog {

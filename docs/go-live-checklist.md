@@ -59,6 +59,7 @@ Current live-scope enforcement:
 - Windows Agent-targeted publish produces `communication_schedules`, `communication_recipients`, `delivery_jobs`, `delivery_attempts`, and `delivery_events`.
 - `POST /agent/session`, `POST /agent/realtime/negotiate`, `POST /agent/heartbeat`, `GET /agent/messages`, `POST /agent/messages/{messageId}/displayed`, `POST /agent/messages/{messageId}/read`, and `POST /agent/messages/{messageId}/response` work against the same persisted device and delivery state.
 - `GET /agent/reminder-policies` and `POST /agent/reminder-policies/{policyId}/events` work for approved `AgentLocalRoutine` reminders.
+- If hybrid recurring reminders are included in the release cut, the admin UI must expose reminder recurrence, execution mode, and validity-window controls clearly enough for operators to publish them without relying on undocumented backend knowledge.
 - Device-targeted Windows Agent recipient resolution works against the loaded device baseline.
 - Backend build and typecheck pass.
 - Frontend build passes for any admin flow required by the chosen go-live path.
@@ -93,10 +94,12 @@ The first client test pass does not need to wait for:
 - digital signage delivery
 - monitoring dashboards, audit-heavy reporting, and delivery analytics
 - provider-specific delivery normalization outside the Windows Agent path
+- hybrid recurring reminder authoring and monitoring UX, unless it is explicitly brought into the approved go-live scope and validated end to end
 
 ## Current Assessment
 ### Release-Critical Blockers
 - No release-critical blocker is currently confirmed in the admin publish and cancel path.
+- No release-critical blocker is currently confirmed in the implemented hybrid reminder baseline, but operator validation remains required if routine reminders are included in the operator go-live path.
 
 ### Non-Blocking Deferrals
 - WhatsApp connector selection and provider callbacks
@@ -129,9 +132,10 @@ Before release, verify at least these paths:
 7. Reconcile pending messages through `GET /agent/messages`.
 8. Report `Displayed`, `Read`, and `Responded` where applicable.
 9. Fetch reminder policies and report a reminder event when a local routine scenario is in scope.
-10. Confirm unauthenticated or mismatched-device calls are rejected.
-11. Run backend migrations, build, and typecheck.
-12. Run frontend build if the admin UI is part of the go-live path.
+10. If hybrid reminders are included in scope, validate that an operator can create a recurring reminder, choose `ServerGenerated` versus `AgentLocalRoutine`, review the publish summary, and later inspect reminder policy or evidence state from the admin flow.
+11. Confirm unauthenticated or mismatched-device calls are rejected.
+12. Run backend migrations, build, and typecheck.
+13. Run frontend build if the admin UI is part of the go-live path.
 
 ## Recommended Release Evidence
 Capture this evidence before declaring release-ready:
@@ -149,6 +153,8 @@ Capture this evidence before declaring release-ready:
 - agent session, heartbeat, reconciliation, and lifecycle evidence smoke test passed
 - realtime hub connect and publish-push smoke test passed
 - reminder policy sync smoke test passed for any local routine reminders included in the release scope
+- reminder authoring and monitoring UX validation passed if hybrid recurring reminders are included in the release scope
+- recurring reminder admin smoke passed, including `AgentLocalRoutine` publication and reminder-activity retrieval
 - unauthorized and mismatched-device challenge passed
 - known limitations are listed explicitly for stakeholders
 

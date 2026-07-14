@@ -191,11 +191,14 @@ All MVP communication types remain delivery-tracked and read-tracked.
 
 ### Workflow 2: Recurring Reminder
 1. User creates a reminder communication.
-2. User defines recurrence rule.
-3. System stores the recurring schedule and its execution mode as the authoritative server record.
-4. For server-generated schedules, the system generates scheduled executions.
-5. For approved routine Windows Agent reminders, the system distributes a versioned reminder policy with a bounded validity window to eligible agents.
-6. Each server-generated execution or local reminder occurrence produces delivery tracking evidence when the device reports back.
+2. User defines the recurrence rule, timezone, and validity window.
+3. User explicitly chooses the execution mode as either `ServerGenerated` or `AgentLocalRoutine`.
+4. System shows a publish summary describing whether each occurrence will be server-triggered or executed locally by Windows Agent from a synchronized reminder policy.
+5. System stores the recurring schedule and its execution mode as the authoritative server record.
+6. For server-generated schedules, the system generates scheduled executions.
+7. For approved routine Windows Agent reminders, the system distributes a versioned reminder policy with a bounded validity window to eligible agents.
+8. Each server-generated execution or local reminder occurrence produces delivery tracking evidence when the device reports back.
+9. Operators can later review reminder schedule metadata, policy activity, and reconciled reminder evidence from the admin experience.
 
 ### Workflow 3: Critical Emergency Communication
 1. User creates a critical alert.
@@ -222,6 +225,9 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
 - `FR-4D` The system shall allow approved routine Windows Agent reminders to execute locally from a synchronized reminder policy with bounded validity.
 - `FR-4E` The system shall invalidate or replace locally stored reminder policies when the server updates, expires, or cancels the schedule.
+- `FR-4F` The admin authoring experience shall expose the recurrence rule, timezone, execution mode, and validity window explicitly when operators create or edit recurring reminders.
+- `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
+- `FR-4H` The admin monitoring experience shall expose reminder schedule metadata, reminder policy activity, and reconciled reminder evidence so hybrid reminder behavior remains auditable and understandable for operators.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
 

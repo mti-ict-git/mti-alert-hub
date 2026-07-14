@@ -190,6 +190,19 @@ export function registerCommunicationRoutes(
       },
     },
     {
+      method: "GET",
+      path: "/communications/{communicationId}/reminder-activity",
+      requiresAuth: true,
+      async handler({ params }) {
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.getCommunicationReminderActivity(
+            params.communicationId ?? "",
+          ),
+        };
+      },
+    },
+    {
       method: "PATCH",
       path: "/communications/{communicationId}",
       requiresAuth: true,

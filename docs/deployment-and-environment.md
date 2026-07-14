@@ -166,6 +166,10 @@ Examples:
 - retry limits
 - delayed delivery policy
 
+Current implementation baseline:
+- Reminder communications can now be authored from the admin UI with an explicit `Reminder` type and later published in `Recurring` mode with recurrence rule, timezone, execution mode, and validity-window controls.
+- Admin communication detail now exposes persisted reminder schedule metadata and reminder monitoring for `AgentLocalRoutine` through reminder-policy materialization and reconciled reminder-event history.
+
 ### Observability Configuration
 Examples:
 - log level
@@ -206,6 +210,10 @@ Current command conventions:
 4. Deploy to a non-production environment first when the change is meaningful.
 5. Run smoke verification for auth, communication flow, and critical health endpoints.
 6. Promote to production only when verification evidence is acceptable.
+
+Recent verification evidence:
+- `2026-07-14`: `npm run backend:typecheck`, `npm run backend:build`, and `npm run build` passed after adding hybrid reminder authoring and monitoring support to the admin flow.
+- `2026-07-14`: `node backend/tmp/phase4-reminder-hybrid-smoke.mjs` passed on `BACKEND_PORT=4033`, confirming recurring reminder publication with `AgentLocalRoutine`, reminder schedule metadata on communication detail, and reminder-policy activity retrieval for admin monitoring.
 
 ## Docker Baseline
 ### Scope
