@@ -767,6 +767,45 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /devices/{deviceId}/test-notification:
+    post:
+      tags: [Devices]
+      summary: Send a device-scoped Windows Agent test notification
+      description: |
+        Creates and immediately publishes a one-time `OperationalNotice` communication targeted to a single device.
+
+        Current Phase 4 note:
+        - This action is intended for operator connectivity checks from the `Devices` admin view.
+        - Only devices currently reported as `Online` are eligible.
+        - The resulting communication is visible in Notification Center and follows the standard Windows Agent delivery flow.
+      operationId: sendDeviceTestNotification
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceTestNotificationRequest"
+      responses:
+        "201":
+          description: Test notification created and published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTestNotificationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /devices/{deviceId}/revoke-session:
     post:
       tags: [Devices]
@@ -2462,6 +2501,41 @@ components:
         revokedAt:
           type: string
           format: date-time
+
+    DeviceTestNotificationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Optional custom notification title. When omitted, the backend generates a device-specific default title.
+        body:
+          type: string
+          description: Optional custom notification body. When omitted, the backend generates a default connectivity-check message.
+        windowsAgentPresentation:
+          allOf:
+            - $ref: "#/components/schemas/WindowsAgentPresentation"
+          nullable: true
+          description: Optional presentation override for the Windows Agent toast or modal style.
+
+    DeviceTestNotificationResponse:
+      type: object
+      required:
+        [deviceId, hostname, communicationId, communicationStatus, title]
+      properties:
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+        communicationId:
+          type: string
+        communicationStatus:
+          type: string
+          enum: [Queued, Scheduled, Active]
+        title:
+          type: string
 
     AgentSessionRequest:
       type: object
