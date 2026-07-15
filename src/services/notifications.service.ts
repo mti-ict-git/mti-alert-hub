@@ -506,6 +506,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     windowsAgentPresentation:
       input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null,
     deliveryStrategy: null,
+    reminderSchedule: mapReminderScheduleInputToApi(input.reminderSchedule),
   };
 }
 
@@ -540,6 +541,10 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
     payload.workflowId = input.requireAck ? input.workflowId ?? null : null;
   }
 
+  if (input.reminderSchedule !== undefined) {
+    payload.reminderSchedule = mapReminderScheduleInputToApi(input.reminderSchedule);
+  }
+
   return payload;
 }
 
@@ -563,4 +568,18 @@ function buildTargetsFromNotification(input: UpdateNotificationInput) {
     default:
       return [{ targetType: "Group", targetValue: "custom-selection" }];
   }
+}
+
+function mapReminderScheduleInputToApi(reminderSchedule: Notification["reminderSchedule"] | null | undefined) {
+  if (!reminderSchedule || reminderSchedule.scheduleType !== "Recurring") {
+    return null;
+  }
+
+  return {
+    scheduledAt: reminderSchedule.scheduledAt ?? null,
+    recurrenceRule: reminderSchedule.recurrenceRule ?? "",
+    timezone: reminderSchedule.timezone ?? "",
+    executionMode: reminderSchedule.executionMode ?? "ServerGenerated",
+    validUntil: reminderSchedule.validUntil ?? null,
+  };
 }

@@ -1,9 +1,9 @@
 # MTI Alert Hybrid Reminder UX
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-14`
+- Last Updated: `2026-07-15`
 - Owner: `Product / Engineering`
 
 ## Purpose
@@ -53,6 +53,7 @@ When `communicationType = Reminder`, the admin UI should expose a reminder-speci
 The UI should explain:
 - `ServerGenerated` means the server remains responsible for triggering each occurrence.
 - `AgentLocalRoutine` means the server distributes a bounded reminder policy and Windows Agent may execute the reminder locally while the policy remains valid.
+- the reminder draft stores that recurring definition before publish so the operator is not forced to define recurrence for the first time in the publish dialog
 
 ### Required Guardrails For `AgentLocalRoutine`
 The UI should prevent or clearly reject publish attempts unless:
@@ -70,6 +71,8 @@ Before publish, the operator should see a reminder-specific confirmation summary
 - validity window
 - targeted device count
 - whether the publish will create reminder policies for local execution or server-generated scheduled executions
+
+Publish confirmation should primarily reuse the recurring definition already stored on the draft. Minor overrides may still be tolerated in early iterations, but publish should not be the first place where reminder cadence becomes visible.
 
 ## Post-Publish Detail Experience
 After publish, the communication detail experience for reminders should expose at least:
@@ -113,11 +116,13 @@ Hybrid reminder UX is not considered complete until:
 - reminder evidence is visible from the admin experience
 - challenge or verification demonstrates at least one end-to-end `AgentLocalRoutine` reminder flow
 
-## Current Gap
+## Current State
 As of `2026-07-15`, the admin UX now surfaces:
 - explicit `Reminder` authoring
 - explicit `Device` targeting
-- recurring publish controls for recurrence rule, timezone, execution mode, and validity window
+- recurring authoring controls in create and edit draft for first occurrence, recurrence rule, timezone, execution mode, and validity window
+- draft persistence for recurring reminder configuration before publish
+- recurring publish confirmation prefilled from the stored draft definition
 - reminder schedule metadata
 - reminder policy and reminder event monitoring
 - visible `AgentLocalRoutine` publish guardrails in the admin flow

@@ -1,9 +1,9 @@
 # MTI Alert Functional Specification
 
 ## Document Status
-- Version: `0.2`
+- Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-15`
 
 ## Product Definition
 `MTI Alert` is a centralized communication server platform that enables organizations to create, schedule, deliver, monitor, and govern real-time communications across multiple channels. The MVP channels are `Windows Agent` and `WhatsApp`.
@@ -225,7 +225,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
 - `FR-4D` The system shall allow approved routine Windows Agent reminders to execute locally from a synchronized reminder policy with bounded validity.
 - `FR-4E` The system shall invalidate or replace locally stored reminder policies when the server updates, expires, or cancels the schedule.
-- `FR-4F` The admin authoring experience shall expose the recurrence rule, timezone, execution mode, and validity window explicitly when operators create or edit recurring reminders.
+- `FR-4F` The admin authoring experience shall expose the recurrence rule, timezone, execution mode, first occurrence, and validity window explicitly when operators create or edit recurring reminders, and the draft shall persist that reminder definition before publish.
 - `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
 - `FR-4H` The admin monitoring experience shall expose reminder schedule metadata, reminder policy activity, and reconciled reminder evidence so hybrid reminder behavior remains auditable and understandable for operators.
 - `FR-4A` The system shall support both template-first authoring and free composition.

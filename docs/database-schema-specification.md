@@ -1,9 +1,9 @@
 # MTI Alert Database Schema Specification
 
 ## Document Status
-- Version: `0.3`
+- Version: `0.4`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-07-15`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -20,6 +20,7 @@ This document defines the conceptual database schema for the `MTI Alert` server 
 - The first applied migration is `backend/migrations/0001_phase1_foundation.up.sql`.
 - The second migration is `backend/migrations/0002_phase1_communications.up.sql`.
 - The third migration is `backend/migrations/0003_phase2_agent_sessions.up.sql`.
+- The latest reminder-authoring migration is `backend/migrations/0010_phase4_reminder_draft_authoring.up.sql`.
 - The currently implemented migration baseline covers:
   - admin users and scopes
   - organization references
@@ -149,7 +150,7 @@ Key columns:
 - `category`
 - `title`
 - `body`
-- `content_payload_json`
+- `draft_schedule_json` nullable JSON snapshot for reminder recurrence authoring before publish
 - `status`
 - `requires_response`
 - `workflow_id`

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MTI Alert Server API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Authoritative API contract for the MTI Alert central server.
 
@@ -1585,6 +1585,10 @@ components:
               allOf:
                 - $ref: "#/components/schemas/CommunicationScheduleDetail"
               nullable: true
+              description: >
+                For published communications this is the persisted publish schedule. For draft reminders
+                without a publish schedule yet, the API may surface the stored recurring draft definition here
+                so the authoring flow can reopen recurrence settings before publish.
             workflow:
               allOf:
                 - $ref: "#/components/schemas/WorkflowDefinition"
@@ -1656,6 +1660,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/DeliveryStrategy"
           nullable: true
+        reminderSchedule:
+          allOf:
+            - $ref: "#/components/schemas/ReminderDraftScheduleRequest"
+          nullable: true
         confirmLockedFieldPolicy:
           type: boolean
           description: Optional client assertion that locked template fields have not been overridden.
@@ -1693,6 +1701,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/DeliveryStrategy"
           nullable: true
+        reminderSchedule:
+          allOf:
+            - $ref: "#/components/schemas/ReminderDraftScheduleRequest"
+          nullable: true
 
     PublishCommunicationRequest:
       type: object
@@ -1722,6 +1734,26 @@ components:
         confirmedPreview:
           type: boolean
           description: Indicates the operator confirmed the preview and channel plan before publishing.
+
+    ReminderDraftScheduleRequest:
+      type: object
+      required: [recurrenceRule, timezone, executionMode]
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        recurrenceRule:
+          type: string
+        timezone:
+          type: string
+        executionMode:
+          allOf:
+            - $ref: "#/components/schemas/ScheduleExecutionMode"
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
 
     CommunicationScheduleDetail:
       type: object

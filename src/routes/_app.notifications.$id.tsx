@@ -121,6 +121,15 @@ function NotificationDetailPage() {
           workflowId: payload.requireAck ? payload.workflowId || null : null,
           instruction: payload.instruction,
           priority: n.priority,
+          reminderSchedule: n.communicationType === "Reminder"
+            ? buildDraftReminderScheduleForUpdate({
+                scheduledAt: payload.reminderScheduledAt,
+                recurrenceRule: payload.reminderRecurrenceRule,
+                timezone: payload.reminderTimezone,
+                executionMode: payload.reminderExecutionMode,
+                validUntil: payload.reminderValidUntil,
+              })
+            : null,
         });
       },
     onSuccess: async () => {
@@ -304,14 +313,19 @@ function NotificationDetailPage() {
       requireAck: n.requireAck,
       workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
+      reminderScheduledAt: n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "",
+      reminderRecurrenceRule: n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1",
+      reminderTimezone: n.reminderSchedule?.timezone ?? getLocalTimeZone(),
+      reminderExecutionMode: n.reminderSchedule?.executionMode ?? "ServerGenerated",
+      reminderValidUntil: n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "",
     });
     setEditOpen(true);
   }
 
   function openPublishDialog() {
-    setPublishMode("Now");
-    setScheduledPublishAt("");
-    setPublishTimezone(getLocalTimeZone());
+    setPublishMode(isReminder ? "Recurring" : "Now");
+    setScheduledPublishAt(n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "");
+    setPublishTimezone(n.reminderSchedule?.timezone ?? getLocalTimeZone());
     setRecurrenceRule(n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
     setExecutionMode(n.reminderSchedule?.executionMode ?? "ServerGenerated");
     setValidUntil(n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "");
@@ -866,6 +880,82 @@ function NotificationDetailPage() {
                 />
               </div>
 
+              {n.communicationType === "Reminder" && (
+                <div className="space-y-4 rounded-md border p-4">
+                  <div>
+                    <div className="text-sm font-medium">Reminder Recurrence</div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Edit the recurring reminder definition here so publish becomes a final confirmation step.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>First Occurrence</Label>
+                      <Input
+                        type="datetime-local"
+                        value={draftForm.reminderScheduledAt}
+                        onChange={(event) =>
+                          setDraftForm({ ...draftForm, reminderScheduledAt: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valid Until</Label>
+                      <Input
+                        type="datetime-local"
+                        value={draftForm.reminderValidUntil}
+                        onChange={(event) =>
+                          setDraftForm({ ...draftForm, reminderValidUntil: event.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Timezone</Label>
+                      <Input
+                        value={draftForm.reminderTimezone}
+                        onChange={(event) =>
+                          setDraftForm({ ...draftForm, reminderTimezone: event.target.value })
+                        }
+                        placeholder="e.g. Asia/Jakarta"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Execution Mode</Label>
+                      <Select
+                        value={draftForm.reminderExecutionMode}
+                        onValueChange={(value) =>
+                          setDraftForm({
+                            ...draftForm,
+                            reminderExecutionMode: value as ScheduleExecutionMode,
+                          })
+                        }
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
+                          <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Recurrence Rule</Label>
+                    <Input
+                      value={draftForm.reminderRecurrenceRule}
+                      onChange={(event) =>
+                        setDraftForm({ ...draftForm, reminderRecurrenceRule: event.target.value })
+                      }
+                      placeholder="e.g. FREQ=DAILY;INTERVAL=1"
+                    />
+                  </div>
+                </div>
+              )}
+
               {draftForm.requireAck && (
                 <div className="space-y-2">
                   <Label>Response Workflow</Label>
@@ -924,6 +1014,7 @@ function NotificationDetailPage() {
                 draftForm.channels.length === 0 ||
                 (draftForm.requireAck && !draftForm.workflowId) ||
                 !hasRequiredTargetSelection(draftForm) ||
+                (n.communicationType === "Reminder" && !isValidDraftReminderForm(draftForm)) ||
                 updateDraftMutation.isPending
               }
             >
@@ -992,6 +1083,11 @@ function NotificationDetailPage() {
 
             {publishMode === "Recurring" && (
               <div className="space-y-4 rounded-md border p-4">
+                <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  These recurrence values are prefilled from the reminder draft authoring step. Use
+                  <span className="font-medium text-foreground"> Edit Draft </span>
+                  if you want the draft itself to keep the updated recurring definition.
+                </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>First Occurrence</Label>
@@ -1204,6 +1300,11 @@ type EditDraftForm = {
   requireAck: boolean;
   workflowId: string;
   instruction: string;
+  reminderScheduledAt: string;
+  reminderRecurrenceRule: string;
+  reminderTimezone: string;
+  reminderExecutionMode: ScheduleExecutionMode;
+  reminderValidUntil: string;
 };
 
 const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
@@ -1274,6 +1375,50 @@ function hasRequiredTargetSelection(form: EditDraftForm) {
   }
 
   return false;
+}
+
+function isValidDraftReminderForm(form: EditDraftForm) {
+  if (!form.reminderTimezone.trim() || !form.reminderRecurrenceRule.trim()) {
+    return false;
+  }
+
+  if (form.reminderScheduledAt && !isValidDateTimeInput(form.reminderScheduledAt)) {
+    return false;
+  }
+
+  if (form.reminderValidUntil && !isValidDateTimeInput(form.reminderValidUntil)) {
+    return false;
+  }
+
+  if (form.reminderExecutionMode === "AgentLocalRoutine" && !form.reminderValidUntil.trim()) {
+    return false;
+  }
+
+  if (form.reminderScheduledAt && form.reminderValidUntil) {
+    return new Date(form.reminderValidUntil).getTime() > new Date(form.reminderScheduledAt).getTime();
+  }
+
+  return true;
+}
+
+function buildDraftReminderScheduleForUpdate(input: {
+  scheduledAt: string;
+  recurrenceRule: string;
+  timezone: string;
+  executionMode: ScheduleExecutionMode;
+  validUntil: string;
+}) {
+  return {
+    scheduleType: "Recurring" as const,
+    scheduledAt: input.scheduledAt ? normalizeScheduledDateTime(input.scheduledAt) : null,
+    recurrenceRule: input.recurrenceRule.trim(),
+    timezone: input.timezone.trim(),
+    executionMode: input.executionMode,
+    scheduleVersion: 0,
+    validFrom: input.scheduledAt ? normalizeScheduledDateTime(input.scheduledAt) : null,
+    validUntil: input.validUntil ? normalizeScheduledDateTime(input.validUntil) : null,
+    isActive: false,
+  };
 }
 
 function buildNotificationDescription(notification: Notification) {

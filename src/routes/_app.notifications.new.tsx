@@ -22,7 +22,15 @@ import { referenceService } from "@/services/reference.service";
 import { templatesService } from "@/services/templates.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
-import type { Category, Channel, CommunicationType, Priority, TargetType, Template } from "@/types";
+import type {
+  Category,
+  Channel,
+  CommunicationType,
+  Priority,
+  ScheduleExecutionMode,
+  TargetType,
+  Template,
+} from "@/types";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
 import { toast } from "sonner";
@@ -87,6 +95,12 @@ function CreateNotificationPage() {
   const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string>("");
+  const [reminderScheduledAt, setReminderScheduledAt] = useState("");
+  const [reminderTimezone, setReminderTimezone] = useState(getLocalTimeZone());
+  const [reminderRecurrenceRule, setReminderRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
+  const [reminderExecutionMode, setReminderExecutionMode] =
+    useState<ScheduleExecutionMode>("ServerGenerated");
+  const [reminderValidUntil, setReminderValidUntil] = useState("");
   const [instruction, setInstruction] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const sites = organizationReference?.sites ?? [];
@@ -246,6 +260,15 @@ function CreateNotificationPage() {
       instruction,
       scheduledAt: scheduleLater && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       scheduleLater,
+      reminderSchedule: isReminder
+        ? buildDraftReminderSchedule({
+            scheduledAt: reminderScheduledAt,
+            timezone: reminderTimezone,
+            recurrenceRule: reminderRecurrenceRule,
+            executionMode: reminderExecutionMode,
+            validUntil: reminderValidUntil,
+          })
+        : null,
     });
   }
 
@@ -262,7 +285,14 @@ function CreateNotificationPage() {
     message &&
     channels.length > 0 &&
     hasRequiredTargetSelection &&
-    (!requireAck || Boolean(workflowId));
+    (!requireAck || Boolean(workflowId)) &&
+    (!isReminder || isValidReminderDraftAuthoring({
+      timezone: reminderTimezone,
+      recurrenceRule: reminderRecurrenceRule,
+      executionMode: reminderExecutionMode,
+      validUntil: reminderValidUntil,
+      scheduledAt: reminderScheduledAt,
+    }));
 
   return (
     <div>
@@ -338,10 +368,87 @@ function CreateNotificationPage() {
               <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
                 <div className="text-sm font-medium">Hybrid Reminder Draft</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Recurrence rule, timezone, execution mode, and validity window are configured when
-                  you publish this draft from the detail page. That publish step supports both
-                  `ServerGenerated` and `AgentLocalRoutine` reminder execution.
+                  Reminder drafts are authored as recurring routines from the start. Set the
+                  cadence, first occurrence, timezone, execution mode, and validity window here,
+                  then use publish only as the final confirmation step.
                 </p>
+              </div>
+            )}
+
+            {isReminder && (
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <div className="text-sm font-medium">Reminder Recurrence</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This draft stores the recurring reminder definition before publish so operators
+                    can reason about repeated execution earlier in the workflow.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>First Occurrence</Label>
+                    <Input
+                      type="datetime-local"
+                      value={reminderScheduledAt}
+                      onChange={(event) => setReminderScheduledAt(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Leave empty to let the recurring reminder start as soon as it is published.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valid Until</Label>
+                    <Input
+                      type="datetime-local"
+                      value={reminderValidUntil}
+                      onChange={(event) => setReminderValidUntil(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Required later for `AgentLocalRoutine`, optional for `ServerGenerated`.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Timezone</Label>
+                    <Input
+                      value={reminderTimezone}
+                      onChange={(event) => setReminderTimezone(event.target.value)}
+                      placeholder="e.g. Asia/Jakarta"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Execution Mode</Label>
+                    <Select
+                      value={reminderExecutionMode}
+                      onValueChange={(value) => setReminderExecutionMode(value as ScheduleExecutionMode)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
+                        <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      `ServerGenerated` keeps each occurrence server-triggered. `AgentLocalRoutine`
+                      distributes a bounded local policy to Windows Agent.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Recurrence Rule</Label>
+                  <Input
+                    value={reminderRecurrenceRule}
+                    onChange={(event) => setReminderRecurrenceRule(event.target.value)}
+                    placeholder="e.g. FREQ=DAILY;INTERVAL=1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use an RFC5545-style recurrence rule. Example: `FREQ=DAILY;INTERVAL=1`.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -517,23 +624,25 @@ function CreateNotificationPage() {
               />
             </div>
 
-            <div className="space-y-2 rounded-md border p-3">
-              <Label>Schedule</Label>
-              <RadioGroup value={scheduleLater ? "later" : "now"} onValueChange={(v) => setScheduleLater(v === "later")} className="flex gap-4">
-                <Label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem value="now" /> Send Now
-                </Label>
-                <Label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem value="later" /> Schedule Later
-                </Label>
-              </RadioGroup>
-              {scheduleLater && (
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="max-w-xs" />
-              )}
-              <p className="text-xs text-muted-foreground">
-                This step still creates a draft only. Use the detail page to publish `Now` or `Scheduled` through the live backend flow.
-              </p>
-            </div>
+            {!isReminder && (
+              <div className="space-y-2 rounded-md border p-3">
+                <Label>Schedule</Label>
+                <RadioGroup value={scheduleLater ? "later" : "now"} onValueChange={(v) => setScheduleLater(v === "later")} className="flex gap-4">
+                  <Label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem value="now" /> Send Now
+                  </Label>
+                  <Label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem value="later" /> Schedule Later
+                  </Label>
+                </RadioGroup>
+                {scheduleLater && (
+                  <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="max-w-xs" />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  This step still creates a draft only. Use the detail page to publish `Now` or `Scheduled` through the live backend flow.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Instruction</Label>
@@ -605,7 +714,7 @@ function CreateNotificationPage() {
               {isEmergency
                 ? "This will create a critical communication draft with stronger defaults for later publishing."
                 : isReminder
-                  ? "This will create a reminder draft. Recurrence and execution strategy are confirmed during publish."
+                  ? "This will create a recurring reminder draft with its execution settings stored before publish."
                   : `You are about to create a communication draft using ${channels.length} channel(s).`}
             </DialogDescription>
           </DialogHeader>
@@ -638,4 +747,61 @@ function getAllowedAuthoringTargetTypes(template: Template): TargetType[] {
   );
 
   return allowedTargetTypes && allowedTargetTypes.length > 0 ? allowedTargetTypes : TARGET_TYPES;
+}
+
+function buildDraftReminderSchedule(input: {
+  scheduledAt: string;
+  timezone: string;
+  recurrenceRule: string;
+  executionMode: ScheduleExecutionMode;
+  validUntil: string;
+}) {
+  return {
+    scheduleType: "Recurring" as const,
+    scheduledAt: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
+    recurrenceRule: input.recurrenceRule.trim(),
+    timezone: input.timezone.trim(),
+    executionMode: input.executionMode,
+    scheduleVersion: 0,
+    validFrom: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
+    validUntil: input.validUntil ? new Date(input.validUntil).toISOString() : null,
+    isActive: false,
+  };
+}
+
+function isValidReminderDraftAuthoring(input: {
+  timezone: string;
+  recurrenceRule: string;
+  executionMode: ScheduleExecutionMode;
+  validUntil: string;
+  scheduledAt: string;
+}) {
+  if (!input.timezone.trim() || !input.recurrenceRule.trim()) {
+    return false;
+  }
+
+  if (input.scheduledAt && Number.isNaN(new Date(input.scheduledAt).getTime())) {
+    return false;
+  }
+
+  if (input.validUntil && Number.isNaN(new Date(input.validUntil).getTime())) {
+    return false;
+  }
+
+  if (
+    input.executionMode === "AgentLocalRoutine" &&
+    !input.validUntil.trim()
+  ) {
+    return false;
+  }
+
+  if (input.scheduledAt && input.validUntil) {
+    return new Date(input.validUntil).getTime() > new Date(input.scheduledAt).getTime();
+  }
+
+  return true;
+}
+
+function getLocalTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }

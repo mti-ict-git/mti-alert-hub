@@ -38,6 +38,13 @@ const deliveryStrategySchema = z.enum([
   "TemplatePolicy",
 ]);
 const scheduleExecutionModeSchema = z.enum(["ServerGenerated", "AgentLocalRoutine"]);
+const reminderDraftScheduleSchema = z.object({
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
+  recurrenceRule: z.string().trim().min(1),
+  timezone: z.string().trim().min(1),
+  executionMode: scheduleExecutionModeSchema,
+  validUntil: z.string().datetime({ offset: true }).optional().nullable(),
+});
 
 const communicationListQuerySchema = baseListQuerySchema.extend({
   status: z
@@ -68,6 +75,7 @@ const createCommunicationSchema = z.object({
   workflowId: z.string().uuid().optional().nullable(),
   windowsAgentPresentation: windowsAgentPresentationSchema.optional().nullable(),
   deliveryStrategy: deliveryStrategySchema.optional().nullable(),
+  reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
   confirmLockedFieldPolicy: z.boolean().optional().nullable(),
 });
 
@@ -82,6 +90,7 @@ const updateCommunicationSchema = z
     workflowId: z.string().uuid().optional().nullable(),
     windowsAgentPresentation: windowsAgentPresentationSchema.optional().nullable(),
     deliveryStrategy: deliveryStrategySchema.optional().nullable(),
+    reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one draft field must be provided.",

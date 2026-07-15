@@ -62,6 +62,7 @@ type CreateCommunicationDraftInput = {
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   deliveryStrategy?: DeliveryStrategy | null;
+  reminderSchedule?: ReminderDraftScheduleInput | null;
   confirmLockedFieldPolicy?: boolean | null;
 };
 
@@ -75,6 +76,7 @@ type UpdateCommunicationDraftInput = {
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   deliveryStrategy?: DeliveryStrategy | null;
+  reminderSchedule?: ReminderDraftScheduleInput | null;
 };
 
 type PublishMode = "Now" | "Scheduled" | "Recurring";
@@ -88,6 +90,14 @@ type PublishCommunicationInput = {
   executionMode?: ScheduleExecutionMode | null;
   validUntil?: string | null;
   confirmedPreview: boolean;
+};
+
+type ReminderDraftScheduleInput = {
+  scheduledAt?: string | null;
+  recurrenceRule: string;
+  timezone: string;
+  executionMode: ScheduleExecutionMode;
+  validUntil?: string | null;
 };
 
 type PublicationActor = {
@@ -135,6 +145,7 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   deliveryStrategy: DeliveryStrategy | null;
+  draftReminderSchedule: unknown | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -150,6 +161,8 @@ type CommunicationScheduleDetailRow = {
   validUntil: string | null;
   isActive: boolean;
 };
+
+type ReminderDraftSchedule = CommunicationScheduleDetailRow;
 
 type ReminderPolicySummaryRow = {
   policyId: string;
@@ -325,6 +338,7 @@ type CommunicationWriteModel = {
   windowsAgentPresentation: WindowsAgentPresentation | null;
   deliveryStrategy: DeliveryStrategy | null;
   targets: TargetRule[];
+  reminderSchedule: ReminderDraftSchedule | null;
 };
 
 export class CommunicationDraftService {
@@ -427,7 +441,9 @@ export class CommunicationDraftService {
           requires_response,
           workflow_id,
           windows_agent_presentation,
-          delivery_strategy
+          delivery_strategy,
+          scheduled_at,
+          draft_schedule_json
         )
         values (
           $1::uuid,
@@ -442,7 +458,9 @@ export class CommunicationDraftService {
           $9,
           $10::uuid,
           $11,
-          $12
+          $12,
+          $13::timestamptz,
+          $14::jsonb
         )
         returning id::text as id
       `,
@@ -459,6 +477,8 @@ export class CommunicationDraftService {
         writeModel.workflowId,
         writeModel.windowsAgentPresentation,
         writeModel.deliveryStrategy,
+        writeModel.reminderSchedule?.scheduledAt ?? null,
+        writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
       ],
     );
     const communicationId = insertedRows[0]?.id;
@@ -972,7 +992,9 @@ export class CommunicationDraftService {
           requires_response = $8,
           workflow_id = $9::uuid,
           windows_agent_presentation = $10,
-          delivery_strategy = $11
+          delivery_strategy = $11,
+          scheduled_at = $12::timestamptz,
+          draft_schedule_json = $13::jsonb
         where id::text = $1
       `,
       [
@@ -987,6 +1009,8 @@ export class CommunicationDraftService {
         writeModel.workflowId,
         writeModel.windowsAgentPresentation,
         writeModel.deliveryStrategy,
+        writeModel.reminderSchedule?.scheduledAt ?? null,
+        writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
       ],
     );
 
@@ -1020,7 +1044,9 @@ export class CommunicationDraftService {
           requires_response,
           workflow_id,
           windows_agent_presentation,
-          delivery_strategy
+          delivery_strategy,
+          scheduled_at,
+          draft_schedule_json
         )
         values (
           $1::uuid,
@@ -1035,7 +1061,9 @@ export class CommunicationDraftService {
           $9,
           $10::uuid,
           $11,
-          $12
+          $12,
+          $13::timestamptz,
+          $14::jsonb
         )
         returning id::text as id
       `,
@@ -1052,6 +1080,8 @@ export class CommunicationDraftService {
         existing.workflowId,
         existing.windowsAgentPresentation,
         existing.deliveryStrategy,
+        existing.scheduledAt,
+        existing.draftReminderSchedule ? JSON.stringify(existing.draftReminderSchedule) : null,
       ],
     );
     const duplicatedId = insertedRows[0]?.id;
@@ -1088,7 +1118,11 @@ export class CommunicationDraftService {
 
     const channelSelections = normalizeChannelArray(existing.channelSelections);
     validateChannelSelections(channelSelections, this.enabledDeliveryChannels);
-    validatePublishRequest(existing, input, channelSelections);
+    const effectivePublishInput = mergePublishInputWithDraftReminderSchedule(
+      input,
+      parseReminderDraftScheduleRecord(existing.draftReminderSchedule),
+    );
+    validatePublishRequest(existing, effectivePublishInput, channelSelections);
 
     const template = await this.resolveActiveTemplatePolicy(existing);
     validatePublishTemplatePolicy({
@@ -1100,7 +1134,7 @@ export class CommunicationDraftService {
     const executionAudience = await this.audiencePreviewService.resolveExecutionAudience(
       communicationId,
     );
-    validateAgentLocalRoutineAudience(input, executionAudience);
+    validateAgentLocalRoutineAudience(effectivePublishInput, executionAudience);
     const workflowSnapshot = existing.workflowId
       ? await this.getWorkflowSummary(existing.workflowId)
       : null;
@@ -1116,7 +1150,7 @@ export class CommunicationDraftService {
     await this.database.withTransaction(async (transaction) => {
       await deactivateActiveSchedules(transaction, communicationId, acceptedAt);
 
-      if (input.publishMode === "Now") {
+      if (effectivePublishInput.publishMode === "Now") {
         await transaction.query(
           `
             update public.communications
@@ -1139,7 +1173,7 @@ export class CommunicationDraftService {
           executionMode: null,
           validFrom: acceptedAt,
           validUntil: null,
-          publishRequest: input,
+          publishRequest: effectivePublishInput,
           actor,
           requestedAt: acceptedAt,
         });
@@ -1163,7 +1197,7 @@ export class CommunicationDraftService {
           description: `Publish request accepted for communication ${communicationId} with immediate delivery execution.`,
           ipAddress: actor.ipAddress ?? null,
           metadata: {
-            publishMode: input.publishMode,
+            publishMode: effectivePublishInput.publishMode,
             previousStatus: existing.status,
             nextStatus: "Queued",
             selectedChannels: executionAudience.selectedChannels,
@@ -1182,7 +1216,7 @@ export class CommunicationDraftService {
           metadata: {
             previousStatus: existing.status,
             nextStatus: "Queued",
-            publishMode: input.publishMode,
+            publishMode: effectivePublishInput.publishMode,
           },
           createdAt: acceptedAt,
         });
@@ -1190,7 +1224,7 @@ export class CommunicationDraftService {
         return;
       }
 
-      if (input.publishMode === "Scheduled") {
+      if (effectivePublishInput.publishMode === "Scheduled") {
         await transaction.query(
           `
             update public.communications
@@ -1200,19 +1234,19 @@ export class CommunicationDraftService {
               cancelled_at = null
             where id::text = $1
           `,
-          [communicationId, input.scheduledAt ?? null],
+          [communicationId, effectivePublishInput.scheduledAt ?? null],
         );
 
         const scheduleId = await insertCommunicationSchedule(transaction, {
           communicationId,
           scheduleType: "Scheduled",
-          scheduledAt: input.scheduledAt ?? null,
+          scheduledAt: effectivePublishInput.scheduledAt ?? null,
           recurrenceRule: null,
-          timezone: input.timezone ?? null,
+          timezone: effectivePublishInput.timezone ?? null,
           executionMode: null,
-          validFrom: input.scheduledAt ?? null,
+          validFrom: effectivePublishInput.scheduledAt ?? null,
           validUntil: null,
-          publishRequest: input,
+          publishRequest: effectivePublishInput,
           actor,
           requestedAt: acceptedAt,
         });
@@ -1236,11 +1270,11 @@ export class CommunicationDraftService {
           description: `Publish request accepted for communication ${communicationId} with scheduled delivery execution.`,
           ipAddress: actor.ipAddress ?? null,
           metadata: {
-            publishMode: input.publishMode,
+            publishMode: effectivePublishInput.publishMode,
             previousStatus: existing.status,
             nextStatus: "Scheduled",
-            scheduledAt: input.scheduledAt ?? null,
-            timezone: input.timezone ?? null,
+            scheduledAt: effectivePublishInput.scheduledAt ?? null,
+            timezone: effectivePublishInput.timezone ?? null,
           },
           createdAt: acceptedAt,
         });
@@ -1256,7 +1290,7 @@ export class CommunicationDraftService {
           metadata: {
             previousStatus: existing.status,
             nextStatus: "Scheduled",
-            publishMode: input.publishMode,
+            publishMode: effectivePublishInput.publishMode,
           },
           createdAt: acceptedAt,
         });
@@ -1273,19 +1307,19 @@ export class CommunicationDraftService {
             cancelled_at = null
           where id::text = $1
         `,
-        [communicationId, input.scheduledAt ?? null],
+        [communicationId, effectivePublishInput.scheduledAt ?? null],
       );
 
       const scheduleId = await insertCommunicationSchedule(transaction, {
         communicationId,
         scheduleType: "Recurring",
-        scheduledAt: input.scheduledAt ?? null,
-        recurrenceRule: input.recurrenceRule ?? null,
-        timezone: input.timezone ?? null,
-        executionMode: input.executionMode ?? null,
-        validFrom: input.scheduledAt ?? acceptedAt,
-        validUntil: input.validUntil ?? null,
-        publishRequest: input,
+        scheduledAt: effectivePublishInput.scheduledAt ?? null,
+        recurrenceRule: effectivePublishInput.recurrenceRule ?? null,
+        timezone: effectivePublishInput.timezone ?? null,
+        executionMode: effectivePublishInput.executionMode ?? null,
+        validFrom: effectivePublishInput.scheduledAt ?? acceptedAt,
+        validUntil: effectivePublishInput.validUntil ?? null,
+        publishRequest: effectivePublishInput,
         actor,
         requestedAt: acceptedAt,
       });
@@ -1303,14 +1337,14 @@ export class CommunicationDraftService {
       await materializeAgentReminderPolicies(transaction, {
         communicationScheduleId: scheduleId,
         communicationId,
-        executionMode: input.executionMode ?? null,
+        executionMode: effectivePublishInput.executionMode ?? null,
         recipients: executionAudience,
         communication: existing,
         scheduleVersion: 1,
-        recurrenceRule: input.recurrenceRule ?? null,
-        timezone: input.timezone ?? null,
-        validFrom: input.scheduledAt ?? acceptedAt,
-        validUntil: input.validUntil ?? null,
+        recurrenceRule: effectivePublishInput.recurrenceRule ?? null,
+        timezone: effectivePublishInput.timezone ?? null,
+        validFrom: effectivePublishInput.scheduledAt ?? acceptedAt,
+        validUntil: effectivePublishInput.validUntil ?? null,
       });
       await this.auditLogService.record(transaction, {
         actorUserId: actor.userIdentifier,
@@ -1322,14 +1356,14 @@ export class CommunicationDraftService {
         description: `Publish request accepted for communication ${communicationId} with recurring delivery execution.`,
         ipAddress: actor.ipAddress ?? null,
         metadata: {
-          publishMode: input.publishMode,
+          publishMode: effectivePublishInput.publishMode,
           previousStatus: existing.status,
           nextStatus: "Scheduled",
-          scheduledAt: input.scheduledAt ?? null,
-          timezone: input.timezone ?? null,
-          executionMode: input.executionMode ?? null,
-          recurrenceRule: input.recurrenceRule ?? null,
-          validUntil: input.validUntil ?? null,
+          scheduledAt: effectivePublishInput.scheduledAt ?? null,
+          timezone: effectivePublishInput.timezone ?? null,
+          executionMode: effectivePublishInput.executionMode ?? null,
+          recurrenceRule: effectivePublishInput.recurrenceRule ?? null,
+          validUntil: effectivePublishInput.validUntil ?? null,
         },
         createdAt: acceptedAt,
       });
@@ -1345,7 +1379,7 @@ export class CommunicationDraftService {
         metadata: {
           previousStatus: existing.status,
           nextStatus: "Scheduled",
-          publishMode: input.publishMode,
+          publishMode: effectivePublishInput.publishMode,
         },
         createdAt: acceptedAt,
       });
@@ -1446,7 +1480,7 @@ export class CommunicationDraftService {
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
       deliveryStrategy: detail.deliveryStrategy,
-      schedule,
+      schedule: schedule ?? parseReminderDraftScheduleRecord(detail.draftReminderSchedule),
       workflow,
       targets,
       updatedAt: detail.updatedAt,
@@ -1484,6 +1518,7 @@ export class CommunicationDraftService {
           workflow_id::text as "workflowId",
           windows_agent_presentation::text as "windowsAgentPresentation",
           delivery_strategy::text as "deliveryStrategy",
+          draft_schedule_json as "draftReminderSchedule",
           updated_at::text as "updatedAt"
         from public.communications
         where id::text = $1
@@ -1693,6 +1728,7 @@ export class CommunicationDraftService {
       workflowId: input.workflowId ?? null,
       windowsAgentPresentation: input.windowsAgentPresentation ?? null,
       deliveryStrategy: input.deliveryStrategy ?? null,
+      reminderSchedule: input.reminderSchedule ?? null,
     });
   }
 
@@ -1722,6 +1758,10 @@ export class CommunicationDraftService {
           : input.windowsAgentPresentation,
       deliveryStrategy:
         input.deliveryStrategy === undefined ? existing.deliveryStrategy : input.deliveryStrategy,
+      reminderSchedule:
+        input.reminderSchedule === undefined
+          ? parseReminderDraftScheduleRecord(existing.draftReminderSchedule)
+          : input.reminderSchedule,
     });
   }
 
@@ -1737,6 +1777,7 @@ export class CommunicationDraftService {
     workflowId: string | null;
     windowsAgentPresentation: WindowsAgentPresentation | null;
     deliveryStrategy: DeliveryStrategy | null;
+    reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null;
   }): Promise<CommunicationWriteModel> {
     validateTargets(input.targets);
     validateChannelSelections(input.channelSelections, this.enabledDeliveryChannels);
@@ -1797,6 +1838,11 @@ export class CommunicationDraftService {
       await this.workflowDefinitionService.getWorkflowDefinitionOrThrow(finalWorkflowId);
     }
 
+    const reminderSchedule = normalizeReminderDraftScheduleInput(
+      input.communicationType,
+      input.reminderSchedule,
+    );
+
     return {
       templateId: template?.id ?? null,
       templateVersion: template?.version ?? null,
@@ -1810,6 +1856,7 @@ export class CommunicationDraftService {
       workflowId: finalWorkflowId,
       windowsAgentPresentation: finalWindowsAgentPresentation,
       deliveryStrategy: finalDeliveryStrategy,
+      reminderSchedule,
       targets: input.targets.map((target) => ({
         targetType: target.targetType,
         targetValue: target.targetValue.trim(),
@@ -1821,6 +1868,110 @@ export class CommunicationDraftService {
 function normalizeNullableText(value: string | null) {
   const trimmed = value?.trim() ?? null;
   return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeReminderDraftScheduleInput(
+  communicationType: CommunicationType,
+  reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null,
+): ReminderDraftSchedule | null {
+  if (!reminderSchedule) {
+    return null;
+  }
+
+  if (communicationType !== "Reminder") {
+    throw new AppError({
+      statusCode: 422,
+      code: "REMINDER_SCHEDULE_ONLY_FOR_REMINDERS",
+      message: "Draft reminder scheduling is only supported for reminder communications.",
+    });
+  }
+
+  const scheduledAt = parseOptionalIsoDate(reminderSchedule.scheduledAt, "reminderSchedule.scheduledAt");
+  const validUntil = parseOptionalIsoDate(reminderSchedule.validUntil, "reminderSchedule.validUntil");
+  const recurrenceRule = normalizeNullableText(reminderSchedule.recurrenceRule);
+  const timezone = normalizeNullableText(reminderSchedule.timezone);
+
+  if (!recurrenceRule) {
+    throw new AppError({
+      statusCode: 422,
+      code: "REMINDER_RECURRENCE_RULE_REQUIRED",
+      message: "Reminder drafts must provide a recurrenceRule value.",
+    });
+  }
+
+  if (!timezone) {
+    throw new AppError({
+      statusCode: 422,
+      code: "REMINDER_TIMEZONE_REQUIRED",
+      message: "Reminder drafts must provide a timezone value.",
+    });
+  }
+
+  assertValidTimeZone(timezone);
+
+  if (validUntil && scheduledAt && validUntil <= scheduledAt) {
+    throw new AppError({
+      statusCode: 422,
+      code: "REMINDER_VALID_UNTIL_INVALID",
+      message: "Reminder draft validUntil must be later than the first occurrence.",
+    });
+  }
+
+  return {
+    scheduleType: "Recurring",
+    scheduledAt: scheduledAt?.toISOString() ?? null,
+    recurrenceRule,
+    timezone,
+    executionMode: reminderSchedule.executionMode,
+    scheduleVersion: 0,
+    validFrom: scheduledAt?.toISOString() ?? null,
+    validUntil: validUntil?.toISOString() ?? null,
+    isActive: false,
+  };
+}
+
+function parseReminderDraftScheduleRecord(value: unknown): ReminderDraftSchedule | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Partial<ReminderDraftSchedule>;
+  if (record.scheduleType !== "Recurring") {
+    return null;
+  }
+
+  return {
+    scheduleType: "Recurring",
+    scheduledAt: typeof record.scheduledAt === "string" ? record.scheduledAt : null,
+    recurrenceRule: typeof record.recurrenceRule === "string" ? record.recurrenceRule : null,
+    timezone: typeof record.timezone === "string" ? record.timezone : null,
+    executionMode:
+      record.executionMode === "ServerGenerated" || record.executionMode === "AgentLocalRoutine"
+        ? record.executionMode
+        : null,
+    scheduleVersion: typeof record.scheduleVersion === "number" ? record.scheduleVersion : 0,
+    validFrom: typeof record.validFrom === "string" ? record.validFrom : null,
+    validUntil: typeof record.validUntil === "string" ? record.validUntil : null,
+    isActive: false,
+  };
+}
+
+function mergePublishInputWithDraftReminderSchedule(
+  input: PublishCommunicationInput,
+  draftSchedule: ReminderDraftSchedule | null,
+): PublishCommunicationInput {
+  if (input.publishMode !== "Recurring" || !draftSchedule) {
+    return input;
+  }
+
+  return {
+    ...input,
+    scheduledAt: input.scheduledAt ?? draftSchedule.scheduledAt ?? null,
+    recurrenceRule: input.recurrenceRule ?? draftSchedule.recurrenceRule ?? null,
+    timezone: input.timezone ?? draftSchedule.timezone ?? null,
+    executionMode: input.executionMode ?? draftSchedule.executionMode ?? null,
+    validUntil: input.validUntil ?? draftSchedule.validUntil ?? null,
+  };
 }
 
 function validateTargets(targets: TargetRule[]) {
