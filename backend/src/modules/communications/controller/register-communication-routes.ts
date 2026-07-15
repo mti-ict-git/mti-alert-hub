@@ -63,6 +63,7 @@ const targetRuleSchema = z.object({
   targetType: targetTypeSchema,
   targetValue: z.string().trim().min(1),
 });
+const communicationBodySchema = z.string().trim().min(1).max(320);
 
 const createCommunicationSchema = z.object({
   communicationType: communicationTypeSchema,
@@ -70,7 +71,7 @@ const createCommunicationSchema = z.object({
   category: z.string().trim().optional().nullable(),
   templateId: z.string().uuid().optional().nullable(),
   title: z.string().trim().min(1),
-  body: z.string().trim().min(1),
+  body: communicationBodySchema,
   instruction: z.string().trim().optional().nullable(),
   channelSelections: z.array(channelSchema).min(1),
   targets: z.array(targetRuleSchema).min(1),
@@ -84,10 +85,11 @@ const createCommunicationSchema = z.object({
 
 const updateCommunicationSchema = z
   .object({
+    priority: prioritySchema.optional(),
     category: z.string().trim().optional().nullable(),
     templateId: z.string().uuid().optional().nullable(),
     title: z.string().trim().min(1).optional(),
-    body: z.string().trim().min(1).optional(),
+    body: communicationBodySchema.optional(),
     instruction: z.string().trim().optional().nullable(),
     channelSelections: z.array(channelSchema).min(1).optional(),
     targets: z.array(targetRuleSchema).min(1).optional(),

@@ -1609,6 +1609,7 @@ components:
           properties:
             body:
               type: string
+              maxLength: 320
             instruction:
               type: string
               nullable: true
@@ -1691,6 +1692,7 @@ components:
           type: string
         body:
           type: string
+          maxLength: 320
         instruction:
           type: string
           nullable: true
@@ -1733,6 +1735,8 @@ components:
     UpdateCommunicationRequest:
       type: object
       properties:
+        priority:
+          $ref: "#/components/schemas/Priority"
         category:
           type: string
           nullable: true
@@ -1743,6 +1747,7 @@ components:
           type: string
         body:
           type: string
+          maxLength: 320
         instruction:
           type: string
           nullable: true

@@ -21,6 +21,8 @@ import type {
 } from "./communication-template-service.js";
 import { CommunicationTemplateService } from "./communication-template-service.js";
 
+const COMMUNICATION_BODY_MAX_LENGTH = 320;
+
 type CommunicationStatus =
   | "Draft"
   | "Scheduled"
@@ -69,6 +71,7 @@ type CreateCommunicationDraftInput = {
 };
 
 type UpdateCommunicationDraftInput = {
+  priority?: Priority;
   category?: string | null;
   templateId?: string | null;
   title?: string;
@@ -621,13 +624,22 @@ export class CommunicationDraftService {
             d.hostname::text as hostname,
             cr.channel_endpoint::text as "channelEndpoint",
             e.employee_number::text as "employeeNumber",
-            coalesce(
-              cr.recipient_name_snapshot,
-              e.full_name,
-              d.hostname,
-              cr.channel_endpoint,
-              'Unknown recipient'
-            )::text as "recipientName",
+            case
+              when cr.recipient_type = 'Device' then coalesce(
+                d.hostname,
+                d.device_identifier,
+                cr.recipient_name_snapshot,
+                cr.channel_endpoint,
+                'Unknown device'
+              )
+              else coalesce(
+                cr.recipient_name_snapshot,
+                e.full_name,
+                d.hostname,
+                cr.channel_endpoint,
+                'Unknown recipient'
+              )
+            end::text as "recipientName",
             cr.department_name_snapshot::text as "departmentName",
             cr.section_name_snapshot::text as "sectionName",
             cr.site_name_snapshot::text as "siteName",
@@ -670,13 +682,22 @@ export class CommunicationDraftService {
           select
             dj.id::text as "deliveryJobId",
             cr.id::text as "recipientId",
-            coalesce(
-              cr.recipient_name_snapshot,
-              e.full_name,
-              d.hostname,
-              cr.channel_endpoint,
-              'Unknown recipient'
-            )::text as "recipientName",
+            case
+              when cr.recipient_type = 'Device' then coalesce(
+                d.hostname,
+                d.device_identifier,
+                cr.recipient_name_snapshot,
+                cr.channel_endpoint,
+                'Unknown device'
+              )
+              else coalesce(
+                cr.recipient_name_snapshot,
+                e.full_name,
+                d.hostname,
+                cr.channel_endpoint,
+                'Unknown recipient'
+              )
+            end::text as "recipientName",
             cr.recipient_type::text as "recipientType",
             cr.employee_id::text as "employeeId",
             cr.device_id::text as "deviceId",
@@ -731,13 +752,22 @@ export class CommunicationDraftService {
             de.id::text as "eventId",
             dj.id::text as "deliveryJobId",
             cr.id::text as "recipientId",
-            coalesce(
-              cr.recipient_name_snapshot,
-              e.full_name,
-              d.hostname,
-              cr.channel_endpoint,
-              'Unknown recipient'
-            )::text as "recipientName",
+            case
+              when cr.recipient_type = 'Device' then coalesce(
+                d.hostname,
+                d.device_identifier,
+                cr.recipient_name_snapshot,
+                cr.channel_endpoint,
+                'Unknown device'
+              )
+              else coalesce(
+                cr.recipient_name_snapshot,
+                e.full_name,
+                d.hostname,
+                cr.channel_endpoint,
+                'Unknown recipient'
+              )
+            end::text as "recipientName",
             dj.channel::text as channel,
             de.event_type::text as "eventType",
             de.event_source::text as "eventSource",
@@ -999,24 +1029,26 @@ export class CommunicationDraftService {
         set
           template_id = $2::uuid,
           template_version = $3,
-          category = $4,
-          title = $5,
-          body = $6,
-          instruction = $7,
-          channel_selections_json = $8::jsonb,
-          requires_response = $9,
-          workflow_id = $10::uuid,
-          windows_agent_presentation = $11,
-          toast_auto_dismiss_seconds = $12,
-          delivery_strategy = $13,
-          scheduled_at = $14::timestamptz,
-          draft_schedule_json = $15::jsonb
+          priority = $4,
+          category = $5,
+          title = $6,
+          body = $7,
+          instruction = $8,
+          channel_selections_json = $9::jsonb,
+          requires_response = $10,
+          workflow_id = $11::uuid,
+          windows_agent_presentation = $12,
+          toast_auto_dismiss_seconds = $13,
+          delivery_strategy = $14,
+          scheduled_at = $15::timestamptz,
+          draft_schedule_json = $16::jsonb
         where id::text = $1
       `,
       [
         communicationId,
         writeModel.templateId,
         writeModel.templateVersion,
+        writeModel.priority,
         writeModel.category,
         writeModel.title,
         writeModel.body,
@@ -1773,7 +1805,7 @@ export class CommunicationDraftService {
 
     return this.validateAndBuildWriteModel({
       communicationType: existing.communicationType,
-      priority: existing.priority,
+      priority: input.priority ?? existing.priority,
       category: input.category === undefined ? existing.category : input.category,
       template,
       title: input.title ?? existing.title,
@@ -1920,7 +1952,7 @@ export class CommunicationDraftService {
       priority: input.priority,
       category: normalizeNullableText(input.category),
       title: input.title.trim(),
-      body: input.body.trim(),
+      body: normalizeCommunicationBody(input.body),
       instruction: normalizedWindowsAgentAuthoring.instruction,
       channelSelections: normalizedChannelSelections,
       requiresResponse,
@@ -1940,6 +1972,27 @@ export class CommunicationDraftService {
 function normalizeNullableText(value: string | null) {
   const trimmed = value?.trim() ?? null;
   return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeCommunicationBody(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length < 1) {
+    throw new AppError({
+      statusCode: 422,
+      code: "COMMUNICATION_BODY_REQUIRED",
+      message: "Communication body is required.",
+    });
+  }
+
+  if (trimmed.length > COMMUNICATION_BODY_MAX_LENGTH) {
+    throw new AppError({
+      statusCode: 422,
+      code: "COMMUNICATION_BODY_TOO_LONG",
+      message: `Communication body must be ${COMMUNICATION_BODY_MAX_LENGTH} characters or fewer.`,
+    });
+  }
+
+  return trimmed;
 }
 
 function normalizeToastAutoDismissSeconds(value: number | null | undefined) {
@@ -2921,6 +2974,17 @@ function buildRecipientSeeds(options: {
 }
 
 function resolveRecipientName(recipient: ExecutionAudienceResolution["recipients"][number]) {
+  if (recipient.recipientType === "Device") {
+    return (
+      recipient.hostname ??
+      recipient.deviceIdentifier ??
+      recipient.fullName ??
+      recipient.employeeNumber ??
+      recipient.employeeId ??
+      recipient.deviceId
+    );
+  }
+
   return (
     recipient.fullName ??
     recipient.hostname ??
@@ -3595,7 +3659,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   if (isRecord(value)) {
-    return value;
+    const record: Record<string, unknown> = value;
+    return record;
   }
 
   if (typeof value !== "string") {

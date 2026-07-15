@@ -533,6 +533,10 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
     toastAutoDismissSeconds: input.toastAutoDismissSeconds,
   });
 
+  if (input.priority !== undefined) {
+    payload.priority = input.priority === "Emergency" ? "Critical" : input.priority;
+  }
+
   if (input.category) {
     payload.category = input.category;
   }

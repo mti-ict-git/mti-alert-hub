@@ -44,6 +44,7 @@ import type {
   Category,
   Channel,
   Notification,
+  Priority,
   ScheduleExecutionMode,
   TargetType,
   WindowsAgentPresentation,
@@ -53,6 +54,7 @@ import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users,
 import { toast } from "sonner";
 
 const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
+const MESSAGE_MAX_LENGTH = 320;
 
 export const Route = createFileRoute("/_app/notifications/$id")({
   validateSearch: (search: Record<string, unknown>): DetailSearch => ({
@@ -126,6 +128,7 @@ function NotificationDetailPage() {
         }
 
         return notificationsService.update(id, {
+          priority: payload.priority,
           title: payload.title,
           message: payload.message,
           category: payload.category,
@@ -139,7 +142,7 @@ function NotificationDetailPage() {
           channels: payload.channels,
           windowsAgentPresentation: payload.channels.includes("DesktopAgent")
             ? getEffectiveWindowsAgentPresentation(
-              n.priority,
+              payload.priority,
               payload.channels.includes("DesktopAgent"),
               payload.windowsAgentPresentation,
             )
@@ -148,17 +151,16 @@ function NotificationDetailPage() {
           requireAck: payload.requireAck,
           workflowId: payload.requireAck ? payload.workflowId || null : null,
           instruction: getInstructionMode(
-            n.priority,
+            payload.priority,
             payload.channels.includes("DesktopAgent"),
             getEffectiveWindowsAgentPresentation(
-              n.priority,
+              payload.priority,
               payload.channels.includes("DesktopAgent"),
               payload.windowsAgentPresentation,
             ),
           ) === "blocked"
             ? ""
             : payload.instruction,
-          priority: n.priority,
           reminderSchedule: n.communicationType === "Reminder"
             ? buildDraftReminderScheduleForUpdate({
                 scheduledAt: payload.reminderScheduledAt,
@@ -302,7 +304,7 @@ function NotificationDetailPage() {
     NoResponse: persistedRecipients.filter((r) => r.ackStatus === "NoResponse").length,
   };
   const recipientCount = recipientRows.length;
-  const currentPriority = n?.priority ?? "Info";
+  const currentPriority = draftForm?.priority ?? normalizeEditablePriority(n?.priority ?? "Info");
   const draftHasDesktopAgentChannel = draftForm?.channels.includes("DesktopAgent") ?? false;
   const draftEffectivePresentation = draftForm
     ? getEffectiveWindowsAgentPresentation(currentPriority, draftHasDesktopAgentChannel, draftForm.windowsAgentPresentation)
@@ -336,13 +338,13 @@ function NotificationDetailPage() {
       return;
     }
 
-    if (n.priority === "Warning" && draftForm.windowsAgentPresentation !== "Modal") {
+    if (currentPriority === "Warning" && draftForm.windowsAgentPresentation !== "Modal") {
       setDraftForm({
         ...draftForm,
         windowsAgentPresentation: "Modal",
       });
     }
-  }, [draftForm, draftHasDesktopAgentChannel, n?.priority]);
+  }, [currentPriority, draftForm, draftHasDesktopAgentChannel]);
 
   useEffect(() => {
     if (!draftForm || !draftInstructionBlocked || !draftForm.instruction) {
@@ -401,6 +403,7 @@ function NotificationDetailPage() {
 
   function openEditDialog() {
     setDraftForm({
+      priority: normalizeEditablePriority(n.priority),
       title: n.title,
       message: n.message,
       category: n.category,
@@ -655,7 +658,9 @@ function NotificationDetailPage() {
                   {responses.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                        No recipient responses have been recorded for this communication yet.
+                        {n.requireAck
+                          ? "No workflow responses have been recorded for this communication yet."
+                          : "This communication does not use a response workflow. Mark As Read and Dismiss activity appears in Delivery Logs instead."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -789,12 +794,32 @@ function NotificationDetailPage() {
                 <Label>Message</Label>
                 <Textarea
                   rows={4}
+                  maxLength={MESSAGE_MAX_LENGTH}
                   value={draftForm.message}
                   onChange={(event) => setDraftForm({ ...draftForm, message: event.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters. {draftForm.message.trim().length}/{MESSAGE_MAX_LENGTH}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={draftForm.priority}
+                    onValueChange={(value) =>
+                      setDraftForm({ ...draftForm, priority: value as EditablePriority })
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {EDITABLE_PRIORITIES.map((priority) => (
+                        <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Select
@@ -990,12 +1015,12 @@ function NotificationDetailPage() {
                         windowsAgentPresentation: value as WindowsAgentPresentation,
                       })
                     }
-                    disabled={n.priority === "Warning"}
+                    disabled={currentPriority === "Warning"}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {WINDOWS_AGENT_PRESENTATIONS.filter((presentation) =>
-                        n.priority === "Warning" ? presentation === "Modal" : true,
+                        currentPriority === "Warning" ? presentation === "Modal" : true,
                       ).map((presentation) => (
                         <SelectItem key={presentation} value={presentation}>
                           {presentation}
@@ -1004,7 +1029,7 @@ function NotificationDetailPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {n.priority === "Warning"
+                    {currentPriority === "Warning"
                       ? "Warning notifications on Windows Agent always use Modal so recipients must act on an explicit surface."
                       : "This controls whether Windows Agent renders the draft as a toast, modal, or fullscreen surface."}
                   </p>
@@ -1481,8 +1506,10 @@ function Info({
 }
 
 type EditableTargetType = "All" | "Site" | "Area" | "Department" | "Section" | "Employee" | "Device";
+type EditablePriority = "Info" | "Warning" | "Critical";
 
 type EditDraftForm = {
+  priority: EditablePriority;
   title: string;
   message: string;
   category: Category;
@@ -1506,6 +1533,7 @@ type EditDraftForm = {
   reminderValidUntil: string;
 };
 
+const EDITABLE_PRIORITIES: EditablePriority[] = ["Info", "Warning", "Critical"];
 const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
   "All",
   "Site",
@@ -1542,6 +1570,10 @@ function normalizeEditableTargetType(targetType: Notification["targetType"]): Ed
 
 function isEditableChannel(channel: Notification["channels"][number]): channel is Channel {
   return EDITABLE_CHANNEL_OPTIONS.some((candidate) => candidate.key === channel);
+}
+
+function normalizeEditablePriority(priority: Notification["priority"]): EditablePriority {
+  return priority === "Emergency" ? "Critical" : priority;
 }
 
 function getEffectiveWindowsAgentPresentation(

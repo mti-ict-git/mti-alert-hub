@@ -234,6 +234,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-2B` The admin authoring experience shall expose explicit `Windows Agent presentation` selection for communications that include the desktop channel so operators can intentionally choose `Toast`, `Modal`, or `Fullscreen` instead of relying on implicit priority defaults.
 - `FR-2C` The admin and backend authoring rules shall enforce Windows Agent presentation semantics consistently: `Info + Toast` clears and hides the separate `instruction`, `Info + Modal/Fullscreen` may include `instruction`, and `Warning` shall always use `Modal` with required `instruction`.
 - `FR-2D` The server shall allow an optional per-notification Windows Agent toast auto-dismiss override in seconds, bounded to a documented safe range, and the Windows Agent shall use that value only for `Toast` presentation while falling back to the client default when omitted.
+- `FR-2E` Communication message bodies shall remain short-form operational content rather than article-length text. The server and admin authoring flows shall enforce a bounded maximum body length so Windows Agent modal actions remain visible and readable on a fixed notification surface.
 - `FR-3` The system shall support immediate and scheduled publication.
 - `FR-4` The system shall support recurring schedules for reminder-type communications.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.

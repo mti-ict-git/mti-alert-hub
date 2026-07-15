@@ -45,6 +45,7 @@ const ALL_CHANNELS: { key: Channel; label: string }[] = [
 ];
 const CHANNELS = ALL_CHANNELS.filter((channel) => enabledDeliveryChannels.includes(channel.key));
 const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
+const MESSAGE_MAX_LENGTH = 320;
 
 const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee", "Device"];
 
@@ -330,6 +331,7 @@ function CreateNotificationPage() {
   const canSubmit =
     title &&
     message &&
+    message.trim().length <= MESSAGE_MAX_LENGTH &&
     channels.length > 0 &&
     hasRequiredTargetSelection &&
     (!requireAck || Boolean(workflowId)) &&
@@ -362,7 +364,16 @@ function CreateNotificationPage() {
 
             <div className="space-y-2">
               <Label>Message</Label>
-              <Textarea rows={4} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe the situation clearly and concisely." />
+              <Textarea
+                rows={4}
+                maxLength={MESSAGE_MAX_LENGTH}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Describe the situation clearly and concisely."
+              />
+              <p className="text-xs text-muted-foreground">
+                Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters. {message.trim().length}/{MESSAGE_MAX_LENGTH}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
