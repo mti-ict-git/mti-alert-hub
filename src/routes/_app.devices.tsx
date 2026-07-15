@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { devicesService } from "@/services/devices.service";
-import { Send } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/_app/devices")({
 });
 
 function DevicesPage() {
+  const qc = useQueryClient();
+  const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
   const { data = [] } = useQuery({ queryKey: ["devices"], queryFn: devicesService.list, refetchInterval: 8000 });
 
   const online = data.filter((d) => d.status === "Online").length;
@@ -57,20 +60,33 @@ function DevicesPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={d.status !== "Online" || testingDeviceId !== null}
                         onClick={async () => {
                           try {
-                            await devicesService.sendTest(d.id);
-                            toast.success(`Test sent to ${d.hostname}`);
+                            setTestingDeviceId(d.id);
+                            const result = await devicesService.sendTest(d.id);
+                            await Promise.all([
+                              qc.invalidateQueries({ queryKey: ["notifications"] }),
+                              qc.invalidateQueries({ queryKey: ["devices"] }),
+                            ]);
+                            toast.success(`Test notification queued for ${result.hostname}`);
                           } catch (error) {
-                            toast.info(
+                            toast.error(
                               error instanceof Error
                                 ? error.message
-                                : "Device test action is not available yet.",
+                                : "Failed to send device test notification.",
                             );
+                          } finally {
+                            setTestingDeviceId(null);
                           }
                         }}
                       >
-                        <Send className="mr-1 h-3 w-3" /> Test
+                        {testingDeviceId === d.id ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Send className="mr-1 h-3 w-3" />
+                        )}{" "}
+                        Test
                       </Button>
                     </TableCell>
                   </TableRow>

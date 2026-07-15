@@ -187,7 +187,8 @@ All MVP communication types remain delivery-tracked and read-tracked.
 5. User confirms publish now or schedules.
 6. System creates delivery jobs.
 7. Delivery jobs are executed per channel.
-8. Status becomes visible in monitoring screens.
+8. Status becomes visible in Notification Center and detail monitoring screens.
+9. Operators can reopen drafts directly from Notification Center, duplicate any prior communication as a new draft, and apply lifecycle-safe bulk actions such as cancelling multiple scheduled or active communications together.
 
 ### Workflow 2: Recurring Reminder
 1. User creates a reminder communication.
@@ -216,9 +217,17 @@ All MVP communication types remain delivery-tracked and read-tracked.
 4. Recipient submits a workflow-defined response when required.
 5. System stores the response and updates monitoring status.
 
+### Workflow 5: Device Connectivity Test
+1. Operator opens the `Devices` admin view.
+2. Operator sends a device-scoped test notification to an online Windows Agent device.
+3. System creates and immediately publishes a one-time Windows Agent communication targeted only to that device.
+4. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
+5. The system records audit evidence so operations can trace who initiated the device test.
+
 ## Functional Requirements
 ### Communication Authoring
 - `FR-1` The system shall allow authorized users to create, edit, duplicate, cancel, and archive communications.
+- `FR-1A` Notification Center shall provide lifecycle-aware quick actions, including direct draft editing and contextual bulk actions that only expose operations valid for the selected communication states.
 - `FR-2` The system shall support a unified communication form with type-specific fields controlled by metadata and workflow rules.
 - `FR-3` The system shall support immediate and scheduled publication.
 - `FR-4` The system shall support recurring schedules for reminder-type communications.
@@ -268,6 +277,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-17` The system shall support template management.
 - `FR-18` The system shall support workflow definition management for reusable response models.
 - `FR-19` The system shall record audit logs for administrative and communication lifecycle actions.
+- `FR-19E` The device-management experience shall support sending an immediate Windows Agent test notification to an online device without requiring operators to author a manual draft first.
 - `FR-19A` The system shall support imported or synchronized organization data with limited MTI-managed adjustment capability.
 - `FR-19B` The system shall use external HR synchronization as the primary source for MVP basic organization data.
 - `FR-19C` The system shall support versioned templates with template policy snapshots on communications.

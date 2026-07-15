@@ -21,6 +21,15 @@ type DeviceListResponse = {
   items: ApiDevice[];
 };
 
+type DeviceTestNotificationResponse = {
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname: string;
+  communicationId: string;
+  communicationStatus: "Queued" | "Scheduled" | "Active";
+  title: string;
+};
+
 export const devicesService = {
   async list(): Promise<Device[]> {
     const [response, organizationReference, employees] = await Promise.all([
@@ -52,7 +61,7 @@ export const devicesService = {
       lastSeen: item.lastHeartbeatAt ?? item.lastConnectionAt ?? null,
     }));
   },
-  async sendTest(id: string): Promise<void> {
-    throw new Error(`Device test notification is not implemented for device ${id}.`);
+  async sendTest(id: string): Promise<DeviceTestNotificationResponse> {
+    return apiClient.post<DeviceTestNotificationResponse>(`/devices/${id}/test-notification`, {});
   },
 };

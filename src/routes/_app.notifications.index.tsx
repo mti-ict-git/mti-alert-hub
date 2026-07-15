@@ -1,21 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Copy, Eye, MoreHorizontal, Plus, XCircle } from "lucide-react";
+import { Copy, Eye, MoreHorizontal, Pencil, Plus, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { notificationsService } from "@/services/notifications.service";
+import type { Notification, NotificationStatus } from "@/types";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -30,6 +33,8 @@ function NotificationCenter() {
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
+  const [view, setView] = useState<CenterView>("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const filtered = useMemo(
     () =>
@@ -37,10 +42,20 @@ function NotificationCenter() {
         (n) =>
           (!q || n.title.toLowerCase().includes(q.toLowerCase())) &&
           (priority === "all" || n.priority === priority) &&
-          (status === "all" || n.status === status),
+          (status === "all" || n.status === status) &&
+          matchesCenterView(n, view),
       ),
-    [data, q, priority, status],
+    [data, q, priority, status, view],
   );
+  const visibleSelectedIds = selectedIds.filter((id) => filtered.some((item) => item.id === id));
+  const selectedNotifications = filtered.filter((item) => visibleSelectedIds.includes(item.id));
+  const selectableCount = filtered.length;
+  const allSelected = selectableCount > 0 && visibleSelectedIds.length === selectableCount;
+  const hasSelection = visibleSelectedIds.length > 0;
+  const selectedCancellableIds = selectedNotifications
+    .filter((item) => CANCELLABLE_STATUSES.includes(item.status))
+    .map((item) => item.id);
+  const hasSelectedCancellable = selectedCancellableIds.length > 0;
 
   const cancelMut = useMutation({
     mutationFn: (id: string) => notificationsService.cancel(id),
@@ -50,6 +65,19 @@ function NotificationCenter() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to cancel communication");
+    },
+  });
+  const bulkCancelMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => notificationsService.cancel(id)));
+    },
+    onSuccess: async (_, ids) => {
+      await qc.invalidateQueries({ queryKey: ["notifications"] });
+      setSelectedIds((current) => current.filter((id) => !ids.includes(id)));
+      toast.success(`${ids.length} notification${ids.length > 1 ? "s" : ""} cancelled`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel selected communications");
     },
   });
   const dupMut = useMutation({
@@ -63,6 +91,41 @@ function NotificationCenter() {
       toast.error(error instanceof Error ? error.message : "Failed to duplicate communication");
     },
   });
+  const bulkDuplicateMut = useMutation({
+    mutationFn: async (items: Notification[]) => Promise.all(items.map((item) => notificationsService.duplicate(item.id))),
+    onSuccess: async (duplicated) => {
+      await qc.invalidateQueries({ queryKey: ["notifications"] });
+      setSelectedIds([]);
+      toast.success(`${duplicated.length} notification${duplicated.length > 1 ? "s" : ""} duplicated as new`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to duplicate selected drafts");
+    },
+  });
+
+  function toggleSelection(id: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? Array.from(new Set([...current, id])) : current.filter((item) => item !== id),
+    );
+  }
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds((current) => {
+      if (!checked) {
+        return current.filter((id) => !filtered.some((item) => item.id === id));
+      }
+
+      return Array.from(new Set([...current, ...filtered.map((item) => item.id)]));
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds((current) => current.filter((id) => !filtered.some((item) => item.id === id)));
+  }
+
+  function openEdit(id: string) {
+    nav({ to: "/notifications/$id", params: { id }, search: { mode: "edit" } });
+  }
 
   return (
     <div>
@@ -78,6 +141,21 @@ function NotificationCenter() {
 
       <Card>
         <CardContent className="p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <Tabs value={view} onValueChange={(value) => setView(value as CenterView)}>
+              <TabsList>
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="drafts">Drafts</TabsTrigger>
+                <TabsTrigger value="live">Scheduled / Live</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="text-sm text-muted-foreground">
+              One-time and recurring notifications stay in Notification Center for monitoring,
+              cancel, duplicate, and draft editing.
+            </div>
+          </div>
+
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Input placeholder="Search title…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
             <Select value={priority} onValueChange={setPriority}>
@@ -100,10 +178,48 @@ function NotificationCenter() {
             </Select>
           </div>
 
+          {hasSelection && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3">
+              <div className="text-sm font-medium">
+                {visibleSelectedIds.length} selected
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkDuplicateMut.isPending}
+                onClick={() => bulkDuplicateMut.mutate(selectedNotifications)}
+              >
+                <Copy className="mr-2 h-4 w-4" /> Duplicate as New
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasSelectedCancellable || bulkCancelMut.isPending}
+                onClick={() => bulkCancelMut.mutate(selectedCancellableIds)}
+              >
+                <XCircle className="mr-2 h-4 w-4" /> Cancel Selected
+              </Button>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                Clear
+              </Button>
+              <div className="text-xs text-muted-foreground">
+                Bulk actions stay lifecycle-aware: duplicate creates new drafts, while cancel stays
+                limited to scheduled or in-progress notifications and skips anything else.
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                      aria-label="Select all visible notifications"
+                    />
+                  </TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Category</TableHead>
@@ -117,13 +233,20 @@ function NotificationCenter() {
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">No notifications</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">No notifications</TableCell></TableRow>
                 )}
                 {filtered.map((n) => (
                   <TableRow key={n.id} className="cursor-pointer" onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={visibleSelectedIds.includes(n.id)}
+                        onCheckedChange={(checked) => toggleSelection(n.id, checked === true)}
+                        aria-label={`Select ${n.title}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{n.title}</TableCell>
                     <TableCell><PriorityBadge priority={n.priority} /></TableCell>
                     <TableCell>{n.category}</TableCell>
@@ -147,6 +270,17 @@ function NotificationCenter() {
                           <Eye className="mr-2 h-4 w-4" />
                           <span>View</span>
                         </Button>
+                        {n.status === "Draft" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Edit draft ${n.title}`}
+                            onClick={() => openEdit(n.id)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            <span>Edit Draft</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -171,8 +305,14 @@ function NotificationCenter() {
                           <DropdownMenuItem onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={n.status !== "Draft"}
+                            onClick={() => openEdit(n.id)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" /> Edit Draft
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => dupMut.mutate(n.id)}>
-                            <Copy className="mr-2 h-4 w-4" /> Duplicate
+                            <Copy className="mr-2 h-4 w-4" /> Duplicate as New
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={!["Scheduled", "Queued", "Sending", "Active"].includes(n.status)}
@@ -193,4 +333,26 @@ function NotificationCenter() {
       </Card>
     </div>
   );
+}
+
+type CenterView = "all" | "drafts" | "live" | "history";
+
+const LIVE_STATUSES: NotificationStatus[] = ["Scheduled", "Queued", "Sending", "Active"];
+const HISTORY_STATUSES: NotificationStatus[] = ["Completed", "Cancelled", "Failed", "Sent"];
+const CANCELLABLE_STATUSES: NotificationStatus[] = ["Scheduled", "Queued", "Sending", "Active"];
+
+function matchesCenterView(notification: Notification, view: CenterView) {
+  if (view === "drafts") {
+    return notification.status === "Draft";
+  }
+
+  if (view === "live") {
+    return LIVE_STATUSES.includes(notification.status);
+  }
+
+  if (view === "history") {
+    return HISTORY_STATUSES.includes(notification.status);
+  }
+
+  return true;
 }

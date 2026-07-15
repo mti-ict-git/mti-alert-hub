@@ -25,6 +25,7 @@ import { DashboardReadService } from "../../modules/dashboard/service/dashboard-
 import { registerWorkflowRoutes } from "../../modules/workflows/controller/register-workflow-routes.js";
 import { WorkflowDefinitionService } from "../../modules/workflows/service/workflow-definition-service.js";
 import { registerDeviceRoutes } from "../../modules/devices/controller/register-device-routes.js";
+import { DeviceActionService } from "../../modules/devices/service/device-action-service.js";
 import { DeviceReadService } from "../../modules/devices/service/device-read-service.js";
 import { registerHealthRoutes } from "../../modules/health/controller/register-health-routes.js";
 import { registerOrganizationRoutes } from "../../modules/organization/controller/register-organization-routes.js";
@@ -76,6 +77,11 @@ export async function createBackendApp() {
     workflowDefinitionService,
     enabledDeliveryChannels,
   );
+  const deviceActionService = new DeviceActionService(
+    database.client,
+    communicationDraftService,
+    auditLogService,
+  );
   const authService = new AuthService(
     ldapAuthenticator,
     accessProfileService,
@@ -105,6 +111,7 @@ export async function createBackendApp() {
       }),
       ...registerDeviceRoutes({
         deviceReadService,
+        deviceActionService,
         agentService,
       }),
       ...registerDashboardRoutes({

@@ -1,6 +1,6 @@
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -44,11 +44,20 @@ import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users,
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/notifications/$id")({
+  validateSearch: (search: Record<string, unknown>): DetailSearch => ({
+    mode: search.mode === "edit" ? "edit" : undefined,
+  }),
   component: NotificationDetailPage,
 });
 
+type DetailSearch = {
+  mode?: "edit";
+};
+
 function NotificationDetailPage() {
   const { id } = useParams({ from: "/_app/notifications/$id" });
+  const search = useSearch({ from: "/_app/notifications/$id" });
+  const navigate = useNavigate({ from: "/_app/notifications/$id" });
   const qc = useQueryClient();
   const { data: n } = useQuery({ queryKey: ["notification", id], queryFn: () => notificationsService.get(id) });
   const { data: deliveryVisibility } = useQuery({
@@ -265,6 +274,20 @@ function NotificationDetailPage() {
   };
   const recipientCount = recipientRows.length;
 
+  useEffect(() => {
+    if (search.mode !== "edit" || !n || n.status !== "Draft" || editOpen) {
+      return;
+    }
+
+    openEditDialog();
+    void navigate({
+      to: "/notifications/$id",
+      params: { id },
+      search: {},
+      replace: true,
+    });
+  }, [editOpen, id, n, navigate, search.mode]);
+
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
   const isDraft = n.status === "Draft";
@@ -287,6 +310,7 @@ function NotificationDetailPage() {
       !agentLocalRoutineGuardrails.hasValidUntil ||
       !agentLocalRoutineGuardrails.isRoutinePriority);
   const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
+
   const canPublish = isDraft;
   const scheduledPublishInvalid =
     publishMode === "Scheduled" &&
