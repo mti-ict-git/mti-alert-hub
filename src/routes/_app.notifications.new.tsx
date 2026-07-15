@@ -2,11 +2,12 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
+import { MarkdownEditor } from "@/components/common/MarkdownEditor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -95,6 +96,7 @@ function CreateNotificationPage() {
   const [channels, setChannels] = useState<Channel[]>([...enabledDeliveryChannels]);
   const [windowsAgentPresentation, setWindowsAgentPresentation] =
     useState<WindowsAgentPresentation>("Toast");
+  const [toastAutoDismissSeconds, setToastAutoDismissSeconds] = useState("");
   const [requireAck, setRequireAck] = useState(false);
   const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
@@ -124,6 +126,7 @@ function CreateNotificationPage() {
     setPriority(t.priority);
     setCategory(t.category);
     setChannels(filterEnabledDeliveryChannels(t.defaultChannels));
+    setToastAutoDismissSeconds("");
     setRequireAck(t.requireAck);
     setWorkflowId(t.defaultWorkflowId ?? "");
   }, [search.template, templates]);
@@ -150,6 +153,22 @@ function CreateNotificationPage() {
     }
   }, [priority, selectedTemplate?.defaultWorkflowId, workflows]);
 
+  const isEmergency = priority === "Emergency" || priority === "Critical";
+  const isReminder = communicationType === "Reminder";
+  const hasDesktopAgentChannel = channels.includes("DesktopAgent");
+  const effectiveWindowsAgentPresentation = getEffectiveWindowsAgentPresentation(
+    priority,
+    hasDesktopAgentChannel,
+    windowsAgentPresentation,
+  );
+  const instructionMode = getInstructionMode(priority, hasDesktopAgentChannel, effectiveWindowsAgentPresentation);
+  const instructionRequired = instructionMode === "required";
+  const instructionBlocked = instructionMode === "blocked";
+  const desktopToastOnlyDelivery =
+    hasDesktopAgentChannel &&
+    channels.every((channel) => channel === "DesktopAgent") &&
+    effectiveWindowsAgentPresentation === "Toast";
+
   useEffect(() => {
     if (!hasDesktopAgentChannel) {
       return;
@@ -174,22 +193,6 @@ function CreateNotificationPage() {
     setRequireAck(false);
     setWorkflowId("");
   }, [desktopToastOnlyDelivery, requireAck]);
-
-  const isEmergency = priority === "Emergency" || priority === "Critical";
-  const isReminder = communicationType === "Reminder";
-  const hasDesktopAgentChannel = channels.includes("DesktopAgent");
-  const effectiveWindowsAgentPresentation = getEffectiveWindowsAgentPresentation(
-    priority,
-    hasDesktopAgentChannel,
-    windowsAgentPresentation,
-  );
-  const instructionMode = getInstructionMode(priority, hasDesktopAgentChannel, effectiveWindowsAgentPresentation);
-  const instructionRequired = instructionMode === "required";
-  const instructionBlocked = instructionMode === "blocked";
-  const desktopToastOnlyDelivery =
-    hasDesktopAgentChannel &&
-    channels.every((channel) => channel === "DesktopAgent") &&
-    effectiveWindowsAgentPresentation === "Toast";
   const availableAreas = useMemo(
     () => areas.filter((item) => !site || item.siteId === site),
     [areas, site],
@@ -298,6 +301,7 @@ function CreateNotificationPage() {
       targetDeviceId: deviceId || undefined,
       channels,
       windowsAgentPresentation: hasDesktopAgentChannel ? effectiveWindowsAgentPresentation : null,
+      toastAutoDismissSeconds: parseToastAutoDismissSecondsInput(toastAutoDismissSeconds),
       requireAck,
       workflowId: requireAck ? workflowId || null : null,
       instruction: instructionBlocked ? "" : instruction,
@@ -679,6 +683,25 @@ function CreateNotificationPage() {
               </div>
             )}
 
+            {hasDesktopAgentChannel && effectiveWindowsAgentPresentation === "Toast" && (
+              <div className="space-y-2">
+                <Label>Toast Auto Dismiss Seconds</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  step={1}
+                  value={toastAutoDismissSeconds}
+                  onChange={(event) => setToastAutoDismissSeconds(event.target.value)}
+                  placeholder="Default 5"
+                  className="max-w-[12rem]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional server-side override for Windows Agent toast duration. Leave empty to use the agent default of 5 seconds.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
                 <Label className="text-sm">Require Acknowledgement</Label>
@@ -725,10 +748,11 @@ function CreateNotificationPage() {
                 Instruction
                 {instructionRequired ? " *" : ""}
               </Label>
-              <Textarea
-                rows={3}
+              <MarkdownEditor
                 value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
+                onChange={setInstruction}
+                rows={5}
+                previewEmptyText="Instruction preview will appear here."
                 placeholder={instructionBlocked ? "Instruction is disabled for Info toast notifications." : "What should recipients do?"}
                 disabled={instructionBlocked}
               />
@@ -737,7 +761,7 @@ function CreateNotificationPage() {
                   ? "Info notifications shown as Toast do not include a separate instruction block."
                   : instructionRequired
                     ? "Warning notifications on Windows Agent require instruction text."
-                    : "Use instruction when recipients need separate action guidance."}
+                    : "Use the toolbar to format instruction text while keeping markdown-compatible output."}
               </p>
             </div>
 
@@ -797,9 +821,13 @@ function CreateNotificationPage() {
                     priority={priority}
                     instruction={instructionBlocked ? "" : instruction}
                     presentation={effectiveWindowsAgentPresentation}
+                    toastAutoDismissSeconds={parseToastAutoDismissSecondsInput(toastAutoDismissSeconds)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Windows Agent presentation: {effectiveWindowsAgentPresentation}
+                    {effectiveWindowsAgentPresentation === "Toast"
+                      ? ` · auto-dismiss ${parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5}s`
+                      : ""}
                   </p>
                 </div>
               )}
@@ -891,6 +919,16 @@ function getInstructionMode(
   }
 
   return "optional" as const;
+}
+
+function parseToastAutoDismissSecondsInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 60 ? parsed : null;
 }
 
 function buildDraftReminderSchedule(input: {

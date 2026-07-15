@@ -24,6 +24,7 @@ create table if not exists public.agent_reminder_policies (
   title_snapshot text not null,
   body_snapshot text not null,
   windows_agent_presentation text,
+  toast_auto_dismiss_seconds integer,
   valid_from timestamptz,
   valid_until timestamptz,
   is_active boolean not null default true,
@@ -37,6 +38,10 @@ create table if not exists public.agent_reminder_policies (
   constraint agent_reminder_policies_presentation_check check (
     windows_agent_presentation is null
     or windows_agent_presentation in ('Toast', 'Modal', 'Fullscreen')
+  ),
+  constraint agent_reminder_policies_toast_auto_dismiss_seconds_check check (
+    toast_auto_dismiss_seconds is null
+    or toast_auto_dismiss_seconds between 1 and 60
   )
 );
 

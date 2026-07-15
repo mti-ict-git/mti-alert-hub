@@ -28,6 +28,7 @@ type ApiCommunicationDetail = ApiCommunicationSummary & {
   body: string;
   instruction?: string | null;
   windowsAgentPresentation?: "Toast" | "Modal" | "Fullscreen" | null;
+  toastAutoDismissSeconds?: number | null;
   category?: string | null;
   requiresResponse?: boolean;
   workflow?: { id: string } | null;
@@ -349,6 +350,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     windowsAgentPresentation: item.windowsAgentPresentation ?? null,
+    toastAutoDismissSeconds: item.toastAutoDismissSeconds ?? null,
     scheduledAt: item.scheduledAt ?? null,
     reminderSchedule: item.schedule ?? null,
     instruction: item.instruction ?? "",
@@ -501,6 +503,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     channels: input.channels,
     instruction: input.instruction,
     windowsAgentPresentation: input.windowsAgentPresentation,
+    toastAutoDismissSeconds: input.toastAutoDismissSeconds,
   });
 
   return {
@@ -514,6 +517,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     targets: buildTargetsFromNotification(input),
     workflowId: input.requireAck ? input.workflowId ?? null : null,
     windowsAgentPresentation: normalizedDesktopAgent.windowsAgentPresentation,
+    toastAutoDismissSeconds: normalizedDesktopAgent.toastAutoDismissSeconds,
     deliveryStrategy: null,
     reminderSchedule: mapReminderScheduleInputToApi(input.reminderSchedule),
   };
@@ -526,6 +530,7 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
     channels: input.channels,
     instruction: input.instruction,
     windowsAgentPresentation: input.windowsAgentPresentation,
+    toastAutoDismissSeconds: input.toastAutoDismissSeconds,
   });
 
   if (input.category) {
@@ -551,6 +556,14 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
     payload.windowsAgentPresentation = normalizedDesktopAgent.windowsAgentPresentation;
   }
 
+  if (
+    input.channels !== undefined ||
+    input.windowsAgentPresentation !== undefined ||
+    input.toastAutoDismissSeconds !== undefined
+  ) {
+    payload.toastAutoDismissSeconds = normalizedDesktopAgent.toastAutoDismissSeconds;
+  }
+
   if (input.targetType) {
     payload.targets = buildTargetsFromNotification(input);
   }
@@ -571,12 +584,14 @@ function normalizeDesktopAgentAuthoringInput(input: {
   channels?: Notification["channels"];
   instruction?: string | null;
   windowsAgentPresentation?: Notification["windowsAgentPresentation"];
+  toastAutoDismissSeconds?: Notification["toastAutoDismissSeconds"];
 }) {
   const hasDesktopAgentChannel = input.channels?.includes("DesktopAgent") ?? false;
   if (!hasDesktopAgentChannel) {
     return {
       instruction: input.instruction ?? null,
       windowsAgentPresentation: null,
+      toastAutoDismissSeconds: null,
     };
   }
 
@@ -584,6 +599,7 @@ function normalizeDesktopAgentAuthoringInput(input: {
     return {
       instruction: input.instruction ?? null,
       windowsAgentPresentation: "Modal" as const,
+      toastAutoDismissSeconds: null,
     };
   }
 
@@ -592,12 +608,16 @@ function normalizeDesktopAgentAuthoringInput(input: {
     return {
       instruction: presentation === "Toast" ? null : input.instruction ?? null,
       windowsAgentPresentation: presentation,
+      toastAutoDismissSeconds: presentation === "Toast" ? input.toastAutoDismissSeconds ?? null : null,
     };
   }
 
+  const normalizedPresentation = input.windowsAgentPresentation ?? (hasDesktopAgentChannel ? "Toast" : null);
   return {
     instruction: input.instruction ?? null,
-    windowsAgentPresentation: input.windowsAgentPresentation ?? (hasDesktopAgentChannel ? "Toast" : null),
+    windowsAgentPresentation: normalizedPresentation,
+    toastAutoDismissSeconds:
+      normalizedPresentation === "Toast" ? input.toastAutoDismissSeconds ?? null : null,
   };
 }
 

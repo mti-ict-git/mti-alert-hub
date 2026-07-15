@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { MarkdownEditor } from "@/components/common/MarkdownEditor";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -38,6 +39,7 @@ import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
+import { MarkdownText } from "@/components/common/MarkdownText";
 import type {
   Category,
   Channel,
@@ -142,6 +144,7 @@ function NotificationDetailPage() {
               payload.windowsAgentPresentation,
             )
             : null,
+          toastAutoDismissSeconds: parseToastAutoDismissSecondsInput(payload.toastAutoDismissSeconds),
           requireAck: payload.requireAck,
           workflowId: payload.requireAck ? payload.workflowId || null : null,
           instruction: getInstructionMode(
@@ -300,6 +303,19 @@ function NotificationDetailPage() {
   };
   const recipientCount = recipientRows.length;
   const currentPriority = n?.priority ?? "Info";
+  const draftHasDesktopAgentChannel = draftForm?.channels.includes("DesktopAgent") ?? false;
+  const draftEffectivePresentation = draftForm
+    ? getEffectiveWindowsAgentPresentation(currentPriority, draftHasDesktopAgentChannel, draftForm.windowsAgentPresentation)
+    : "Toast";
+  const draftInstructionMode = draftForm
+    ? getInstructionMode(currentPriority, draftHasDesktopAgentChannel, draftEffectivePresentation)
+    : "optional";
+  const draftInstructionRequired = draftInstructionMode === "required";
+  const draftInstructionBlocked = draftInstructionMode === "blocked";
+  const draftDesktopToastOnlyDelivery =
+    (draftForm?.channels.every((channel) => channel === "DesktopAgent") ?? false) &&
+    draftHasDesktopAgentChannel &&
+    draftEffectivePresentation === "Toast";
 
   useEffect(() => {
     if (search.mode !== "edit" || !n || n.status !== "Draft" || editOpen) {
@@ -373,20 +389,6 @@ function NotificationDetailPage() {
       !agentLocalRoutineGuardrails.hasValidUntil ||
       !agentLocalRoutineGuardrails.isRoutinePriority);
   const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
-  const draftHasDesktopAgentChannel = draftForm?.channels.includes("DesktopAgent") ?? false;
-  const draftEffectivePresentation = draftForm
-    ? getEffectiveWindowsAgentPresentation(currentPriority, draftHasDesktopAgentChannel, draftForm.windowsAgentPresentation)
-    : "Toast";
-  const draftInstructionMode = draftForm
-    ? getInstructionMode(currentPriority, draftHasDesktopAgentChannel, draftEffectivePresentation)
-    : "optional";
-  const draftInstructionRequired = draftInstructionMode === "required";
-  const draftInstructionBlocked = draftInstructionMode === "blocked";
-  const draftDesktopToastOnlyDelivery =
-    (draftForm?.channels.every((channel) => channel === "DesktopAgent") ?? false) &&
-    draftHasDesktopAgentChannel &&
-    draftEffectivePresentation === "Toast";
-
   const canPublish = isDraft;
   const scheduledPublishInvalid =
     publishMode === "Scheduled" &&
@@ -414,6 +416,8 @@ function NotificationDetailPage() {
       workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
       windowsAgentPresentation: n.windowsAgentPresentation ?? "Toast",
+      toastAutoDismissSeconds:
+        n.toastAutoDismissSeconds != null ? String(n.toastAutoDismissSeconds) : "",
       reminderScheduledAt: n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "",
       reminderRecurrenceRule: n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1",
       reminderTimezone: n.reminderSchedule?.timezone ?? getLocalTimeZone(),
@@ -486,9 +490,13 @@ function NotificationDetailPage() {
           <TabsContent value="overview" className="mt-4">
             <Card>
               <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-                <Info label="Message" value={n.message} />
-                <Info label="Instruction" value={n.instruction || "—"} />
+                <Info label="Message" value={n.message} markdown />
+                <Info label="Instruction" value={n.instruction || "—"} markdown />
                 <Info label="Windows Agent Presentation" value={n.windowsAgentPresentation || "â€”"} />
+                <Info
+                  label="Toast Auto Dismiss"
+                  value={formatToastAutoDismissSummary(n.windowsAgentPresentation, n.toastAutoDismissSeconds)}
+                />
                 <Info label="Channels" value={n.channels.join(", ")} />
                 <Info label="Content Type" value={n.communicationType} />
                 <Info label="Require Ack" value={n.requireAck ? "Yes" : "No"} />
@@ -1003,18 +1011,43 @@ function NotificationDetailPage() {
                 </div>
               )}
 
+              {draftForm.channels.includes("DesktopAgent") && draftEffectivePresentation === "Toast" && (
+                <div className="space-y-2">
+                  <Label>Toast Auto Dismiss Seconds</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    step={1}
+                    value={draftForm.toastAutoDismissSeconds}
+                    onChange={(event) =>
+                      setDraftForm({
+                        ...draftForm,
+                        toastAutoDismissSeconds: event.target.value,
+                      })
+                    }
+                    placeholder="Default 5"
+                    className="max-w-[12rem]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional server-side override for Windows Agent toast duration. Leave empty to use the agent default of 5 seconds.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>
                   Instruction
                   {draftInstructionRequired ? " *" : ""}
                 </Label>
-                <Textarea
-                  rows={3}
+                <MarkdownEditor
+                  rows={5}
                   value={draftForm.instruction}
-                  onChange={(event) =>
-                    setDraftForm({ ...draftForm, instruction: event.target.value })
+                  onChange={(nextInstruction) =>
+                    setDraftForm({ ...draftForm, instruction: nextInstruction })
                   }
                   disabled={draftInstructionBlocked}
+                  previewEmptyText="Instruction preview will appear here."
                   placeholder={draftInstructionBlocked ? "Instruction is disabled for Info toast notifications." : undefined}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1022,7 +1055,7 @@ function NotificationDetailPage() {
                     ? "Info notifications shown as Toast do not include a separate instruction block."
                     : draftInstructionRequired
                       ? "Warning notifications on Windows Agent require instruction text."
-                      : "Use instruction when recipients need separate action guidance."}
+                      : "Use the toolbar to format instruction text while keeping markdown-compatible output."}
                 </p>
               </div>
 
@@ -1428,11 +1461,21 @@ function mapPreviewRecipientToRecipient(
   };
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({
+  label,
+  value,
+  markdown = false,
+}: {
+  label: string;
+  value: string;
+  markdown?: boolean;
+}) {
   return (
     <div>
       <div className="text-xs uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm">{value}</div>
+      <div className="mt-1 text-sm">
+        {markdown && value !== "—" ? <MarkdownText value={value} /> : value}
+      </div>
     </div>
   );
 }
@@ -1452,6 +1495,7 @@ type EditDraftForm = {
   targetDeviceId: string;
   channels: Channel[];
   windowsAgentPresentation: WindowsAgentPresentation;
+  toastAutoDismissSeconds: string;
   requireAck: boolean;
   workflowId: string;
   instruction: string;
@@ -1534,6 +1578,27 @@ function getInstructionMode(
   }
 
   return "optional" as const;
+}
+
+function parseToastAutoDismissSecondsInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 60 ? parsed : null;
+}
+
+function formatToastAutoDismissSummary(
+  presentation: Notification["windowsAgentPresentation"],
+  toastAutoDismissSeconds: Notification["toastAutoDismissSeconds"],
+) {
+  if (presentation !== "Toast") {
+    return "—";
+  }
+
+  return `${toastAutoDismissSeconds ?? 5}s${toastAutoDismissSeconds == null ? " (default)" : ""}`;
 }
 
 function hasRequiredTargetSelection(form: EditDraftForm) {

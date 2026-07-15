@@ -32,6 +32,7 @@ Start with:
 Supporting references may also exist under `docs/`, such as:
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
+- `docs/software-acceptance-test.md`
 - `docs/deployment-and-environment.md`
 - `docs/integration-contracts.md`
 - `docs/go-live-checklist.md`

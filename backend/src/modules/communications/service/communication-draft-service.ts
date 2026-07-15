@@ -62,6 +62,7 @@ type CreateCommunicationDraftInput = {
   targets: TargetRule[];
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds?: number | null;
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
   confirmLockedFieldPolicy?: boolean | null;
@@ -77,6 +78,7 @@ type UpdateCommunicationDraftInput = {
   targets?: TargetRule[];
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds?: number | null;
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
 };
@@ -147,6 +149,7 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   requiresResponse: boolean;
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds: number | null;
   deliveryStrategy: DeliveryStrategy | null;
   draftReminderSchedule: unknown | null;
   createdAt: string | null;
@@ -340,6 +343,7 @@ type CommunicationWriteModel = {
   requiresResponse: boolean;
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds: number | null;
   deliveryStrategy: DeliveryStrategy | null;
   targets: TargetRule[];
   reminderSchedule: ReminderDraftSchedule | null;
@@ -446,6 +450,7 @@ export class CommunicationDraftService {
           requires_response,
           workflow_id,
           windows_agent_presentation,
+          toast_auto_dismiss_seconds,
           delivery_strategy,
           scheduled_at,
           draft_schedule_json
@@ -465,8 +470,9 @@ export class CommunicationDraftService {
           $11::uuid,
           $12,
           $13,
-          $14::timestamptz,
-          $15::jsonb
+          $14,
+          $15::timestamptz,
+          $16::jsonb
         )
         returning id::text as id
       `,
@@ -483,6 +489,7 @@ export class CommunicationDraftService {
         writeModel.requiresResponse,
         writeModel.workflowId,
         writeModel.windowsAgentPresentation,
+        writeModel.toastAutoDismissSeconds,
         writeModel.deliveryStrategy,
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
@@ -1000,9 +1007,10 @@ export class CommunicationDraftService {
           requires_response = $9,
           workflow_id = $10::uuid,
           windows_agent_presentation = $11,
-          delivery_strategy = $12,
-          scheduled_at = $13::timestamptz,
-          draft_schedule_json = $14::jsonb
+          toast_auto_dismiss_seconds = $12,
+          delivery_strategy = $13,
+          scheduled_at = $14::timestamptz,
+          draft_schedule_json = $15::jsonb
         where id::text = $1
       `,
       [
@@ -1017,6 +1025,7 @@ export class CommunicationDraftService {
         writeModel.requiresResponse,
         writeModel.workflowId,
         writeModel.windowsAgentPresentation,
+        writeModel.toastAutoDismissSeconds,
         writeModel.deliveryStrategy,
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
@@ -1054,6 +1063,7 @@ export class CommunicationDraftService {
           requires_response,
           workflow_id,
           windows_agent_presentation,
+          toast_auto_dismiss_seconds,
           delivery_strategy,
           scheduled_at,
           draft_schedule_json
@@ -1073,8 +1083,9 @@ export class CommunicationDraftService {
           $11::uuid,
           $12,
           $13,
-          $14::timestamptz,
-          $15::jsonb
+          $14,
+          $15::timestamptz,
+          $16::jsonb
         )
         returning id::text as id
       `,
@@ -1091,6 +1102,7 @@ export class CommunicationDraftService {
         existing.requiresResponse,
         existing.workflowId,
         existing.windowsAgentPresentation,
+        existing.toastAutoDismissSeconds,
         existing.deliveryStrategy,
         existing.scheduledAt,
         existing.draftReminderSchedule ? JSON.stringify(existing.draftReminderSchedule) : null,
@@ -1492,6 +1504,7 @@ export class CommunicationDraftService {
       instruction: detail.instruction,
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
+      toastAutoDismissSeconds: detail.toastAutoDismissSeconds,
       deliveryStrategy: detail.deliveryStrategy,
       schedule: schedule ?? parseReminderDraftScheduleRecord(detail.draftReminderSchedule),
       workflow,
@@ -1531,6 +1544,7 @@ export class CommunicationDraftService {
           requires_response as "requiresResponse",
           workflow_id::text as "workflowId",
           windows_agent_presentation::text as "windowsAgentPresentation",
+          toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
           delivery_strategy::text as "deliveryStrategy",
           draft_schedule_json as "draftReminderSchedule",
           updated_at::text as "updatedAt"
@@ -1742,6 +1756,7 @@ export class CommunicationDraftService {
       targets: input.targets,
       workflowId: input.workflowId ?? null,
       windowsAgentPresentation: input.windowsAgentPresentation ?? null,
+      toastAutoDismissSeconds: input.toastAutoDismissSeconds ?? null,
       deliveryStrategy: input.deliveryStrategy ?? null,
       reminderSchedule: input.reminderSchedule ?? null,
     });
@@ -1772,6 +1787,10 @@ export class CommunicationDraftService {
         input.windowsAgentPresentation === undefined
           ? existing.windowsAgentPresentation
           : input.windowsAgentPresentation,
+      toastAutoDismissSeconds:
+        input.toastAutoDismissSeconds === undefined
+          ? existing.toastAutoDismissSeconds
+          : input.toastAutoDismissSeconds,
       deliveryStrategy:
         input.deliveryStrategy === undefined ? existing.deliveryStrategy : input.deliveryStrategy,
       reminderSchedule:
@@ -1793,6 +1812,7 @@ export class CommunicationDraftService {
     targets: TargetRule[];
     workflowId: string | null;
     windowsAgentPresentation: WindowsAgentPresentation | null;
+    toastAutoDismissSeconds: number | null;
     deliveryStrategy: DeliveryStrategy | null;
     reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null;
   }): Promise<CommunicationWriteModel> {
@@ -1804,6 +1824,7 @@ export class CommunicationDraftService {
     const finalWorkflowId = template?.defaultWorkflowId ?? input.workflowId;
     const finalWindowsAgentPresentation =
       template?.defaultWindowsAgentPresentation ?? input.windowsAgentPresentation;
+    const finalToastAutoDismissSeconds = normalizeToastAutoDismissSeconds(input.toastAutoDismissSeconds);
     const finalDeliveryStrategy = template?.defaultDeliveryStrategy ?? input.deliveryStrategy;
     const requiresResponse =
       template?.defaultRequiresResponse ?? Boolean(finalWorkflowId);
@@ -1867,6 +1888,7 @@ export class CommunicationDraftService {
       channelSelections: normalizedChannelSelections,
       instruction: normalizedInstruction,
       windowsAgentPresentation: finalWindowsAgentPresentation,
+      toastAutoDismissSeconds: finalToastAutoDismissSeconds,
     });
 
     if (template) {
@@ -1904,6 +1926,7 @@ export class CommunicationDraftService {
       requiresResponse,
       workflowId: finalWorkflowId,
       windowsAgentPresentation: normalizedWindowsAgentAuthoring.windowsAgentPresentation,
+      toastAutoDismissSeconds: normalizedWindowsAgentAuthoring.toastAutoDismissSeconds,
       deliveryStrategy: finalDeliveryStrategy,
       reminderSchedule,
       targets: input.targets.map((target) => ({
@@ -1919,16 +1942,26 @@ function normalizeNullableText(value: string | null) {
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeToastAutoDismissSeconds(value: number | null | undefined) {
+  if (value == null) {
+    return null;
+  }
+
+  return Number.isInteger(value) && value >= 1 && value <= 60 ? value : null;
+}
+
 function normalizeWindowsAgentAuthoringRules(options: {
   priority: Priority;
   channelSelections: Channel[];
   instruction: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds: number | null;
 }) {
   if (!options.channelSelections.includes("WindowsAgent")) {
     return {
       instruction: options.instruction,
       windowsAgentPresentation: null,
+      toastAutoDismissSeconds: null,
     };
   }
 
@@ -1944,6 +1977,7 @@ function normalizeWindowsAgentAuthoringRules(options: {
     return {
       instruction: options.instruction,
       windowsAgentPresentation: "Modal" as const,
+      toastAutoDismissSeconds: null,
     };
   }
 
@@ -1953,18 +1987,22 @@ function normalizeWindowsAgentAuthoringRules(options: {
       return {
         instruction: null,
         windowsAgentPresentation: "Toast" as const,
+        toastAutoDismissSeconds: options.toastAutoDismissSeconds,
       };
     }
 
     return {
       instruction: options.instruction,
       windowsAgentPresentation: normalizedPresentation,
+      toastAutoDismissSeconds: null,
     };
   }
 
+  const normalizedPresentation = options.windowsAgentPresentation ?? "Modal";
   return {
     instruction: options.instruction,
-    windowsAgentPresentation: options.windowsAgentPresentation ?? "Modal",
+    windowsAgentPresentation: normalizedPresentation,
+    toastAutoDismissSeconds: normalizedPresentation === "Toast" ? options.toastAutoDismissSeconds : null,
   };
 }
 
@@ -2970,6 +3008,7 @@ async function materializeAgentReminderPolicies(
           body_snapshot,
           instruction_snapshot,
           windows_agent_presentation,
+          toast_auto_dismiss_seconds,
           valid_from,
           valid_until,
           is_active
@@ -2985,8 +3024,9 @@ async function materializeAgentReminderPolicies(
           $8,
           $9,
           $10,
-          $11::timestamptz,
+          $11,
           $12::timestamptz,
+          $13::timestamptz,
           true
         )
       `,
@@ -3001,6 +3041,7 @@ async function materializeAgentReminderPolicies(
         options.communication.body,
         options.communication.instruction,
         options.communication.windowsAgentPresentation,
+        options.communication.toastAutoDismissSeconds,
         options.validFrom,
         options.validUntil,
       ],

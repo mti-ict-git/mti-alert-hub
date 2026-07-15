@@ -109,6 +109,7 @@ export interface Notification {
   workflowId?: string | null;
   channels: Channel[];
   windowsAgentPresentation?: WindowsAgentPresentation | null;
+  toastAutoDismissSeconds?: number | null;
   requireAck: boolean;
   scheduledAt?: string | null;
   instruction?: string;

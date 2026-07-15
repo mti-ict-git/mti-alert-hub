@@ -1,5 +1,6 @@
 import type { Priority } from "@/types";
 import { Siren, TriangleAlert, Info } from "lucide-react";
+import { MarkdownText } from "@/components/common/MarkdownText";
 import { cn } from "@/lib/utils";
 
 export function DesktopPreview({
@@ -8,12 +9,14 @@ export function DesktopPreview({
   priority,
   instruction,
   presentation = "Modal",
+  toastAutoDismissSeconds,
 }: {
   title: string;
   message: string;
   priority: Priority;
   instruction?: string;
   presentation?: "Toast" | "Modal" | "Fullscreen";
+  toastAutoDismissSeconds?: number | null;
 }) {
   const isCritical = priority === "Emergency" || priority === "Critical";
   const isToast = presentation === "Toast";
@@ -39,13 +42,16 @@ export function DesktopPreview({
           <div className="mt-3 text-sm font-semibold">{title || "—"}</div>
           <p className="mt-1 text-sm text-muted-foreground">{message || "Notification message will appear here."}</p>
           {instruction && (
-            <div className="mt-3 rounded-md bg-muted p-2 text-xs">
-              <span className="font-medium">Instruction:</span> {instruction}
+            <div className="mt-3 rounded-md bg-muted p-2">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Instruction
+              </div>
+              <MarkdownText value={instruction} size="sm" className="mt-2" />
             </div>
           )}
           {isToast ? (
             <div className="mt-4 text-xs text-muted-foreground">
-              Auto-dismiss preview without action buttons.
+              Auto-dismiss preview without action buttons after {toastAutoDismissSeconds ?? 5}s.
             </div>
           ) : (
             <div className="mt-4 flex justify-end gap-2 text-xs">

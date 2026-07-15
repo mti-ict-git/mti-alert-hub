@@ -45,6 +45,7 @@ const reminderDraftScheduleSchema = z.object({
   executionMode: scheduleExecutionModeSchema,
   validUntil: z.string().datetime({ offset: true }).optional().nullable(),
 });
+const toastAutoDismissSecondsSchema = z.number().int().min(1).max(60);
 
 const communicationListQuerySchema = baseListQuerySchema.extend({
   status: z
@@ -75,6 +76,7 @@ const createCommunicationSchema = z.object({
   targets: z.array(targetRuleSchema).min(1),
   workflowId: z.string().uuid().optional().nullable(),
   windowsAgentPresentation: windowsAgentPresentationSchema.optional().nullable(),
+  toastAutoDismissSeconds: toastAutoDismissSecondsSchema.optional().nullable(),
   deliveryStrategy: deliveryStrategySchema.optional().nullable(),
   reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
   confirmLockedFieldPolicy: z.boolean().optional().nullable(),
@@ -91,6 +93,7 @@ const updateCommunicationSchema = z
     targets: z.array(targetRuleSchema).min(1).optional(),
     workflowId: z.string().uuid().optional().nullable(),
     windowsAgentPresentation: windowsAgentPresentationSchema.optional().nullable(),
+    toastAutoDismissSeconds: toastAutoDismissSecondsSchema.optional().nullable(),
     deliveryStrategy: deliveryStrategySchema.optional().nullable(),
     reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
   })

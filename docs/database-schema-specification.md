@@ -151,6 +151,7 @@ Key columns:
 - `title`
 - `body`
 - `instruction` nullable operator-authored action guidance rendered separately from the main body when present
+- `toast_auto_dismiss_seconds` nullable per-notification Windows Agent toast display duration override, bounded to 1-60 seconds
 - `draft_schedule_json` nullable JSON snapshot for reminder recurrence authoring before publish
 - `status`
 - `requires_response`
@@ -226,6 +227,7 @@ Key columns:
 - `body_snapshot`
 - `instruction_snapshot`
 - `windows_agent_presentation`
+- `toast_auto_dismiss_seconds`
 - `valid_from`
 - `valid_until`
 - `is_active`

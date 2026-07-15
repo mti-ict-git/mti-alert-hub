@@ -1,4 +1,5 @@
 import type { Priority } from "@/types";
+import { MarkdownText } from "@/components/common/MarkdownText";
 import { cn } from "@/lib/utils";
 
 export function WhatsAppPreview({
@@ -21,7 +22,18 @@ export function WhatsAppPreview({
           <div><span className="text-[#8696a0]">Priority:</span> {priority}</div>
           {site && <div><span className="text-[#8696a0]">Location:</span> {site}</div>}
           <div><span className="text-[#8696a0]">Title:</span> {title || "—"}</div>
-          {instruction && <div className="mt-1"><span className="text-[#8696a0]">Instruction:</span> {instruction}</div>}
+          {instruction && (
+            <div className="mt-2 rounded-md border border-[#2a3942] bg-[#182229] p-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-[#8696a0]">
+                Instruction
+              </div>
+              <MarkdownText
+                value={instruction}
+                size="sm"
+                className="mt-2"
+              />
+            </div>
+          )}
         </div>
         <div className="mt-3 border-t border-[#2a3942] pt-2 text-[12px]">
           Reply:

@@ -1,9 +1,9 @@
 # MTI Alert Testing Strategy
 
 ## Document Status
-- Version: `0.1`
+- Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-08`
+- Last Updated: `2026-07-15`
 - Owner: `Engineering / QA`
 
 ## Purpose
@@ -106,6 +106,7 @@ Examples:
 - realtime connection behavior with a Windows Agent prototype
 - WhatsApp provider callback mapping in a sandbox
 - deployment smoke test in a target environment
+- release-readiness execution using `docs/software-acceptance-test.md`
 
 ## Phase Verification Matrix
 ### Phase 0 - Documentation Baseline
@@ -158,10 +159,14 @@ Required evidence:
 - New channel contracts are documented and verified.
 - Security-sensitive actions are re-verified.
 - Operational recovery or degraded-path behavior is challenged.
+- Release-readiness acceptance evidence is captured for the approved go-live scope.
 
 Recommended automated coverage:
 - Regression suite for existing channel and response behavior.
 - Environment smoke tests and release validation checks.
+
+Recommended manual coverage:
+- Execute `docs/software-acceptance-test.md` for the current release scope and record explicit evidence for any release-critical cases.
 
 ## High-Risk Areas That Must Be Tested Deliberately
 - Scope enforcement for `Local Operator` versus `Central Admin`

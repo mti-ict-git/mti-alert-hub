@@ -82,6 +82,7 @@ create table if not exists public.communications (
   requires_response boolean not null default false,
   workflow_id uuid references public.response_workflows(id) on delete set null,
   windows_agent_presentation text,
+  toast_auto_dismiss_seconds integer,
   delivery_strategy text,
   created_by_user_id uuid references public.users(id) on delete set null,
   published_at timestamptz,
@@ -105,6 +106,10 @@ create table if not exists public.communications (
   constraint communications_strategy_check check (
     delivery_strategy is null
     or delivery_strategy in ('UserPreference', 'MultiSend', 'PrimaryFallback', 'TemplatePolicy')
+  ),
+  constraint communications_toast_auto_dismiss_seconds_check check (
+    toast_auto_dismiss_seconds is null
+    or toast_auto_dismiss_seconds between 1 and 60
   )
 );
 
