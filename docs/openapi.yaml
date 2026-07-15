@@ -838,6 +838,8 @@ paths:
 
         Current Phase 2 note:
         - The negotiation response now returns the concrete realtime hub URL exposed by the backend runtime.
+        - When `BACKEND_PUBLIC_BASE_URL` is unset, the backend derives that URL from the inbound request host.
+        - If `BACKEND_PUBLIC_BASE_URL` is set to a loopback host such as `localhost`, the backend now ignores that override whenever the inbound request host is a non-loopback address, preventing remote Windows Agent clients from being sent back to themselves.
         - The first compatible hub slice uses `transport = SSE`.
         - The compatibility access token currently reuses the persisted agent session token until a dedicated hub token issuer is introduced.
       operationId: negotiateAgentRealtimeConnection

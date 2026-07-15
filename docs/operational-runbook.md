@@ -17,7 +17,7 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 ### Backend
 - `ENABLED_DELIVERY_CHANNELS=WindowsAgent`
 - `BACKEND_PORT`
-- `BACKEND_PUBLIC_BASE_URL` when the public realtime URL differs from the inbound request host
+- `BACKEND_PUBLIC_BASE_URL` when the public realtime URL differs from the inbound request host, and never as `localhost` for remote Windows Agent clients
 - `ADMIN_SESSION_TTL_MINUTES`
 - `AGENT_SESSION_TTL_MINUTES`
 - `LDAP_URL` using `ldaps://` for production by default

@@ -9,7 +9,16 @@ const envSchema = z.object({
   APP_NAME: z.string().default("MTI Alert Backend"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   BACKEND_PORT: z.coerce.number().int().positive().default(4000),
-  BACKEND_PUBLIC_BASE_URL: z.string().url().optional(),
+  BACKEND_PUBLIC_BASE_URL: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") {
+        return value;
+      }
+
+      return value.trim() ? value : undefined;
+    },
+    z.string().url().optional(),
+  ),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   ENABLED_DELIVERY_CHANNELS: z.string().default("WindowsAgent"),
   ADMIN_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(8 * 60),

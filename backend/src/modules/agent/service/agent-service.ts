@@ -1392,11 +1392,13 @@ export class AgentService {
     deviceIdentifier: string,
     requestBaseUrl?: string,
   ) {
-    const baseUrl = (
-      this.env.BACKEND_PUBLIC_BASE_URL ??
-      requestBaseUrl ??
-      `http://localhost:${this.env.BACKEND_PORT}`
-    ).replace(/\/+$/, "");
+    const configuredBaseUrl = normalizeBaseUrl(this.env.BACKEND_PUBLIC_BASE_URL);
+    const resolvedRequestBaseUrl = normalizeBaseUrl(requestBaseUrl);
+    const baseUrl = selectRealtimeBaseUrl({
+      configuredBaseUrl,
+      requestBaseUrl: resolvedRequestBaseUrl,
+      backendPort: this.env.BACKEND_PORT,
+    });
     const url = new URL(`${baseUrl}/agent/realtime-hub`);
     url.searchParams.set("connectionId", connectionId);
     url.searchParams.set("deviceIdentifier", deviceIdentifier);
@@ -1422,6 +1424,46 @@ export class AgentService {
       status: device.status,
       lastHeartbeatAt: device.lastHeartbeatAt,
     };
+  }
+}
+
+function selectRealtimeBaseUrl(options: {
+  configuredBaseUrl?: string;
+  requestBaseUrl?: string;
+  backendPort: number;
+}) {
+  const fallbackBaseUrl = `http://localhost:${options.backendPort}`;
+
+  if (options.configuredBaseUrl) {
+    if (
+      options.requestBaseUrl &&
+      isLoopbackBaseUrl(options.configuredBaseUrl) &&
+      !isLoopbackBaseUrl(options.requestBaseUrl)
+    ) {
+      return options.requestBaseUrl;
+    }
+
+    return options.configuredBaseUrl;
+  }
+
+  return options.requestBaseUrl ?? fallbackBaseUrl;
+}
+
+function normalizeBaseUrl(value?: string) {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  return value.replace(/\/+$/, "");
+}
+
+function isLoopbackBaseUrl(baseUrl: string) {
+  try {
+    const url = new URL(baseUrl);
+    const hostname = url.hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
   }
 }
 
