@@ -150,6 +150,7 @@ Key columns:
 - `category`
 - `title`
 - `body`
+- `instruction` nullable operator-authored action guidance rendered separately from the main body when present
 - `draft_schedule_json` nullable JSON snapshot for reminder recurrence authoring before publish
 - `status`
 - `requires_response`
@@ -223,6 +224,7 @@ Key columns:
 - `timezone`
 - `title_snapshot`
 - `body_snapshot`
+- `instruction_snapshot`
 - `windows_agent_presentation`
 - `valid_from`
 - `valid_until`

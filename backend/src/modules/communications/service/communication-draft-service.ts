@@ -57,6 +57,7 @@ type CreateCommunicationDraftInput = {
   templateId?: string | null;
   title: string;
   body: string;
+  instruction?: string | null;
   channelSelections: Channel[];
   targets: TargetRule[];
   workflowId?: string | null;
@@ -71,6 +72,7 @@ type UpdateCommunicationDraftInput = {
   templateId?: string | null;
   title?: string;
   body?: string;
+  instruction?: string | null;
   channelSelections?: Channel[];
   targets?: TargetRule[];
   workflowId?: string | null;
@@ -141,6 +143,7 @@ type CommunicationSummaryRow = {
 type CommunicationDetailRow = CommunicationSummaryRow & {
   category: string | null;
   body: string;
+  instruction: string | null;
   requiresResponse: boolean;
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
@@ -332,6 +335,7 @@ type CommunicationWriteModel = {
   category: string | null;
   title: string;
   body: string;
+  instruction: string | null;
   channelSelections: Channel[];
   requiresResponse: boolean;
   workflowId: string | null;
@@ -436,6 +440,7 @@ export class CommunicationDraftService {
           category,
           title,
           body,
+          instruction,
           channel_selections_json,
           status,
           requires_response,
@@ -453,14 +458,15 @@ export class CommunicationDraftService {
           $5,
           $6,
           $7,
-          $8::jsonb,
+          $8,
+          $9::jsonb,
           'Draft',
-          $9,
-          $10::uuid,
-          $11,
+          $10,
+          $11::uuid,
           $12,
-          $13::timestamptz,
-          $14::jsonb
+          $13,
+          $14::timestamptz,
+          $15::jsonb
         )
         returning id::text as id
       `,
@@ -472,6 +478,7 @@ export class CommunicationDraftService {
         writeModel.category,
         writeModel.title,
         writeModel.body,
+        writeModel.instruction,
         JSON.stringify(writeModel.channelSelections),
         writeModel.requiresResponse,
         writeModel.workflowId,
@@ -988,13 +995,14 @@ export class CommunicationDraftService {
           category = $4,
           title = $5,
           body = $6,
-          channel_selections_json = $7::jsonb,
-          requires_response = $8,
-          workflow_id = $9::uuid,
-          windows_agent_presentation = $10,
-          delivery_strategy = $11,
-          scheduled_at = $12::timestamptz,
-          draft_schedule_json = $13::jsonb
+          instruction = $7,
+          channel_selections_json = $8::jsonb,
+          requires_response = $9,
+          workflow_id = $10::uuid,
+          windows_agent_presentation = $11,
+          delivery_strategy = $12,
+          scheduled_at = $13::timestamptz,
+          draft_schedule_json = $14::jsonb
         where id::text = $1
       `,
       [
@@ -1004,6 +1012,7 @@ export class CommunicationDraftService {
         writeModel.category,
         writeModel.title,
         writeModel.body,
+        writeModel.instruction,
         JSON.stringify(writeModel.channelSelections),
         writeModel.requiresResponse,
         writeModel.workflowId,
@@ -1039,6 +1048,7 @@ export class CommunicationDraftService {
           category,
           title,
           body,
+          instruction,
           channel_selections_json,
           status,
           requires_response,
@@ -1056,14 +1066,15 @@ export class CommunicationDraftService {
           $5,
           $6,
           $7,
-          $8::jsonb,
+          $8,
+          $9::jsonb,
           'Draft',
-          $9,
-          $10::uuid,
-          $11,
+          $10,
+          $11::uuid,
           $12,
-          $13::timestamptz,
-          $14::jsonb
+          $13,
+          $14::timestamptz,
+          $15::jsonb
         )
         returning id::text as id
       `,
@@ -1075,6 +1086,7 @@ export class CommunicationDraftService {
         existing.category,
         existing.title,
         existing.body,
+        existing.instruction,
         JSON.stringify(normalizeChannelArray(existing.channelSelections)),
         existing.requiresResponse,
         existing.workflowId,
@@ -1477,6 +1489,7 @@ export class CommunicationDraftService {
       recipientsCount: detail.recipientsCount,
       ackCount: detail.ackCount,
       body: detail.body,
+      instruction: detail.instruction,
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
       deliveryStrategy: detail.deliveryStrategy,
@@ -1514,6 +1527,7 @@ export class CommunicationDraftService {
               and cr.ack_state in ('Acknowledged', 'Safe', 'NeedAssistance', 'NotInArea')
           ) as "ackCount",
           body::text as body,
+          instruction::text as instruction,
           requires_response as "requiresResponse",
           workflow_id::text as "workflowId",
           windows_agent_presentation::text as "windowsAgentPresentation",
@@ -1723,6 +1737,7 @@ export class CommunicationDraftService {
       template,
       title: input.title,
       body: input.body,
+      instruction: input.instruction ?? null,
       channelSelections: input.channelSelections,
       targets: input.targets,
       workflowId: input.workflowId ?? null,
@@ -1748,6 +1763,7 @@ export class CommunicationDraftService {
       template,
       title: input.title ?? existing.title,
       body: input.body ?? existing.body,
+      instruction: input.instruction === undefined ? existing.instruction : input.instruction,
       channelSelections:
         input.channelSelections ?? normalizeChannelArray(existing.channelSelections),
       targets: input.targets ?? existingTargets,
@@ -1772,6 +1788,7 @@ export class CommunicationDraftService {
     template: CommunicationTemplatePolicy | null;
     title: string;
     body: string;
+    instruction: string | null;
     channelSelections: Channel[];
     targets: TargetRule[];
     workflowId: string | null;
@@ -1783,6 +1800,7 @@ export class CommunicationDraftService {
     validateChannelSelections(input.channelSelections, this.enabledDeliveryChannels);
 
     const template = input.template;
+    const normalizedChannelSelections = dedupeChannels(input.channelSelections);
     const finalWorkflowId = template?.defaultWorkflowId ?? input.workflowId;
     const finalWindowsAgentPresentation =
       template?.defaultWindowsAgentPresentation ?? input.windowsAgentPresentation;
@@ -1792,7 +1810,7 @@ export class CommunicationDraftService {
 
     if (template) {
       validateAllowedTargetTypes(template, input.targets);
-      validateMandatoryChannels(template, input.channelSelections);
+      validateMandatoryChannels(template, normalizedChannelSelections);
       validateTemplateLockedField("priority", template, input.priority, template.defaultPriority);
       validateTemplateLockedField(
         "workflowId",
@@ -1815,7 +1833,7 @@ export class CommunicationDraftService {
 
       if (template.lockedFields.includes("channelSelections")) {
         const allowedChannels = new Set([...template.mandatoryChannels, ...template.optionalChannels]);
-        const hasUnsupportedChannel = input.channelSelections.some((channel) => !allowedChannels.has(channel));
+        const hasUnsupportedChannel = normalizedChannelSelections.some((channel) => !allowedChannels.has(channel));
         if (hasUnsupportedChannel) {
           throw new AppError({
             statusCode: 422,
@@ -1843,6 +1861,36 @@ export class CommunicationDraftService {
       input.reminderSchedule,
     );
 
+    const normalizedInstruction = normalizeNullableText(input.instruction);
+    const normalizedWindowsAgentAuthoring = normalizeWindowsAgentAuthoringRules({
+      priority: input.priority,
+      channelSelections: normalizedChannelSelections,
+      instruction: normalizedInstruction,
+      windowsAgentPresentation: finalWindowsAgentPresentation,
+    });
+
+    if (template) {
+      validateTemplateLockedField(
+        "windowsAgentPresentation",
+        template,
+        normalizedWindowsAgentAuthoring.windowsAgentPresentation,
+        template.defaultWindowsAgentPresentation,
+      );
+    }
+
+    if (
+      requiresResponse &&
+      normalizedWindowsAgentAuthoring.windowsAgentPresentation === "Toast" &&
+      normalizedChannelSelections.length > 0 &&
+      normalizedChannelSelections.every((channel) => channel === "WindowsAgent")
+    ) {
+      throw new AppError({
+        statusCode: 422,
+        code: "TOAST_RESPONSE_NOT_SUPPORTED",
+        message: "Windows Agent toast notifications cannot require acknowledgement or workflow responses when they are the only selected channel.",
+      });
+    }
+
     return {
       templateId: template?.id ?? null,
       templateVersion: template?.version ?? null,
@@ -1851,10 +1899,11 @@ export class CommunicationDraftService {
       category: normalizeNullableText(input.category),
       title: input.title.trim(),
       body: input.body.trim(),
-      channelSelections: dedupeChannels(input.channelSelections),
+      instruction: normalizedWindowsAgentAuthoring.instruction,
+      channelSelections: normalizedChannelSelections,
       requiresResponse,
       workflowId: finalWorkflowId,
-      windowsAgentPresentation: finalWindowsAgentPresentation,
+      windowsAgentPresentation: normalizedWindowsAgentAuthoring.windowsAgentPresentation,
       deliveryStrategy: finalDeliveryStrategy,
       reminderSchedule,
       targets: input.targets.map((target) => ({
@@ -1868,6 +1917,55 @@ export class CommunicationDraftService {
 function normalizeNullableText(value: string | null) {
   const trimmed = value?.trim() ?? null;
   return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeWindowsAgentAuthoringRules(options: {
+  priority: Priority;
+  channelSelections: Channel[];
+  instruction: string | null;
+  windowsAgentPresentation: WindowsAgentPresentation | null;
+}) {
+  if (!options.channelSelections.includes("WindowsAgent")) {
+    return {
+      instruction: options.instruction,
+      windowsAgentPresentation: null,
+    };
+  }
+
+  if (options.priority === "Warning") {
+    if (!options.instruction) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WARNING_INSTRUCTION_REQUIRED",
+        message: "Warning communications for Windows Agent require instruction text.",
+      });
+    }
+
+    return {
+      instruction: options.instruction,
+      windowsAgentPresentation: "Modal" as const,
+    };
+  }
+
+  if (options.priority === "Info") {
+    const normalizedPresentation = options.windowsAgentPresentation ?? "Toast";
+    if (normalizedPresentation === "Toast") {
+      return {
+        instruction: null,
+        windowsAgentPresentation: "Toast" as const,
+      };
+    }
+
+    return {
+      instruction: options.instruction,
+      windowsAgentPresentation: normalizedPresentation,
+    };
+  }
+
+  return {
+    instruction: options.instruction,
+    windowsAgentPresentation: options.windowsAgentPresentation ?? "Modal",
+  };
 }
 
 function normalizeReminderDraftScheduleInput(
@@ -2870,6 +2968,7 @@ async function materializeAgentReminderPolicies(
           timezone,
           title_snapshot,
           body_snapshot,
+          instruction_snapshot,
           windows_agent_presentation,
           valid_from,
           valid_until,
@@ -2885,8 +2984,9 @@ async function materializeAgentReminderPolicies(
           $7,
           $8,
           $9,
-          $10::timestamptz,
+          $10,
           $11::timestamptz,
+          $12::timestamptz,
           true
         )
       `,
@@ -2899,6 +2999,7 @@ async function materializeAgentReminderPolicies(
         options.timezone,
         options.communication.title,
         options.communication.body,
+        options.communication.instruction,
         options.communication.windowsAgentPresentation,
         options.validFrom,
         options.validUntil,
@@ -3051,9 +3152,9 @@ function buildCommunicationListWhereClause(options: ListCommunicationOptions) {
 
   if (options.search) {
     const term = `%${options.search}%`;
-    params.push(term, term, term);
+    params.push(term, term, term, term);
     conditions.push(
-      `(title::text ilike $${params.length - 2} or body::text ilike $${params.length - 1} or category::text ilike $${params.length})`,
+      `(title::text ilike $${params.length - 3} or body::text ilike $${params.length - 2} or instruction::text ilike $${params.length - 1} or category::text ilike $${params.length})`,
     );
   }
 

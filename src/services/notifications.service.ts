@@ -26,6 +26,8 @@ type ApiCommunicationSummary = {
 
 type ApiCommunicationDetail = ApiCommunicationSummary & {
   body: string;
+  instruction?: string | null;
+  windowsAgentPresentation?: "Toast" | "Modal" | "Fullscreen" | null;
   category?: string | null;
   requiresResponse?: boolean;
   workflow?: { id: string } | null;
@@ -345,11 +347,11 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     targetDeviceId:
       primaryTarget?.targetType === "Device" ? primaryTarget.targetValue : undefined,
     workflowId: item.workflow?.id ?? null,
-    workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
+    windowsAgentPresentation: item.windowsAgentPresentation ?? null,
     scheduledAt: item.scheduledAt ?? null,
     reminderSchedule: item.schedule ?? null,
-    instruction: item.workflow?.id ? "Response workflow configured by template or operator." : "",
+    instruction: item.instruction ?? "",
     status: mapStatusFromApi(item.status),
     templateId: item.templateId ?? null,
     createdBy: "System",
@@ -494,17 +496,24 @@ function inferCommunicationType(category: Notification["category"]): ApiCommunic
 }
 
 function buildCreatePayload(input: CreateNotificationInput) {
+  const normalizedDesktopAgent = normalizeDesktopAgentAuthoringInput({
+    priority: input.priority,
+    channels: input.channels,
+    instruction: input.instruction,
+    windowsAgentPresentation: input.windowsAgentPresentation,
+  });
+
   return {
     communicationType: input.communicationType ?? inferCommunicationType(input.category),
     priority: input.priority === "Emergency" ? "Critical" : input.priority,
     category: input.category,
     title: input.title,
     body: input.message,
+    instruction: normalizedDesktopAgent.instruction,
     channelSelections: input.channels.map(mapChannelToApi),
     targets: buildTargetsFromNotification(input),
     workflowId: input.requireAck ? input.workflowId ?? null : null,
-    windowsAgentPresentation:
-      input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null,
+    windowsAgentPresentation: normalizedDesktopAgent.windowsAgentPresentation,
     deliveryStrategy: null,
     reminderSchedule: mapReminderScheduleInputToApi(input.reminderSchedule),
   };
@@ -512,6 +521,12 @@ function buildCreatePayload(input: CreateNotificationInput) {
 
 function buildUpdatePayload(input: UpdateNotificationInput) {
   const payload: Record<string, unknown> = {};
+  const normalizedDesktopAgent = normalizeDesktopAgentAuthoringInput({
+    priority: input.priority,
+    channels: input.channels,
+    instruction: input.instruction,
+    windowsAgentPresentation: input.windowsAgentPresentation,
+  });
 
   if (input.category) {
     payload.category = input.category;
@@ -525,12 +540,15 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
     payload.body = input.message;
   }
 
+  if (input.instruction !== undefined) {
+    payload.instruction = normalizedDesktopAgent.instruction;
+  }
+
   if (input.channels) {
     payload.channelSelections = input.channels.map(mapChannelToApi);
-    payload.windowsAgentPresentation =
-      input.priority === "Emergency" && input.channels.includes("DesktopAgent") ? "Modal" : null;
-  } else if (input.priority === "Emergency") {
-    payload.windowsAgentPresentation = "Modal";
+    payload.windowsAgentPresentation = normalizedDesktopAgent.windowsAgentPresentation;
+  } else if (input.windowsAgentPresentation !== undefined) {
+    payload.windowsAgentPresentation = normalizedDesktopAgent.windowsAgentPresentation;
   }
 
   if (input.targetType) {
@@ -546,6 +564,41 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
   }
 
   return payload;
+}
+
+function normalizeDesktopAgentAuthoringInput(input: {
+  priority?: Notification["priority"];
+  channels?: Notification["channels"];
+  instruction?: string | null;
+  windowsAgentPresentation?: Notification["windowsAgentPresentation"];
+}) {
+  const hasDesktopAgentChannel = input.channels?.includes("DesktopAgent") ?? false;
+  if (!hasDesktopAgentChannel) {
+    return {
+      instruction: input.instruction ?? null,
+      windowsAgentPresentation: null,
+    };
+  }
+
+  if (input.priority === "Warning") {
+    return {
+      instruction: input.instruction ?? null,
+      windowsAgentPresentation: "Modal" as const,
+    };
+  }
+
+  if (input.priority === "Info") {
+    const presentation = input.windowsAgentPresentation ?? "Toast";
+    return {
+      instruction: presentation === "Toast" ? null : input.instruction ?? null,
+      windowsAgentPresentation: presentation,
+    };
+  }
+
+  return {
+    instruction: input.instruction ?? null,
+    windowsAgentPresentation: input.windowsAgentPresentation ?? (hasDesktopAgentChannel ? "Toast" : null),
+  };
 }
 
 function buildTargetsFromNotification(input: UpdateNotificationInput) {

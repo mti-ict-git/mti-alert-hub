@@ -50,6 +50,7 @@ type AgentMessageRow = {
   communicationId: string;
   title: string;
   body: string;
+  instruction: string | null;
   priority: "Info" | "Warning" | "Critical";
   windowsAgentPresentation: WindowsAgentPresentation | null;
   requiresResponse: boolean;
@@ -100,6 +101,7 @@ type AgentReminderPolicyRow = {
   validUntil: string | null;
   title: string;
   body: string;
+  instruction: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   requiresResponse: boolean;
   workflowId: string | null;
@@ -379,6 +381,7 @@ export class AgentService {
           arp.valid_until::text as "validUntil",
           arp.title_snapshot::text as title,
           arp.body_snapshot::text as body,
+          arp.instruction_snapshot::text as instruction,
           arp.windows_agent_presentation::text as "windowsAgentPresentation",
           c.requires_response as "requiresResponse",
           c.workflow_id::text as "workflowId",
@@ -425,6 +428,7 @@ export class AgentService {
             validUntil: row.validUntil,
             title: row.title,
             body: row.body,
+            instruction: row.instruction,
             windowsAgentPresentation: row.windowsAgentPresentation,
             requiresResponse: row.requiresResponse,
             workflow,
@@ -1024,6 +1028,7 @@ export class AgentService {
           c.id::text as "communicationId",
           c.title::text as title,
           c.body::text as body,
+          c.instruction::text as instruction,
           c.priority::text as priority,
           c.windows_agent_presentation::text as "windowsAgentPresentation",
           c.requires_response as "requiresResponse",
@@ -1049,6 +1054,7 @@ export class AgentService {
         communicationId: row.communicationId,
         title: row.title,
         body: row.body,
+        instruction: row.instruction,
         priority: row.priority,
         windowsAgentPresentation: row.windowsAgentPresentation,
         requiresResponse: row.requiresResponse,

@@ -12,6 +12,7 @@ type DeviceActionActor = {
 type SendDeviceTestNotificationInput = {
   title?: string | null;
   body?: string | null;
+  instruction?: string | null;
   windowsAgentPresentation?: "Toast" | "Modal" | "Fullscreen" | null;
 };
 
@@ -62,6 +63,9 @@ export class DeviceActionService {
           body:
             input.body?.trim() ||
             `This is a test notification from MTI Alert for ${device.hostname}. If this message is visible on the Windows Agent, realtime delivery is working.`,
+          instruction:
+            input.instruction?.trim() ||
+            "Confirm that the popup shows a separate instruction block below the main message body.",
           channelSelections: ["WindowsAgent"],
           targets: [{ targetType: "Device", targetValue: device.id }],
           windowsAgentPresentation: input.windowsAgentPresentation ?? "Toast",
@@ -100,6 +104,7 @@ export class DeviceActionService {
       communicationId: published.id,
       communicationStatus: published.status,
       title: published.title,
+      instruction: published.instruction ?? null,
     };
   }
 

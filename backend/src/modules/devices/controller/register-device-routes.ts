@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import type { AppRoute } from "../../../app/http/create-server.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
 import { baseListQuerySchema, parseListQuery } from "../../../shared/http/list-query.js";
@@ -16,6 +15,7 @@ const deviceListQuerySchema = baseListQuerySchema.extend({
 const deviceTestNotificationSchema = z.object({
   title: z.string().trim().min(1).optional(),
   body: z.string().trim().min(1).optional(),
+  instruction: z.string().trim().min(1).optional().nullable(),
   windowsAgentPresentation: z.enum(["Toast", "Modal", "Fullscreen"]).optional().nullable(),
 });
 

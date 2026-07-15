@@ -117,6 +117,10 @@ export function createHttpServer(options: CreateServerOptions) {
 
       sendJson(response, result.statusCode, result.body ?? null);
     } catch (error) {
+      if (response.writableEnded || response.headersSent) {
+        return;
+      }
+
       if (isAppError(error)) {
         sendJson(response, error.statusCode, {
           code: error.code,

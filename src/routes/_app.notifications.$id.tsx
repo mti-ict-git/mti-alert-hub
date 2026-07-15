@@ -38,10 +38,19 @@ import { notificationsService } from "@/services/notifications.service";
 import { referenceService } from "@/services/reference.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
-import type { Category, Channel, Notification, ScheduleExecutionMode, TargetType } from "@/types";
+import type {
+  Category,
+  Channel,
+  Notification,
+  ScheduleExecutionMode,
+  TargetType,
+  WindowsAgentPresentation,
+} from "@/types";
 import { format } from "date-fns";
 import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
+
+const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
 
 export const Route = createFileRoute("/_app/notifications/$id")({
   validateSearch: (search: Record<string, unknown>): DetailSearch => ({
@@ -126,9 +135,26 @@ function NotificationDetailPage() {
           targetEmployeeId: payload.targetEmployeeId || undefined,
           targetDeviceId: payload.targetDeviceId || undefined,
           channels: payload.channels,
+          windowsAgentPresentation: payload.channels.includes("DesktopAgent")
+            ? getEffectiveWindowsAgentPresentation(
+              n.priority,
+              payload.channels.includes("DesktopAgent"),
+              payload.windowsAgentPresentation,
+            )
+            : null,
           requireAck: payload.requireAck,
           workflowId: payload.requireAck ? payload.workflowId || null : null,
-          instruction: payload.instruction,
+          instruction: getInstructionMode(
+            n.priority,
+            payload.channels.includes("DesktopAgent"),
+            getEffectiveWindowsAgentPresentation(
+              n.priority,
+              payload.channels.includes("DesktopAgent"),
+              payload.windowsAgentPresentation,
+            ),
+          ) === "blocked"
+            ? ""
+            : payload.instruction,
           priority: n.priority,
           reminderSchedule: n.communicationType === "Reminder"
             ? buildDraftReminderScheduleForUpdate({
@@ -273,6 +299,7 @@ function NotificationDetailPage() {
     NoResponse: persistedRecipients.filter((r) => r.ackStatus === "NoResponse").length,
   };
   const recipientCount = recipientRows.length;
+  const currentPriority = n?.priority ?? "Info";
 
   useEffect(() => {
     if (search.mode !== "edit" || !n || n.status !== "Draft" || editOpen) {
@@ -287,6 +314,42 @@ function NotificationDetailPage() {
       replace: true,
     });
   }, [editOpen, id, n, navigate, search.mode]);
+
+  useEffect(() => {
+    if (!draftForm || !draftHasDesktopAgentChannel || !n) {
+      return;
+    }
+
+    if (n.priority === "Warning" && draftForm.windowsAgentPresentation !== "Modal") {
+      setDraftForm({
+        ...draftForm,
+        windowsAgentPresentation: "Modal",
+      });
+    }
+  }, [draftForm, draftHasDesktopAgentChannel, n?.priority]);
+
+  useEffect(() => {
+    if (!draftForm || !draftInstructionBlocked || !draftForm.instruction) {
+      return;
+    }
+
+    setDraftForm({
+      ...draftForm,
+      instruction: "",
+    });
+  }, [draftForm, draftInstructionBlocked]);
+
+  useEffect(() => {
+    if (!draftForm || !draftDesktopToastOnlyDelivery || !draftForm.requireAck) {
+      return;
+    }
+
+    setDraftForm({
+      ...draftForm,
+      requireAck: false,
+      workflowId: "",
+    });
+  }, [draftDesktopToastOnlyDelivery, draftForm]);
 
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
@@ -310,6 +373,19 @@ function NotificationDetailPage() {
       !agentLocalRoutineGuardrails.hasValidUntil ||
       !agentLocalRoutineGuardrails.isRoutinePriority);
   const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
+  const draftHasDesktopAgentChannel = draftForm?.channels.includes("DesktopAgent") ?? false;
+  const draftEffectivePresentation = draftForm
+    ? getEffectiveWindowsAgentPresentation(currentPriority, draftHasDesktopAgentChannel, draftForm.windowsAgentPresentation)
+    : "Toast";
+  const draftInstructionMode = draftForm
+    ? getInstructionMode(currentPriority, draftHasDesktopAgentChannel, draftEffectivePresentation)
+    : "optional";
+  const draftInstructionRequired = draftInstructionMode === "required";
+  const draftInstructionBlocked = draftInstructionMode === "blocked";
+  const draftDesktopToastOnlyDelivery =
+    (draftForm?.channels.every((channel) => channel === "DesktopAgent") ?? false) &&
+    draftHasDesktopAgentChannel &&
+    draftEffectivePresentation === "Toast";
 
   const canPublish = isDraft;
   const scheduledPublishInvalid =
@@ -337,6 +413,7 @@ function NotificationDetailPage() {
       requireAck: n.requireAck,
       workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
+      windowsAgentPresentation: n.windowsAgentPresentation ?? "Toast",
       reminderScheduledAt: n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "",
       reminderRecurrenceRule: n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1",
       reminderTimezone: n.reminderSchedule?.timezone ?? getLocalTimeZone(),
@@ -411,6 +488,7 @@ function NotificationDetailPage() {
               <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
                 <Info label="Message" value={n.message} />
                 <Info label="Instruction" value={n.instruction || "—"} />
+                <Info label="Windows Agent Presentation" value={n.windowsAgentPresentation || "â€”"} />
                 <Info label="Channels" value={n.channels.join(", ")} />
                 <Info label="Content Type" value={n.communicationType} />
                 <Info label="Require Ack" value={n.requireAck ? "Yes" : "No"} />
@@ -893,14 +971,86 @@ function NotificationDetailPage() {
                 </p>
               </div>
 
+              {draftForm.channels.includes("DesktopAgent") && (
+                <div className="space-y-2">
+                  <Label>Windows Agent Presentation</Label>
+                  <Select
+                    value={draftEffectivePresentation}
+                    onValueChange={(value) =>
+                      setDraftForm({
+                        ...draftForm,
+                        windowsAgentPresentation: value as WindowsAgentPresentation,
+                      })
+                    }
+                    disabled={n.priority === "Warning"}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WINDOWS_AGENT_PRESENTATIONS.filter((presentation) =>
+                        n.priority === "Warning" ? presentation === "Modal" : true,
+                      ).map((presentation) => (
+                        <SelectItem key={presentation} value={presentation}>
+                          {presentation}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {n.priority === "Warning"
+                      ? "Warning notifications on Windows Agent always use Modal so recipients must act on an explicit surface."
+                      : "This controls whether Windows Agent renders the draft as a toast, modal, or fullscreen surface."}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label>Instruction</Label>
+                <Label>
+                  Instruction
+                  {draftInstructionRequired ? " *" : ""}
+                </Label>
                 <Textarea
                   rows={3}
                   value={draftForm.instruction}
                   onChange={(event) =>
                     setDraftForm({ ...draftForm, instruction: event.target.value })
                   }
+                  disabled={draftInstructionBlocked}
+                  placeholder={draftInstructionBlocked ? "Instruction is disabled for Info toast notifications." : undefined}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {draftInstructionBlocked
+                    ? "Info notifications shown as Toast do not include a separate instruction block."
+                    : draftInstructionRequired
+                      ? "Warning notifications on Windows Agent require instruction text."
+                      : "Use instruction when recipients need separate action guidance."}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <Label className="text-sm">Require Acknowledgement</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {draftDesktopToastOnlyDelivery
+                      ? "Desktop-only toast notifications auto-dismiss and cannot collect acknowledgement directly."
+                      : "Recipients must confirm they received the notification."}
+                  </p>
+                </div>
+                <Checkbox
+                  checked={draftForm.requireAck}
+                  onCheckedChange={(checked) => {
+                    const nextChecked = Boolean(checked);
+                    setDraftForm({
+                      ...draftForm,
+                      requireAck: nextChecked,
+                      workflowId:
+                        nextChecked && !draftForm.workflowId
+                          ? workflows[0]?.id ?? ""
+                          : nextChecked
+                            ? draftForm.workflowId
+                            : "",
+                    });
+                  }}
+                  disabled={draftDesktopToastOnlyDelivery}
                 />
               </div>
 
@@ -1002,27 +1152,6 @@ function NotificationDetailPage() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div>
-                  <Label className="text-sm">Require Acknowledgement</Label>
-                  <p className="text-xs text-muted-foreground">
-                    This updates the workflow requirement that is already supported by the current draft API.
-                  </p>
-                </div>
-                <Checkbox
-                  checked={draftForm.requireAck}
-                  onCheckedChange={(checked) =>
-                    setDraftForm({
-                      ...draftForm,
-                      requireAck: checked === true,
-                      workflowId:
-                        checked === true
-                          ? draftForm.workflowId || workflows[0]?.id || ""
-                          : "",
-                    })
-                  }
-                />
-              </div>
             </div>
           )}
           <DialogFooter>
@@ -1038,6 +1167,7 @@ function NotificationDetailPage() {
                 draftForm.channels.length === 0 ||
                 (draftForm.requireAck && !draftForm.workflowId) ||
                 !hasRequiredTargetSelection(draftForm) ||
+                (draftInstructionRequired && !draftForm.instruction.trim()) ||
                 (n.communicationType === "Reminder" && !isValidDraftReminderForm(draftForm)) ||
                 updateDraftMutation.isPending
               }
@@ -1321,6 +1451,7 @@ type EditDraftForm = {
   targetEmployeeId: string;
   targetDeviceId: string;
   channels: Channel[];
+  windowsAgentPresentation: WindowsAgentPresentation;
   requireAck: boolean;
   workflowId: string;
   instruction: string;
@@ -1367,6 +1498,42 @@ function normalizeEditableTargetType(targetType: Notification["targetType"]): Ed
 
 function isEditableChannel(channel: Notification["channels"][number]): channel is Channel {
   return EDITABLE_CHANNEL_OPTIONS.some((candidate) => candidate.key === channel);
+}
+
+function getEffectiveWindowsAgentPresentation(
+  priority: Notification["priority"],
+  hasDesktopAgentChannel: boolean,
+  selectedPresentation: WindowsAgentPresentation,
+): WindowsAgentPresentation {
+  if (!hasDesktopAgentChannel) {
+    return selectedPresentation;
+  }
+
+  if (priority === "Warning") {
+    return "Modal";
+  }
+
+  return selectedPresentation;
+}
+
+function getInstructionMode(
+  priority: Notification["priority"],
+  hasDesktopAgentChannel: boolean,
+  presentation: WindowsAgentPresentation,
+) {
+  if (!hasDesktopAgentChannel) {
+    return "optional" as const;
+  }
+
+  if (priority === "Warning") {
+    return "required" as const;
+  }
+
+  if (priority === "Info" && presentation === "Toast") {
+    return "blocked" as const;
+  }
+
+  return "optional" as const;
 }
 
 function hasRequiredTargetSelection(form: EditDraftForm) {

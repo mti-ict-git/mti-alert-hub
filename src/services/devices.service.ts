@@ -28,6 +28,7 @@ type DeviceTestNotificationResponse = {
   communicationId: string;
   communicationStatus: "Queued" | "Scheduled" | "Active";
   title: string;
+  instruction?: string | null;
 };
 
 export const devicesService = {

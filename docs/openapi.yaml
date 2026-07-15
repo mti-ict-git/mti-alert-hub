@@ -1609,6 +1609,9 @@ components:
           properties:
             body:
               type: string
+            instruction:
+              type: string
+              nullable: true
             category:
               type: string
               nullable: true
@@ -1682,6 +1685,10 @@ components:
           type: string
         body:
           type: string
+        instruction:
+          type: string
+          nullable: true
+          description: Optional instruction text. When the Windows Agent channel is enabled, `Info + Toast` is normalized to `null` and `Warning` requires a non-empty instruction.
         channelSelections:
           type: array
           items:
@@ -1697,6 +1704,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/WindowsAgentPresentation"
           nullable: true
+          description: Optional Windows Agent presentation override. `Warning` is normalized to `Modal` when the desktop channel is selected.
         deliveryStrategy:
           allOf:
             - $ref: "#/components/schemas/DeliveryStrategy"
@@ -1723,6 +1731,10 @@ components:
           type: string
         body:
           type: string
+        instruction:
+          type: string
+          nullable: true
+          description: Optional instruction text. When the Windows Agent channel is enabled, `Info + Toast` is normalized to `null` and `Warning` requires a non-empty instruction.
         channelSelections:
           type: array
           items:
@@ -1738,6 +1750,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/WindowsAgentPresentation"
           nullable: true
+          description: Optional Windows Agent presentation override. `Warning` is normalized to `Modal` when the desktop channel is selected.
         deliveryStrategy:
           allOf:
             - $ref: "#/components/schemas/DeliveryStrategy"
@@ -2511,6 +2524,10 @@ components:
         body:
           type: string
           description: Optional custom notification body. When omitted, the backend generates a default connectivity-check message.
+        instruction:
+          type: string
+          nullable: true
+          description: Optional instruction text rendered separately by the Windows Agent. When omitted, the backend generates a default instruction block for the quick device test flow.
         windowsAgentPresentation:
           allOf:
             - $ref: "#/components/schemas/WindowsAgentPresentation"
@@ -2536,6 +2553,9 @@ components:
           enum: [Queued, Scheduled, Active]
         title:
           type: string
+        instruction:
+          type: string
+          nullable: true
 
     AgentSessionRequest:
       type: object
@@ -2681,6 +2701,9 @@ components:
           type: string
         body:
           type: string
+        instruction:
+          type: string
+          nullable: true
         priority:
           $ref: "#/components/schemas/Priority"
         windowsAgentPresentation:
@@ -2741,6 +2764,9 @@ components:
           type: string
         body:
           type: string
+        instruction:
+          type: string
+          nullable: true
         windowsAgentPresentation:
           $ref: "#/components/schemas/WindowsAgentPresentation"
         requiresResponse:

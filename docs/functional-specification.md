@@ -181,7 +181,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 ## Key Workflows
 ### Workflow 1: Create And Send Communication
 1. User creates a draft.
-2. User selects content type, priority, audience, channels, and response workflow or uses a template.
+2. User selects content type, priority, audience, channels, message body, Windows Agent presentation, and response workflow or uses a template. The instruction field remains policy-driven when the desktop channel is enabled.
 3. System enforces template locks and override rules.
 4. System resolves and previews audience, channel plan, and policy impact.
 5. User confirms publish now or schedules.
@@ -221,14 +221,18 @@ All MVP communication types remain delivery-tracked and read-tracked.
 1. Operator opens the `Devices` admin view.
 2. Operator sends a device-scoped test notification to an online Windows Agent device.
 3. System creates and immediately publishes a one-time Windows Agent communication targeted only to that device.
-4. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
-5. The system records audit evidence so operations can trace who initiated the device test.
+4. The test communication includes a separate instruction block so operators can validate the full Windows Agent popup layout without opening the full draft-authoring flow.
+5. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
+6. The system records audit evidence so operations can trace who initiated the device test.
 
 ## Functional Requirements
 ### Communication Authoring
 - `FR-1` The system shall allow authorized users to create, edit, duplicate, cancel, and archive communications.
 - `FR-1A` Notification Center shall provide lifecycle-aware quick actions, including direct draft editing and contextual bulk actions that only expose operations valid for the selected communication states.
 - `FR-2` The system shall support a unified communication form with type-specific fields controlled by metadata and workflow rules.
+- `FR-2A` The system shall preserve an optional `instruction` field separately from the main message body so channel-specific previews and Windows Agent rendering can present action guidance distinctly.
+- `FR-2B` The admin authoring experience shall expose explicit `Windows Agent presentation` selection for communications that include the desktop channel so operators can intentionally choose `Toast`, `Modal`, or `Fullscreen` instead of relying on implicit priority defaults.
+- `FR-2C` The admin and backend authoring rules shall enforce Windows Agent presentation semantics consistently: `Info + Toast` clears and hides the separate `instruction`, `Info + Modal/Fullscreen` may include `instruction`, and `Warning` shall always use `Modal` with required `instruction`.
 - `FR-3` The system shall support immediate and scheduled publication.
 - `FR-4` The system shall support recurring schedules for reminder-type communications.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
@@ -278,6 +282,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-18` The system shall support workflow definition management for reusable response models.
 - `FR-19` The system shall record audit logs for administrative and communication lifecycle actions.
 - `FR-19E` The device-management experience shall support sending an immediate Windows Agent test notification to an online device without requiring operators to author a manual draft first.
+- `FR-19F` The device-management quick test flow shall preserve or synthesize a separate `instruction` value so the Windows Agent popup can validate the full body-versus-instruction layout during connectivity checks.
 - `FR-19A` The system shall support imported or synchronized organization data with limited MTI-managed adjustment capability.
 - `FR-19B` The system shall use external HR synchronization as the primary source for MVP basic organization data.
 - `FR-19C` The system shall support versioned templates with template policy snapshots on communications.

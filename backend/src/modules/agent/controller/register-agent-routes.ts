@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import type { AppRoute } from "../../../app/http/create-server.js";
 import { AppError } from "../../../shared/errors/app-error.js";
-import { sendNoContent } from "../../../shared/http/json-response.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { AgentService } from "../service/agent-service.js";
 
@@ -123,12 +122,11 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       method: "POST",
       path: "/agent/heartbeat",
       allowAnonymous: true,
-      async handler({ json, request, response }) {
+      async handler({ json, request }) {
         const sessionToken = requireAgentSessionToken(request.headers.authorization);
         const payload = validateWithSchema(agentHeartbeatRequestSchema, await json());
 
         await options.agentService.reportHeartbeat(sessionToken, payload);
-        sendNoContent(response);
         return {
           statusCode: 204,
         };
@@ -168,7 +166,7 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       method: "POST",
       path: "/agent/messages/{messageId}/displayed",
       allowAnonymous: true,
-      async handler({ json, params, request, response }) {
+      async handler({ json, params, request }) {
         const sessionToken = requireAgentSessionToken(request.headers.authorization);
         const payload = validateWithSchema(agentLifecycleEventRequestSchema, await json());
 
@@ -177,7 +175,6 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
           params.messageId ?? "",
           payload,
         );
-        sendNoContent(response);
         return {
           statusCode: 204,
         };
@@ -187,12 +184,11 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       method: "POST",
       path: "/agent/messages/{messageId}/read",
       allowAnonymous: true,
-      async handler({ json, params, request, response }) {
+      async handler({ json, params, request }) {
         const sessionToken = requireAgentSessionToken(request.headers.authorization);
         const payload = validateWithSchema(agentLifecycleEventRequestSchema, await json());
 
         await options.agentService.reportRead(sessionToken, params.messageId ?? "", payload);
-        sendNoContent(response);
         return {
           statusCode: 204,
         };
@@ -223,7 +219,7 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       method: "POST",
       path: "/agent/reminder-policies/{policyId}/events",
       allowAnonymous: true,
-      async handler({ json, params, request, response }) {
+      async handler({ json, params, request }) {
         const sessionToken = requireAgentSessionToken(request.headers.authorization);
         const payload = validateWithSchema(agentReminderEventRequestSchema, await json());
 
@@ -232,7 +228,6 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
           params.policyId ?? "",
           payload,
         );
-        sendNoContent(response);
         return {
           statusCode: 204,
         };

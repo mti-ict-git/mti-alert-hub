@@ -30,6 +30,7 @@ import type {
   ScheduleExecutionMode,
   TargetType,
   Template,
+  WindowsAgentPresentation,
 } from "@/types";
 import { cn } from "@/lib/utils";
 import { Siren } from "lucide-react";
@@ -42,6 +43,7 @@ const ALL_CHANNELS: { key: Channel; label: string }[] = [
   { key: "DigitalSignage", label: "Digital Signage" },
 ];
 const CHANNELS = ALL_CHANNELS.filter((channel) => enabledDeliveryChannels.includes(channel.key));
+const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
 
 const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee", "Device"];
 
@@ -91,6 +93,8 @@ function CreateNotificationPage() {
   const [employeeId, setEmployeeId] = useState<string>("");
   const [deviceId, setDeviceId] = useState<string>("");
   const [channels, setChannels] = useState<Channel[]>([...enabledDeliveryChannels]);
+  const [windowsAgentPresentation, setWindowsAgentPresentation] =
+    useState<WindowsAgentPresentation>("Toast");
   const [requireAck, setRequireAck] = useState(false);
   const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
@@ -146,8 +150,46 @@ function CreateNotificationPage() {
     }
   }, [priority, selectedTemplate?.defaultWorkflowId, workflows]);
 
+  useEffect(() => {
+    if (!hasDesktopAgentChannel) {
+      return;
+    }
+
+    if (priority === "Warning" && windowsAgentPresentation !== "Modal") {
+      setWindowsAgentPresentation("Modal");
+    }
+  }, [hasDesktopAgentChannel, priority, windowsAgentPresentation]);
+
+  useEffect(() => {
+    if (instructionBlocked && instruction) {
+      setInstruction("");
+    }
+  }, [instruction, instructionBlocked]);
+
+  useEffect(() => {
+    if (!desktopToastOnlyDelivery || !requireAck) {
+      return;
+    }
+
+    setRequireAck(false);
+    setWorkflowId("");
+  }, [desktopToastOnlyDelivery, requireAck]);
+
   const isEmergency = priority === "Emergency" || priority === "Critical";
   const isReminder = communicationType === "Reminder";
+  const hasDesktopAgentChannel = channels.includes("DesktopAgent");
+  const effectiveWindowsAgentPresentation = getEffectiveWindowsAgentPresentation(
+    priority,
+    hasDesktopAgentChannel,
+    windowsAgentPresentation,
+  );
+  const instructionMode = getInstructionMode(priority, hasDesktopAgentChannel, effectiveWindowsAgentPresentation);
+  const instructionRequired = instructionMode === "required";
+  const instructionBlocked = instructionMode === "blocked";
+  const desktopToastOnlyDelivery =
+    hasDesktopAgentChannel &&
+    channels.every((channel) => channel === "DesktopAgent") &&
+    effectiveWindowsAgentPresentation === "Toast";
   const availableAreas = useMemo(
     () => areas.filter((item) => !site || item.siteId === site),
     [areas, site],
@@ -255,9 +297,10 @@ function CreateNotificationPage() {
       targetEmployeeId: employeeId || undefined,
       targetDeviceId: deviceId || undefined,
       channels,
+      windowsAgentPresentation: hasDesktopAgentChannel ? effectiveWindowsAgentPresentation : null,
       requireAck,
       workflowId: requireAck ? workflowId || null : null,
-      instruction,
+      instruction: instructionBlocked ? "" : instruction,
       scheduledAt: scheduleLater && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       scheduleLater,
       reminderSchedule: isReminder
@@ -286,6 +329,7 @@ function CreateNotificationPage() {
     channels.length > 0 &&
     hasRequiredTargetSelection &&
     (!requireAck || Boolean(workflowId)) &&
+    (!instructionRequired || Boolean(instruction.trim())) &&
     (!isReminder || isValidReminderDraftAuthoring({
       timezone: reminderTimezone,
       recurrenceRule: reminderRecurrenceRule,
@@ -608,10 +652,41 @@ function CreateNotificationPage() {
               </p>
             </div>
 
+            {hasDesktopAgentChannel && (
+              <div className="space-y-2">
+                <Label>Windows Agent Presentation</Label>
+                <Select
+                  value={effectiveWindowsAgentPresentation}
+                  onValueChange={(value) => setWindowsAgentPresentation(value as WindowsAgentPresentation)}
+                  disabled={priority === "Warning"}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WINDOWS_AGENT_PRESENTATIONS.filter((presentation) =>
+                      priority === "Warning" ? presentation === "Modal" : true,
+                    ).map((presentation) => (
+                      <SelectItem key={presentation} value={presentation}>
+                        {presentation}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {priority === "Warning"
+                    ? "Warning notifications on Windows Agent always use Modal so recipients must act on an explicit surface."
+                    : "Choose how this communication should appear on Windows Agent instead of relying on implicit priority rules."}
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
                 <Label className="text-sm">Require Acknowledgement</Label>
-                <p className="text-xs text-muted-foreground">Recipients must confirm they received the notification.</p>
+                <p className="text-xs text-muted-foreground">
+                  {desktopToastOnlyDelivery
+                    ? "Desktop-only toast notifications auto-dismiss and cannot collect acknowledgement directly."
+                    : "Recipients must confirm they received the notification."}
+                </p>
               </div>
               <Switch
                 checked={requireAck}
@@ -621,6 +696,7 @@ function CreateNotificationPage() {
                     setWorkflowId(selectedTemplate?.defaultWorkflowId ?? workflows[0]?.id ?? "");
                   }
                 }}
+                disabled={desktopToastOnlyDelivery}
               />
             </div>
 
@@ -645,8 +721,24 @@ function CreateNotificationPage() {
             )}
 
             <div className="space-y-2">
-              <Label>Instruction</Label>
-              <Textarea rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="What should recipients do?" />
+              <Label>
+                Instruction
+                {instructionRequired ? " *" : ""}
+              </Label>
+              <Textarea
+                rows={3}
+                value={instruction}
+                onChange={(e) => setInstruction(e.target.value)}
+                placeholder={instructionBlocked ? "Instruction is disabled for Info toast notifications." : "What should recipients do?"}
+                disabled={instructionBlocked}
+              />
+              <p className="text-xs text-muted-foreground">
+                {instructionBlocked
+                  ? "Info notifications shown as Toast do not include a separate instruction block."
+                  : instructionRequired
+                    ? "Warning notifications on Windows Agent require instruction text."
+                    : "Use instruction when recipients need separate action guidance."}
+              </p>
             </div>
 
             {requireAck && (
@@ -690,10 +782,26 @@ function CreateNotificationPage() {
             <CardHeader><CardTitle className="text-base">Previews</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               {channels.includes("WhatsApp") && (
-                <WhatsAppPreview title={title} priority={priority} site={site} instruction={instruction} />
+                <WhatsAppPreview
+                  title={title}
+                  priority={priority}
+                  site={site}
+                  instruction={instructionBlocked ? "" : instruction}
+                />
               )}
               {channels.includes("DesktopAgent") && (
-                <DesktopPreview title={title} message={message} priority={priority} instruction={instruction} />
+                <div className="space-y-2">
+                  <DesktopPreview
+                    title={title}
+                    message={message}
+                    priority={priority}
+                    instruction={instructionBlocked ? "" : instruction}
+                    presentation={effectiveWindowsAgentPresentation}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Windows Agent presentation: {effectiveWindowsAgentPresentation}
+                  </p>
+                </div>
               )}
               {channels.length === 0 && <p className="text-sm text-muted-foreground">Select at least one channel to see previews.</p>}
               {!channels.includes("WhatsApp") && !channels.includes("DesktopAgent") && channels.length > 0 && (
@@ -747,6 +855,42 @@ function getAllowedAuthoringTargetTypes(template: Template): TargetType[] {
   );
 
   return allowedTargetTypes && allowedTargetTypes.length > 0 ? allowedTargetTypes : TARGET_TYPES;
+}
+
+function getEffectiveWindowsAgentPresentation(
+  priority: Priority,
+  hasDesktopAgentChannel: boolean,
+  selectedPresentation: WindowsAgentPresentation,
+): WindowsAgentPresentation {
+  if (!hasDesktopAgentChannel) {
+    return selectedPresentation;
+  }
+
+  if (priority === "Warning") {
+    return "Modal";
+  }
+
+  return selectedPresentation;
+}
+
+function getInstructionMode(
+  priority: Priority,
+  hasDesktopAgentChannel: boolean,
+  presentation: WindowsAgentPresentation,
+) {
+  if (!hasDesktopAgentChannel) {
+    return "optional" as const;
+  }
+
+  if (priority === "Warning") {
+    return "required" as const;
+  }
+
+  if (priority === "Info" && presentation === "Toast") {
+    return "blocked" as const;
+  }
+
+  return "optional" as const;
 }
 
 function buildDraftReminderSchedule(input: {

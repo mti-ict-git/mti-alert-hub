@@ -46,6 +46,7 @@ export type DeviceStatus = "Online" | "Offline" | "Stale";
 export type EmployeeStatus = "Active" | "Inactive";
 export type ScheduleExecutionMode = "ServerGenerated" | "AgentLocalRoutine";
 export type CommunicationScheduleType = "Immediate" | "Scheduled" | "Recurring";
+export type WindowsAgentPresentation = "Toast" | "Modal" | "Fullscreen";
 
 export interface User {
   id: string;
@@ -107,6 +108,7 @@ export interface Notification {
   templateId?: string | null;
   workflowId?: string | null;
   channels: Channel[];
+  windowsAgentPresentation?: WindowsAgentPresentation | null;
   requireAck: boolean;
   scheduledAt?: string | null;
   instruction?: string;

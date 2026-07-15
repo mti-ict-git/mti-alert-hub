@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import type { AppRoute } from "../../../app/http/create-server.js";
-import { sendNoContent } from "../../../shared/http/json-response.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { AdminSession } from "../model/admin-session.js";
 import type { AuthService } from "../service/auth-service.js";
@@ -50,13 +49,12 @@ export function registerAuthRoutes(options: RegisterAuthRoutesOptions): AppRoute
       method: "POST",
       path: "/auth/logout",
       requiresAuth: true,
-      async handler({ auth, response }) {
+      async handler({ auth }) {
         if (!auth) {
           throw new Error("Authenticated route invoked without auth context.");
         }
 
         options.authService.logout(auth.session.sessionToken);
-        sendNoContent(response);
         return {
           statusCode: 204,
         };
