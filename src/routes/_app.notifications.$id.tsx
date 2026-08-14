@@ -40,11 +40,15 @@ import { referenceService } from "@/services/reference.service";
 import { workflowsService } from "@/services/workflows.service";
 import { enabledDeliveryChannels, filterEnabledDeliveryChannels } from "@/config/delivery-channels";
 import { MarkdownText } from "@/components/common/MarkdownText";
+import { Badge } from "@/components/ui/badge";
+import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 import type {
+  AudiencePreview,
   Category,
   Channel,
   Notification,
   Priority,
+  Recipient,
   ScheduleExecutionMode,
   TargetType,
   WindowsAgentPresentation,
@@ -55,16 +59,21 @@ import { toast } from "sonner";
 
 const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
 const MESSAGE_MAX_LENGTH = 320;
+const DESKTOP_ONLY_LIVE_PATH =
+  enabledDeliveryChannels.length === 1 && enabledDeliveryChannels[0] === "DesktopAgent";
 
 export const Route = createFileRoute("/_app/notifications/$id")({
   validateSearch: (search: Record<string, unknown>): DetailSearch => ({
-    mode: search.mode === "edit" ? "edit" : undefined,
+    mode:
+      search.mode === "edit" || search.mode === "publish"
+        ? (search.mode as DetailSearch["mode"])
+        : undefined,
   }),
   component: NotificationDetailPage,
 });
 
 type DetailSearch = {
-  mode?: "edit";
+  mode?: "edit" | "publish";
 };
 
 function NotificationDetailPage() {
@@ -334,6 +343,20 @@ function NotificationDetailPage() {
   }, [editOpen, id, n, navigate, search.mode]);
 
   useEffect(() => {
+    if (search.mode !== "publish" || !n || n.status !== "Draft" || publishOpen) {
+      return;
+    }
+
+    setPublishOpen(true);
+    void navigate({
+      to: "/notifications/$id",
+      params: { id },
+      search: {},
+      replace: true,
+    });
+  }, [id, n, navigate, publishOpen, search.mode]);
+
+  useEffect(() => {
     if (!draftForm || !draftHasDesktopAgentChannel || !n) {
       return;
     }
@@ -371,6 +394,8 @@ function NotificationDetailPage() {
 
   if (!n) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
+  const wellnessMonitoring = buildWellnessMonitoringSummary(reminderActivity);
+
   const isDraft = n.status === "Draft";
   const isReminder = n.communicationType === "Reminder";
   const hasDesktopAgentChannel = n.channels.includes("DesktopAgent");
@@ -400,6 +425,14 @@ function NotificationDetailPage() {
     (!recurrenceRule.trim() ||
       !publishTimezone.trim() ||
       (validUntil.trim() && !isValidDateTimeInput(validUntil)));
+  const wellnessPublishInvalid =
+    Boolean(n.wellnessProgram) &&
+    (publishMode !== "Recurring" ||
+      executionMode !== "AgentLocalRoutine" ||
+      !agentLocalRoutineGuardrails.hasValidUntil ||
+      !agentLocalRoutineGuardrails.hasDesktopAgentChannel ||
+      !agentLocalRoutineGuardrails.isRoutinePriority ||
+      !agentLocalRoutineGuardrails.usesExplicitDeviceTarget);
 
   function openEditDialog() {
     setDraftForm({
@@ -458,9 +491,24 @@ function NotificationDetailPage() {
               </Button>
             )}
             {isDraft && (
-              <Button variant="outline" size="sm" onClick={openEditDialog}>
-                <Pencil className="mr-2 h-4 w-4" /> Edit Draft
-              </Button>
+              n.wellnessProgram ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate({
+                      to: "/wellness-programs/new",
+                      search: { draftId: n.id },
+                    })
+                  }
+                >
+                  <Pencil className="mr-2 h-4 w-4" /> Open Wellness Editor
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={openEditDialog}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit Draft
+                </Button>
+              )
             )}
             <PriorityBadge priority={n.priority} />
             <StatusBadge status={n.status} />
@@ -495,7 +543,7 @@ function NotificationDetailPage() {
               <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
                 <Info label="Message" value={n.message} markdown />
                 <Info label="Instruction" value={n.instruction || "—"} markdown />
-                <Info label="Windows Agent Presentation" value={n.windowsAgentPresentation || "â€”"} />
+                <Info label="Windows Agent Presentation" value={n.windowsAgentPresentation || "—"} />
                 <Info
                   label="Toast Auto Dismiss"
                   value={formatToastAutoDismissSummary(n.windowsAgentPresentation, n.toastAutoDismissSeconds)}
@@ -521,6 +569,36 @@ function NotificationDetailPage() {
                   <Info label="Active Policy" value={n.reminderSchedule.isActive ? "Yes" : "No"} />
                   <Info label="Valid From" value={formatOptionalDate(n.reminderSchedule.validFrom)} />
                   <Info label="Valid Until" value={formatOptionalDate(n.reminderSchedule.validUntil)} />
+                </CardContent>
+              </Card>
+            )}
+            {n.wellnessProgram && (
+              <Card className="mt-4">
+                <CardHeader><CardTitle className="text-base">Wellness Program</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+                  <Info label="Program Type" value={n.wellnessProgram.programType} />
+                  <Info label="Theme" value={n.wellnessProgram.theme} />
+                  <Info label="Layout" value={n.wellnessProgram.layoutVariant} />
+                  <Info
+                    label="Countdown Seconds"
+                    value={n.wellnessProgram.countdownSeconds != null ? `${n.wellnessProgram.countdownSeconds}` : "—"}
+                  />
+                  <Info
+                    label="Rotation Mode"
+                    value={n.wellnessProgram.rotationMode ?? "—"}
+                  />
+                  <Info
+                    label="Hero Asset"
+                    value={n.wellnessProgram.heroAssetUrl ?? "—"}
+                  />
+                  <Info
+                    label="Actions"
+                    value={n.wellnessProgram.actions.map((action) => action.label).join(", ") || "—"}
+                  />
+                  <Info
+                    label="Step Count"
+                    value={`${n.wellnessProgram.steps?.length ?? 0}`}
+                  />
                 </CardContent>
               </Card>
             )}
@@ -689,6 +767,64 @@ function NotificationDetailPage() {
           {n.communicationType === "Reminder" && (
             <TabsContent value="reminders" className="mt-4">
               <div className="space-y-4">
+                {n.wellnessProgram && (
+                  <>
+                    <Card>
+                      <CardHeader><CardTitle className="text-base">Wellness Activity Summary</CardTitle></CardHeader>
+                      <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
+                        {[
+                          ["Triggered", wellnessMonitoring.counts.triggered],
+                          ["Displayed", wellnessMonitoring.counts.displayed],
+                          ["Started", wellnessMonitoring.counts.started],
+                          ["Snoozed", wellnessMonitoring.counts.snoozed],
+                          ["Completed", wellnessMonitoring.counts.completed],
+                          ["Timed Out", wellnessMonitoring.counts.timedOut],
+                          ["Step Advanced", wellnessMonitoring.counts.stepAdvanced],
+                          ["Compliance", wellnessMonitoring.completionRate != null ? `${wellnessMonitoring.completionRate}%` : "—"],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-md border p-3">
+                            <div className="text-xs uppercase text-muted-foreground">{label}</div>
+                            <div className="mt-1 text-2xl font-semibold">{value}</div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader><CardTitle className="text-base">Wellness Compliance</CardTitle></CardHeader>
+                      <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="rounded-md border p-4">
+                          <div className="text-xs uppercase text-muted-foreground">Observed Policies</div>
+                          <div className="mt-1 text-2xl font-semibold">
+                            {wellnessMonitoring.activePolicies}/{wellnessMonitoring.totalPolicies}
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Active policies against total synchronized policy rows for this wellness program.
+                          </p>
+                        </div>
+                        <div className="rounded-md border p-4">
+                          <div className="text-xs uppercase text-muted-foreground">Last Sync</div>
+                          <div className="mt-1 text-lg font-semibold">
+                            {formatOptionalDate(wellnessMonitoring.lastSyncedAt)}
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Latest policy sync observed across device-bound reminder policies.
+                          </p>
+                        </div>
+                        <div className="rounded-md border p-4">
+                          <div className="text-xs uppercase text-muted-foreground">Last Activity</div>
+                          <div className="mt-1 text-lg font-semibold">
+                            {formatOptionalDate(wellnessMonitoring.lastActivityAt)}
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Most recent reported wellness interaction from Windows Agent.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+
                 <Card>
                   <CardHeader><CardTitle className="text-base">Reminder Policies</CardTitle></CardHeader>
                   <CardContent className="p-0">
@@ -701,24 +837,38 @@ function NotificationDetailPage() {
                           <TableHead>Timezone</TableHead>
                           <TableHead>Valid Until</TableHead>
                           <TableHead>Last Synced</TableHead>
+                          <TableHead>Last Activity</TableHead>
+                          <TableHead>Latest Event</TableHead>
                           <TableHead>State</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {reminderActivity?.policies.map((policy) => (
-                          <TableRow key={policy.policyId}>
-                            <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
-                            <TableCell>{policy.scheduleVersion}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{policy.recurrenceRule}</TableCell>
-                            <TableCell>{policy.timezone}</TableCell>
-                            <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
-                            <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
-                            <TableCell><StatusBadge status={policy.isActive ? "Active" : "Cancelled"} /></TableCell>
-                          </TableRow>
-                        ))}
+                        {reminderActivity?.policies.map((policy) => {
+                          const deviceMonitoring = wellnessMonitoring.deviceItems.find(
+                            (item) => item.policyId === policy.policyId,
+                          );
+
+                          return (
+                            <TableRow key={policy.policyId}>
+                              <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
+                              <TableCell>{policy.scheduleVersion}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{policy.recurrenceRule}</TableCell>
+                              <TableCell>{policy.timezone}</TableCell>
+                              <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
+                              <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
+                              <TableCell>{formatOptionalDate(deviceMonitoring?.lastActivityAt)}</TableCell>
+                              <TableCell>
+                                {deviceMonitoring?.lastEventType ? (
+                                  <StatusBadge status={deviceMonitoring.lastEventType} />
+                                ) : "—"}
+                              </TableCell>
+                              <TableCell><StatusBadge status={policy.isActive ? "Active" : "Cancelled"} /></TableCell>
+                            </TableRow>
+                          );
+                        })}
                         {(reminderActivity?.policies.length ?? 0) === 0 && (
                           <TableRow>
-                            <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                            <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                               No reminder policies have been materialized for this communication yet.
                             </TableCell>
                           </TableRow>
@@ -766,6 +916,45 @@ function NotificationDetailPage() {
                     </Table>
                   </CardContent>
                 </Card>
+
+                {n.wellnessProgram && (
+                  <Card>
+                    <CardHeader><CardTitle className="text-base">Recent Wellness Timeline</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      {wellnessMonitoring.recentEvents.map((event) => (
+                        <div key={event.eventId} className="rounded-md border p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={event.eventType} />
+                              <span className="text-sm font-medium">
+                                {event.deviceIdentifier ?? event.hostname ?? event.deviceId}
+                              </span>
+                              {event.activeUserIdentifier && (
+                                <Badge variant="outline">{event.activeUserIdentifier}</Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(event.occurredAt), "dd MMM yyyy HH:mm:ss")}
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Policy {event.policyId}
+                          </div>
+                          {event.metadata && (
+                            <div className="mt-2 rounded bg-muted/40 p-2 font-mono text-xs text-muted-foreground">
+                              {JSON.stringify(event.metadata)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {wellnessMonitoring.recentEvents.length === 0 && (
+                        <div className="py-4 text-sm text-muted-foreground">
+                          No recent wellness events have been reported yet.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </TabsContent>
           )}
@@ -777,7 +966,7 @@ function NotificationDetailPage() {
           <DialogHeader>
             <DialogTitle>Edit Draft</DialogTitle>
             <DialogDescription>
-              Update the draft fields that are already supported by the Phase 1 backend.
+              Update the standard notification fields that are already supported by the current backend slice.
             </DialogDescription>
           </DialogHeader>
           {draftForm && (
@@ -1379,6 +1568,22 @@ function NotificationDetailPage() {
                   </p>
                 </div>
 
+                {n.wellnessProgram && (
+                  <div className="rounded-md border border-sky-200 bg-sky-50/60 p-3 text-sm">
+                    <div className="font-medium">Wellness Publish Contract</div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                      <div>Program: {n.wellnessProgram.programType}</div>
+                      <div>Theme: {n.wellnessProgram.theme}</div>
+                      <div>Layout: {n.wellnessProgram.layoutVariant}</div>
+                      <div>Target: {n.targetType}</div>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Wellness drafts must publish as `Recurring + AgentLocalRoutine`, stay
+                      device-bound, and keep a bounded validity window.
+                    </p>
+                  </div>
+                )}
+
                 {executionMode === "AgentLocalRoutine" && (
                   <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
                     <div className="font-medium">AgentLocalRoutine Guardrails</div>
@@ -1398,9 +1603,11 @@ function NotificationDetailPage() {
               <div className="font-medium">{n.title}</div>
               <p className="mt-1 text-muted-foreground">{n.message}</p>
               <p className="mt-3 text-xs text-muted-foreground">
-                {publishMode === "Recurring"
-                  ? "By continuing, the operator confirms the latest audience preview and publishes a recurring reminder with explicit execution semantics."
-                  : "By continuing, the operator confirms the latest audience preview and allows the backend to create delivery jobs for the selected channels."}
+                {n.wellnessProgram
+                  ? "By continuing, the operator confirms the latest audience preview and publishes the wellness draft through the bounded local routine path."
+                  : publishMode === "Recurring"
+                    ? "By continuing, the operator confirms the latest audience preview and publishes a recurring reminder with explicit execution semantics."
+                    : "By continuing, the operator confirms the latest audience preview and allows the backend to create delivery jobs for the selected channels."}
               </p>
             </div>
           </div>
@@ -1414,7 +1621,8 @@ function NotificationDetailPage() {
                 publishMutation.isPending ||
                 scheduledPublishInvalid ||
                 recurringPublishInvalid ||
-                agentLocalRoutineInvalid
+                agentLocalRoutineInvalid ||
+                wellnessPublishInvalid
               }
             >
               {publishMutation.isPending
@@ -1542,7 +1750,7 @@ const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
   "Section",
   "Employee",
   "Device",
-];
+].filter((targetType) => !(DESKTOP_ONLY_LIVE_PATH && targetType === "Employee")) as EditableTargetType[];
 const EDITABLE_CHANNEL_OPTIONS: Array<{ key: Channel; label: string }> = [
   { key: "DesktopAgent", label: "Desktop Agent" },
   { key: "WhatsApp", label: "WhatsApp" },
@@ -1555,12 +1763,8 @@ const EDITABLE_CHANNELS = EDITABLE_CHANNEL_OPTIONS.filter((channel) =>
 
 function normalizeEditableTargetType(targetType: Notification["targetType"]): EditableTargetType {
   if (
-    targetType === "Site" ||
-    targetType === "Area" ||
-    targetType === "Department" ||
-    targetType === "Section" ||
-    targetType === "Employee" ||
-    targetType === "Device"
+    typeof targetType === "string" &&
+    EDITABLE_TARGET_TYPES.includes(targetType as EditableTargetType)
   ) {
     return targetType;
   }

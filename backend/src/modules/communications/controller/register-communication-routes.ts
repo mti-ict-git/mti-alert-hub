@@ -46,6 +46,52 @@ const reminderDraftScheduleSchema = z.object({
   validUntil: z.string().datetime({ offset: true }).optional().nullable(),
 });
 const toastAutoDismissSecondsSchema = z.number().int().min(1).max(60);
+const wellnessActionKindSchema = z.enum([
+  "GotIt",
+  "Done",
+  "Start",
+  "Next",
+  "Close",
+  "RemindMeLater",
+]);
+const wellnessActionSchema = z.object({
+  actionKey: z.string().trim().min(1),
+  kind: wellnessActionKindSchema,
+  label: z.string().trim().min(1),
+  style: z.enum(["Primary", "Secondary", "Ghost"]).optional().nullable(),
+  snoozeMinutes: z.number().int().min(1).max(1440).optional().nullable(),
+});
+const wellnessStepSchema = z.object({
+  stepKey: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+  description: z.string().trim().optional().nullable(),
+  assetUrl: z.string().trim().url().optional().nullable(),
+  durationSeconds: z.number().int().min(1).max(3600).optional().nullable(),
+  sortOrder: z.number().int(),
+});
+const wellnessLocalizationSchema = z.object({
+  locale: z.string().trim().min(1),
+  title: z.string().trim().optional().nullable(),
+  body: z.string().trim().optional().nullable(),
+  instruction: z.string().trim().optional().nullable(),
+});
+const wellnessProgramSchema = z.object({
+  programType: z.enum(["SimpleReminder", "GuidedRoutine"]),
+  theme: z.enum(["Blue", "Green"]),
+  layoutVariant: z.enum([
+    "ReminderCard",
+    "CountdownCard",
+    "OverviewCard",
+    "GuidedRoutine",
+    "CompletionCard",
+  ]),
+  heroAssetUrl: z.string().trim().url().optional().nullable(),
+  countdownSeconds: z.number().int().min(1).max(3600).optional().nullable(),
+  rotationMode: z.enum(["Fixed", "Sequential", "Random"]).optional().nullable(),
+  actions: z.array(wellnessActionSchema).min(1),
+  steps: z.array(wellnessStepSchema).optional().default([]),
+  localizations: z.array(wellnessLocalizationSchema).optional().default([]),
+});
 
 const communicationListQuerySchema = baseListQuerySchema.extend({
   status: z
@@ -80,6 +126,7 @@ const createCommunicationSchema = z.object({
   toastAutoDismissSeconds: toastAutoDismissSecondsSchema.optional().nullable(),
   deliveryStrategy: deliveryStrategySchema.optional().nullable(),
   reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
+  wellnessProgram: wellnessProgramSchema.optional().nullable(),
   confirmLockedFieldPolicy: z.boolean().optional().nullable(),
 });
 
@@ -98,6 +145,7 @@ const updateCommunicationSchema = z
     toastAutoDismissSeconds: toastAutoDismissSecondsSchema.optional().nullable(),
     deliveryStrategy: deliveryStrategySchema.optional().nullable(),
     reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
+    wellnessProgram: wellnessProgramSchema.optional().nullable(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
     message: "At least one draft field must be provided.",

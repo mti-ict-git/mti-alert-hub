@@ -1,9 +1,9 @@
 # MTI Alert Functional Specification
 
 ## Document Status
-- Version: `0.3`
+- Version: `0.4`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-15`
+- Last Updated: `2026-07-16`
 
 ## Product Definition
 `MTI Alert` is a centralized communication server platform that enables organizations to create, schedule, deliver, monitor, and govern real-time communications across multiple channels. The MVP channels are `Windows Agent` and `WhatsApp`.
@@ -41,6 +41,7 @@ The system uses a unified communication model for:
 - Support recurring schedules for routine reminders.
 - Treat the server as the source of truth for recurring reminder lifecycle, including create, update, cancel, and versioning.
 - Allow bounded local execution on Windows Agent for approved routine reminders so recurring prompts remain reliable during temporary connectivity loss.
+- Allow specialized recurring ergonomic experiences through `Wellness Programs`, which remain part of the broader notification domain but use a dedicated authoring, lifecycle, and monitoring surface rather than the generic `Create Notification` form.
 
 ### 3. Audience Targeting
 - Select recipients by:
@@ -104,6 +105,7 @@ The system uses a unified communication model for:
 - Non-critical communications may use lighter presentation modes.
 - Presentation behavior should remain configurable through templates or policy rules.
 - Critical communications may escalate presentation strength on the same device if no interaction occurs within policy limits.
+- Wellness-oriented recurring reminders may use brighter and friendlier visual themes than the operational notification baseline, especially blue and green ergonomic themes for eye-break and stretching experiences.
 
 ### 9. Device Endpoint Policy
 - Windows Agent endpoints are device-centric in MVP, especially for shared PCs and laptops.
@@ -201,6 +203,17 @@ All MVP communication types remain delivery-tracked and read-tracked.
 8. Each server-generated execution or local reminder occurrence produces delivery tracking evidence when the device reports back.
 9. Operators can later review reminder schedule metadata, policy activity, and reconciled reminder evidence from the admin experience.
 
+### Workflow 2A: Wellness Program
+1. User opens `Wellness Programs` from the `Notifications` cluster.
+2. User creates or edits a wellness program such as `Eye Break` or `Office Stretching`.
+3. User selects a specialized visual template and configurable CTA actions such as `Got it`, `Remind me in 10 min`, `Start`, or `Done`.
+4. User configures recurrence, execution mode, validity window, and device-bound audience assignment.
+5. Server publishes a versioned reminder policy for eligible Windows Agent devices.
+6. Windows Agent executes the reminder locally using the specialized wellness presentation template.
+7. For guided routines, the agent may continue into a multi-step local flow after the initial reminder card is acknowledged.
+8. Agent reconciles activity such as `Triggered`, `Displayed`, `Snoozed`, `Started`, or `Completed` back to the server.
+9. Operators review program activity and compliance from the dedicated wellness monitoring surface.
+
 ### Workflow 3: Critical Emergency Communication
 1. User creates a critical alert.
 2. User selects urgent channels and required response workflow.
@@ -230,6 +243,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-1` The system shall allow authorized users to create, edit, duplicate, cancel, and archive communications.
 - `FR-1A` Notification Center shall provide lifecycle-aware quick actions, including direct draft editing and contextual bulk actions that only expose operations valid for the selected communication states.
 - `FR-2` The system shall support a unified communication form with type-specific fields controlled by metadata and workflow rules.
+- `FR-2F` The admin experience shall keep `Create Notification` focused on standard communications, while `Wellness Programs` uses a separate authoring entry point under the same `Notifications` menu cluster.
 - `FR-2A` The system shall preserve an optional `instruction` field separately from the main message body so channel-specific previews and Windows Agent rendering can present action guidance distinctly.
 - `FR-2B` The admin authoring experience shall expose explicit `Windows Agent presentation` selection for communications that include the desktop channel so operators can intentionally choose `Toast`, `Modal`, or `Fullscreen` instead of relying on implicit priority defaults.
 - `FR-2C` The admin and backend authoring rules shall enforce Windows Agent presentation semantics consistently: `Info + Toast` clears and hides the separate `instruction`, `Info + Modal/Fullscreen` may include `instruction`, and `Warning` shall always use `Modal` with required `instruction`.
@@ -243,6 +257,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4F` The admin authoring experience shall expose the recurrence rule, timezone, execution mode, first occurrence, and validity window explicitly when operators create or edit recurring reminders, and the draft shall persist that reminder definition before publish.
 - `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
 - `FR-4H` The admin monitoring experience shall expose reminder schedule metadata, reminder policy activity, and reconciled reminder evidence so hybrid reminder behavior remains auditable and understandable for operators.
+- `FR-4I` The admin experience shall keep wellness authoring and wellness monitoring outside `Notification Center`, even when the backend reuses reminder-oriented contracts and persistence.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
 

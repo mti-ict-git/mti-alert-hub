@@ -1,9 +1,9 @@
 # MTI Alert Open Questions And Challenges
 
 ## Document Status
-- Version: `0.2`
+- Version: `0.3`
 - Status: `Open`
-- Last Updated: `2026-07-14`
+- Last Updated: `2026-07-16`
 
 ## Purpose
 This document records unresolved product and technical questions. No implementation should silently assume answers where these decisions materially affect behavior.
@@ -72,7 +72,12 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-12. Hybrid Reminder Admin Surface
 - Question: Should hybrid recurring reminder controls remain inside the unified communication form, or should reminders receive a dedicated authoring and monitoring flow in the admin UI?
 - Why it matters: This affects operator comprehension, implementation scope, and whether `ServerGenerated` versus `AgentLocalRoutine` behavior can be explained clearly without overloading the generic notification UX.
-- Current safe assumption: keep the shared communication engine, start with the unified form plus reminder-specific sections, and require the admin detail flow to surface reminder schedule and policy state explicitly.
+- Current safe assumption: keep the shared communication engine for generic reminders, while allowing specialized recurring subflows such as `Wellness Programs` to use a dedicated authoring and monitoring surface under the broader `Notifications` cluster.
+
+### OQ-13. OHIH Module Boundary
+- Question: Should OHIH ergonomic programs remain a specialized subset of the generic reminder engine, or should they receive a dedicated admin module and richer agent payload contract from the start?
+- Why it matters: OHIH appears to behave more like a locally executed device program than a normal ad hoc notification, which affects server menu structure, data modeling, agent UI templates, and whether reminder-policy sync is extended or a new contract family is introduced.
+- Current safe assumption: keep the existing reminder-policy foundation, and proceed with OHIH as a dedicated `Wellness Programs` submodule under the broader `Notifications` cluster, with server-managed policy, agent-executed routine behavior, `Blue` and `Green` theme variants, and a narrowed `GuidedRoutine` MVP for stretching.
 
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion

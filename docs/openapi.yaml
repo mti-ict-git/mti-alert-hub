@@ -1460,7 +1460,7 @@ components:
       enum: [ServerGenerated, AgentLocalRoutine]
     ReminderEventType:
       type: string
-      enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded]
+      enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded, Started, StepAdvanced, Completed, TimedOut]
 
     PageMeta:
       type: object
@@ -1640,6 +1640,13 @@ components:
                 For published communications this is the persisted publish schedule. For draft reminders
                 without a publish schedule yet, the API may surface the stored recurring draft definition here
                 so the authoring flow can reopen recurrence settings before publish.
+            wellnessProgram:
+              allOf:
+                - $ref: "#/components/schemas/WellnessProgramPayload"
+              nullable: true
+              description: >
+                Optional structured payload for specialized wellness reminder experiences shown from the
+                dedicated `Wellness Programs` flow under Notifications.
             workflow:
               allOf:
                 - $ref: "#/components/schemas/WorkflowDefinition"
@@ -1727,6 +1734,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/ReminderDraftScheduleRequest"
           nullable: true
+        wellnessProgram:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramPayload"
+          nullable: true
+          description: >
+            Optional structured payload for specialized wellness reminder experiences. Intended for the
+            dedicated `Wellness Programs` authoring flow under Notifications.
         confirmLockedFieldPolicy:
           type: boolean
           description: Optional client assertion that locked template fields have not been overridden.
@@ -1782,6 +1796,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/ReminderDraftScheduleRequest"
           nullable: true
+        wellnessProgram:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramPayload"
+          nullable: true
+          description: >
+            Optional structured payload for specialized wellness reminder experiences. Intended for the
+            dedicated `Wellness Programs` authoring flow under Notifications.
 
     PublishCommunicationRequest:
       type: object
@@ -1830,6 +1851,115 @@ components:
         validUntil:
           type: string
           format: date-time
+          nullable: true
+
+    WellnessProgramPayload:
+      type: object
+      required: [programType, theme, layoutVariant, actions]
+      properties:
+        programType:
+          $ref: "#/components/schemas/WellnessProgramType"
+        theme:
+          $ref: "#/components/schemas/WellnessTheme"
+        layoutVariant:
+          $ref: "#/components/schemas/WellnessLayoutVariant"
+        heroAssetUrl:
+          type: string
+          nullable: true
+        countdownSeconds:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 3600
+        rotationMode:
+          type: string
+          enum: [Fixed, Sequential, Random]
+          nullable: true
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessAction"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessStep"
+        localizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessLocalization"
+
+    WellnessProgramType:
+      type: string
+      enum: [SimpleReminder, GuidedRoutine]
+
+    WellnessTheme:
+      type: string
+      enum: [Blue, Green]
+
+    WellnessLayoutVariant:
+      type: string
+      enum: [ReminderCard, CountdownCard, OverviewCard, GuidedRoutine, CompletionCard]
+
+    WellnessAction:
+      type: object
+      required: [actionKey, kind, label]
+      properties:
+        actionKey:
+          type: string
+        kind:
+          $ref: "#/components/schemas/WellnessActionKind"
+        label:
+          type: string
+        style:
+          type: string
+          enum: [Primary, Secondary, Ghost]
+          nullable: true
+        snoozeMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 1440
+
+    WellnessActionKind:
+      type: string
+      enum: [GotIt, Done, Start, Next, Close, RemindMeLater]
+
+    WellnessStep:
+      type: object
+      required: [stepKey, title, sortOrder]
+      properties:
+        stepKey:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        assetUrl:
+          type: string
+          nullable: true
+        durationSeconds:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 3600
+        sortOrder:
+          type: integer
+
+    WellnessLocalization:
+      type: object
+      required: [locale]
+      properties:
+        locale:
+          type: string
+        title:
+          type: string
+          nullable: true
+        body:
+          type: string
+          nullable: true
+        instruction:
+          type: string
           nullable: true
 
     CommunicationScheduleDetail:
@@ -2750,6 +2880,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/CriticalBehaviorMode"
           nullable: true
+        wellnessProgram:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramPayload"
+          nullable: true
 
     AgentReminderPolicyListResponse:
       type: object
@@ -2809,6 +2943,10 @@ components:
         workflow:
           allOf:
             - $ref: "#/components/schemas/WorkflowDefinition"
+          nullable: true
+        wellnessProgram:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramPayload"
           nullable: true
 
     AgentReminderEventRequest:

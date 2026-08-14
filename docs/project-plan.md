@@ -40,6 +40,7 @@ The initial product is positioned as a `server-side platform` with the following
 - Configurable response workflows controlled by templates and policies.
 - Device-centric desktop delivery for shared or location-owned PCs.
 - Audit trail, reporting, and access administration.
+- A separate `Wellness Programs` module under `Notifications` for ergonomic routines that reuse the reminder foundation without being authored as standard notifications.
 
 ## Representative Use Cases
 - A recurring OHIH reminder every two hours asking employees to take a short break.

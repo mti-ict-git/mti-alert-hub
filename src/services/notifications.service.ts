@@ -5,8 +5,11 @@ import type {
   Recipient,
   ReminderActivity,
   ResponseRecord,
+  WellnessProgramListItem,
+  WellnessProgram,
 } from "@/types";
 import { apiClient } from "@/services/api-client";
+import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 
 type ApiCommunicationSummary = {
   id: string;
@@ -29,6 +32,7 @@ type ApiCommunicationDetail = ApiCommunicationSummary & {
   instruction?: string | null;
   windowsAgentPresentation?: "Toast" | "Modal" | "Fullscreen" | null;
   toastAutoDismissSeconds?: number | null;
+  wellnessProgram?: ApiWellnessProgram | null;
   category?: string | null;
   requiresResponse?: boolean;
   workflow?: { id: string } | null;
@@ -50,6 +54,8 @@ type ApiCommunicationDetail = ApiCommunicationSummary & {
   createdAt?: string | null;
   updatedAt?: string | null;
 };
+
+type ApiWellnessProgram = WellnessProgram;
 
 type ApiListResponse = {
   items: ApiCommunicationSummary[];
@@ -164,7 +170,17 @@ type ApiReminderEventRecord = {
   deviceId: string;
   deviceIdentifier?: string | null;
   hostname?: string | null;
-  eventType: "Triggered" | "Displayed" | "Read" | "Dismissed" | "Snoozed" | "Responded";
+  eventType:
+    | "Triggered"
+    | "Displayed"
+    | "Read"
+    | "Dismissed"
+    | "Snoozed"
+    | "Responded"
+    | "Started"
+    | "StepAdvanced"
+    | "Completed"
+    | "TimedOut";
   occurredAt: string;
   reportedAt: string;
   activeUserIdentifier?: string | null;
@@ -219,6 +235,36 @@ export const notificationsService = {
   async list(): Promise<Notification[]> {
     const response = await apiClient.get<ApiListResponse>("/communications");
     return response.items.map(mapSummaryToNotification);
+  },
+  async listNotificationCenterItems(): Promise<Notification[]> {
+    const items = await this.list();
+    const details = await Promise.all(items.map((item) => this.get(item.id)));
+    return details.filter((item): item is Notification => Boolean(item && !item.wellnessProgram));
+  },
+  async listWellnessPrograms(): Promise<WellnessProgramListItem[]> {
+    const items = await this.list();
+    const reminderSummaries = items.filter((item) => item.communicationType === "Reminder");
+    const details = await Promise.all(reminderSummaries.map((item) => this.get(item.id)));
+    const wellnessItems = details.filter((item): item is Notification => Boolean(item?.wellnessProgram));
+    const monitoringItems = await Promise.all(
+      wellnessItems.map(async (item) => {
+        const reminderActivity =
+          item.communicationType === "Reminder"
+            ? await this.reminderActivity(item.id).catch(() => null)
+            : null;
+
+        return {
+          notification: item,
+          lastUpdatedAt: item.updatedAt ?? item.createdAt,
+          monitoring: buildWellnessMonitoringSummary(reminderActivity),
+        };
+      }),
+    );
+
+    return monitoringItems.sort(
+      (left, right) =>
+        new Date(right.lastUpdatedAt).getTime() - new Date(left.lastUpdatedAt).getTime(),
+    );
   },
   async get(id: string): Promise<Notification | undefined> {
     const detail = await apiClient.get<ApiCommunicationDetail>(`/communications/${id}`);
@@ -322,6 +368,7 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
     templateId: item.templateId ?? null,
     createdBy: "System",
     createdAt: item.createdAt ?? item.scheduledAt ?? new Date().toISOString(),
+    updatedAt: item.createdAt ?? item.scheduledAt ?? new Date().toISOString(),
     recipientsCount: item.recipientsCount ?? 0,
     ackCount: item.ackCount ?? 0,
   };
@@ -351,6 +398,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     windowsAgentPresentation: item.windowsAgentPresentation ?? null,
     toastAutoDismissSeconds: item.toastAutoDismissSeconds ?? null,
+    wellnessProgram: item.wellnessProgram ?? null,
     scheduledAt: item.scheduledAt ?? null,
     reminderSchedule: item.schedule ?? null,
     instruction: item.instruction ?? "",
@@ -358,6 +406,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     templateId: item.templateId ?? null,
     createdBy: "System",
     createdAt: item.createdAt ?? item.updatedAt ?? new Date().toISOString(),
+    updatedAt: item.updatedAt ?? item.createdAt ?? null,
     recipientsCount: 0,
     ackCount: 0,
   };
@@ -518,6 +567,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     workflowId: input.requireAck ? input.workflowId ?? null : null,
     windowsAgentPresentation: normalizedDesktopAgent.windowsAgentPresentation,
     toastAutoDismissSeconds: normalizedDesktopAgent.toastAutoDismissSeconds,
+    wellnessProgram: mapWellnessProgramToApi(input.wellnessProgram),
     deliveryStrategy: null,
     reminderSchedule: mapReminderScheduleInputToApi(input.reminderSchedule),
   };
@@ -578,6 +628,10 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
 
   if (input.reminderSchedule !== undefined) {
     payload.reminderSchedule = mapReminderScheduleInputToApi(input.reminderSchedule);
+  }
+
+  if (input.wellnessProgram !== undefined) {
+    payload.wellnessProgram = mapWellnessProgramToApi(input.wellnessProgram);
   }
 
   return payload;
@@ -658,5 +712,35 @@ function mapReminderScheduleInputToApi(reminderSchedule: Notification["reminderS
     timezone: reminderSchedule.timezone ?? "",
     executionMode: reminderSchedule.executionMode ?? "ServerGenerated",
     validUntil: reminderSchedule.validUntil ?? null,
+  };
+}
+
+function mapWellnessProgramToApi(wellnessProgram: Notification["wellnessProgram"] | null | undefined) {
+  if (!wellnessProgram) {
+    return null;
+  }
+
+  return {
+    ...wellnessProgram,
+    heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
+    countdownSeconds: wellnessProgram.countdownSeconds ?? null,
+    rotationMode: wellnessProgram.rotationMode ?? null,
+    actions: wellnessProgram.actions.map((action) => ({
+      ...action,
+      style: action.style ?? null,
+      snoozeMinutes: action.snoozeMinutes ?? null,
+    })),
+    steps: (wellnessProgram.steps ?? []).map((step) => ({
+      ...step,
+      description: step.description ?? null,
+      assetUrl: step.assetUrl ?? null,
+      durationSeconds: step.durationSeconds ?? null,
+    })),
+    localizations: (wellnessProgram.localizations ?? []).map((localization) => ({
+      ...localization,
+      title: localization.title ?? null,
+      body: localization.body ?? null,
+      instruction: localization.instruction ?? null,
+    })),
   };
 }

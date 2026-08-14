@@ -1,9 +1,9 @@
 # MTI Alert Database Schema Specification
 
 ## Document Status
-- Version: `0.4`
+- Version: `0.5`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-15`
+- Last Updated: `2026-07-16`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -153,6 +153,7 @@ Key columns:
 - `instruction` nullable operator-authored action guidance rendered separately from the main body when present
 - `toast_auto_dismiss_seconds` nullable per-notification Windows Agent toast display duration override, bounded to 1-60 seconds
 - `draft_schedule_json` nullable JSON snapshot for reminder recurrence authoring before publish
+- `wellness_program_json` nullable structured `Wellness Programs` payload for reminder-specialized authoring and publish snapshots
 - `status`
 - `requires_response`
 - `workflow_id`
@@ -212,6 +213,13 @@ Key columns:
 - `created_at`
 - `updated_at`
 
+Current implementation note:
+- `Wellness Programs` MVP continues to reuse `communication_schedules` rather than introducing a standalone program-assignment schedule table.
+- Recurring wellness execution remains server-owned at the schedule level, while `execution_mode = AgentLocalRoutine` allows bounded local execution on Windows Agent.
+- For the first integrated slice, published wellness identity remains communication-rooted:
+  - `programId = communication_id`
+  - `programVersion = schedule_version`
+
 ### agent_reminder_policies
 Materialized recurring reminder policies distributed to eligible Windows Agent devices for bounded local execution.
 
@@ -228,6 +236,7 @@ Key columns:
 - `instruction_snapshot`
 - `windows_agent_presentation`
 - `toast_auto_dismiss_seconds`
+- `wellness_program_json` nullable snapshot of the structured wellness payload synchronized to the Windows Agent
 - `valid_from`
 - `valid_until`
 - `is_active`
@@ -242,12 +251,16 @@ Key columns:
 - `id`
 - `agent_reminder_policy_id`
 - `device_id`
-- `event_type` such as `Triggered`, `Displayed`, `Read`, `Dismissed`, `Snoozed`, `Responded`
+- `event_type` such as `Triggered`, `Displayed`, `Read`, `Dismissed`, `Snoozed`, `Responded`, `Started`, `StepAdvanced`, `Completed`, `TimedOut`
 - `occurred_at`
 - `reported_at`
 - `active_user_identifier` nullable
 - `metadata_json` nullable
 - `created_at`
+
+Current implementation note:
+- The same append-only reminder evidence table remains the MVP boundary for `Wellness Programs`.
+- Wellness progression evidence such as `Started`, `StepAdvanced`, `Completed`, and `TimedOut` should be reported here rather than through a dedicated wellness-event table in the first slice.
 
 ### communication_targets
 Stores authoring-time targeting rules.
@@ -482,8 +495,12 @@ Key columns:
 - `communication_templates` 1-to-many `communications`
 - `communication_templates` 1-to-many version rows by `template_key`
 - `communications` 1-to-many `communication_targets`
+- `communications` 1-to-many `communication_schedules`
 - `communications` 1-to-many `communication_recipients`
+- `communications` 1-to-many `agent_reminder_policies` through recurring schedule materialization for `AgentLocalRoutine`
 - `communications` many-to-1 `response_workflows`
+- `communication_schedules` 1-to-many `agent_reminder_policies`
+- `agent_reminder_policies` 1-to-many `agent_reminder_events`
 - `communication_recipients` 1-to-many `delivery_jobs`
 - `delivery_jobs` 1-to-many `delivery_attempts`
 - `delivery_jobs` 1-to-many `delivery_events`
@@ -494,3 +511,4 @@ Key columns:
 - Exact physical schema, indexing, and partitioning may evolve during implementation.
 - Any backend change affecting the domain or contract must also update `docs/openapi.yaml`.
 - Device records should stay operationally flat in MVP even if areas are backed by a simple reference table.
+- `Wellness Programs` MVP intentionally reuses the communication aggregate, recurring schedule model, and agent reminder policy sync boundary before any future decision to introduce a standalone relational wellness catalog.

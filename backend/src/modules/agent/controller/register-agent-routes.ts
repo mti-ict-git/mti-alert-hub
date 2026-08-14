@@ -14,6 +14,10 @@ const reminderEventTypeSchema = z.enum([
   "Dismissed",
   "Snoozed",
   "Responded",
+  "Started",
+  "StepAdvanced",
+  "Completed",
+  "TimedOut",
 ]);
 
 const agentSessionRequestSchema = z.object({

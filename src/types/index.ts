@@ -47,6 +47,53 @@ export type EmployeeStatus = "Active" | "Inactive";
 export type ScheduleExecutionMode = "ServerGenerated" | "AgentLocalRoutine";
 export type CommunicationScheduleType = "Immediate" | "Scheduled" | "Recurring";
 export type WindowsAgentPresentation = "Toast" | "Modal" | "Fullscreen";
+export type WellnessProgramType = "SimpleReminder" | "GuidedRoutine";
+export type WellnessTheme = "Blue" | "Green";
+export type WellnessLayoutVariant =
+  | "ReminderCard"
+  | "CountdownCard"
+  | "OverviewCard"
+  | "GuidedRoutine"
+  | "CompletionCard";
+export type WellnessRotationMode = "Fixed" | "Sequential" | "Random";
+export type WellnessActionKind = "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
+export type WellnessActionStyle = "Primary" | "Secondary" | "Ghost";
+
+export interface WellnessAction {
+  actionKey: string;
+  kind: WellnessActionKind;
+  label: string;
+  style?: WellnessActionStyle | null;
+  snoozeMinutes?: number | null;
+}
+
+export interface WellnessStep {
+  stepKey: string;
+  title: string;
+  description?: string | null;
+  assetUrl?: string | null;
+  durationSeconds?: number | null;
+  sortOrder: number;
+}
+
+export interface WellnessLocalization {
+  locale: string;
+  title?: string | null;
+  body?: string | null;
+  instruction?: string | null;
+}
+
+export interface WellnessProgram {
+  programType: WellnessProgramType;
+  theme: WellnessTheme;
+  layoutVariant: WellnessLayoutVariant;
+  heroAssetUrl?: string | null;
+  countdownSeconds?: number | null;
+  rotationMode?: WellnessRotationMode | null;
+  actions: WellnessAction[];
+  steps?: WellnessStep[];
+  localizations?: WellnessLocalization[];
+}
 
 export interface User {
   id: string;
@@ -113,10 +160,12 @@ export interface Notification {
   requireAck: boolean;
   scheduledAt?: string | null;
   instruction?: string;
+  wellnessProgram?: WellnessProgram | null;
   status: NotificationStatus;
   reminderSchedule?: ReminderSchedule | null;
   createdBy: string;
   createdAt: string;
+  updatedAt?: string | null;
   recipientsCount: number;
   ackCount: number;
 }
@@ -273,7 +322,17 @@ export interface ReminderEventRecord {
   deviceId: string;
   deviceIdentifier?: string | null;
   hostname?: string | null;
-  eventType: "Triggered" | "Displayed" | "Read" | "Dismissed" | "Snoozed" | "Responded";
+  eventType:
+    | "Triggered"
+    | "Displayed"
+    | "Read"
+    | "Dismissed"
+    | "Snoozed"
+    | "Responded"
+    | "Started"
+    | "StepAdvanced"
+    | "Completed"
+    | "TimedOut";
   occurredAt: string;
   reportedAt: string;
   activeUserIdentifier?: string | null;
@@ -283,6 +342,44 @@ export interface ReminderEventRecord {
 export interface ReminderActivity {
   policies: ReminderPolicySummary[];
   events: ReminderEventRecord[];
+}
+
+export interface WellnessMonitoringCounts {
+  triggered: number;
+  displayed: number;
+  started: number;
+  snoozed: number;
+  completed: number;
+  timedOut: number;
+  stepAdvanced: number;
+}
+
+export interface WellnessDeviceMonitoring {
+  policyId: string;
+  deviceId: string;
+  deviceLabel: string;
+  isActive: boolean;
+  scheduleVersion: number;
+  lastSyncedAt?: string | null;
+  lastActivityAt?: string | null;
+  lastEventType?: ReminderEventRecord["eventType"] | null;
+}
+
+export interface WellnessMonitoringSummary {
+  counts: WellnessMonitoringCounts;
+  totalPolicies: number;
+  activePolicies: number;
+  lastSyncedAt?: string | null;
+  lastActivityAt?: string | null;
+  completionRate?: number | null;
+  deviceItems: WellnessDeviceMonitoring[];
+  recentEvents: ReminderEventRecord[];
+}
+
+export interface WellnessProgramListItem {
+  notification: Notification;
+  lastUpdatedAt: string;
+  monitoring?: WellnessMonitoringSummary | null;
 }
 
 export interface AuditLog {

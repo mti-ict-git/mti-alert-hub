@@ -91,7 +91,41 @@ type ReminderEventType =
   | "Read"
   | "Dismissed"
   | "Snoozed"
-  | "Responded";
+  | "Responded"
+  | "Started"
+  | "StepAdvanced"
+  | "Completed"
+  | "TimedOut";
+
+type WellnessProgramPayload = {
+  programType: "SimpleReminder" | "GuidedRoutine";
+  theme: "Blue" | "Green";
+  layoutVariant: "ReminderCard" | "CountdownCard" | "GuidedRoutine" | "CompletionCard";
+  heroAssetUrl: string | null;
+  countdownSeconds: number | null;
+  rotationMode: "Fixed" | "Sequential" | "Random" | null;
+  actions: Array<{
+    actionKey: string;
+    kind: "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
+    label: string;
+    style: "Primary" | "Secondary" | "Ghost" | null;
+    snoozeMinutes: number | null;
+  }>;
+  steps: Array<{
+    stepKey: string;
+    title: string;
+    description: string | null;
+    assetUrl: string | null;
+    durationSeconds: number | null;
+    sortOrder: number;
+  }>;
+  localizations: Array<{
+    locale: string;
+    title: string | null;
+    body: string | null;
+    instruction: string | null;
+  }>;
+};
 
 type AgentReminderPolicyRow = {
   policyId: string;
@@ -109,6 +143,7 @@ type AgentReminderPolicyRow = {
   requiresResponse: boolean;
   workflowId: string | null;
   updatedAt: string;
+  wellnessProgram: unknown;
 };
 
 type OwnedReminderPolicyRow = {
@@ -389,7 +424,8 @@ export class AgentService {
           arp.toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
           c.requires_response as "requiresResponse",
           c.workflow_id::text as "workflowId",
-          arp.updated_at::text as "updatedAt"
+          arp.updated_at::text as "updatedAt",
+          arp.wellness_program_json as "wellnessProgram"
         from public.agent_reminder_policies arp
         inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
         inner join public.communications c on c.id = arp.communication_id
@@ -435,6 +471,7 @@ export class AgentService {
             instruction: row.instruction,
             windowsAgentPresentation: row.windowsAgentPresentation,
             toastAutoDismissSeconds: row.toastAutoDismissSeconds,
+            wellnessProgram: parseWellnessProgramPayload(row.wellnessProgram),
             requiresResponse: row.requiresResponse,
             workflow,
           };
@@ -1633,7 +1670,11 @@ function assertReminderEventType(eventType: string): asserts eventType is Remind
     eventType === "Read" ||
     eventType === "Dismissed" ||
     eventType === "Snoozed" ||
-    eventType === "Responded"
+    eventType === "Responded" ||
+    eventType === "Started" ||
+    eventType === "StepAdvanced" ||
+    eventType === "Completed" ||
+    eventType === "TimedOut"
   ) {
     return;
   }
@@ -1653,6 +1694,95 @@ function parseCriticalBehaviorMode(value: unknown) {
     criticalBehaviorMode === "Standard"
     ? criticalBehaviorMode
     : null;
+}
+
+function parseWellnessProgramPayload(value: unknown): WellnessProgramPayload | null {
+  const parsed = parseJsonObject<Partial<WellnessProgramPayload>>(value);
+  if (
+    !parsed ||
+    (parsed.programType !== "SimpleReminder" && parsed.programType !== "GuidedRoutine") ||
+    (parsed.theme !== "Blue" && parsed.theme !== "Green") ||
+    (parsed.layoutVariant !== "ReminderCard" &&
+      parsed.layoutVariant !== "CountdownCard" &&
+      parsed.layoutVariant !== "GuidedRoutine" &&
+      parsed.layoutVariant !== "CompletionCard") ||
+    !Array.isArray(parsed.actions)
+  ) {
+    return null;
+  }
+
+  return {
+    programType: parsed.programType,
+    theme: parsed.theme,
+    layoutVariant: parsed.layoutVariant,
+    heroAssetUrl: typeof parsed.heroAssetUrl === "string" ? parsed.heroAssetUrl : null,
+    countdownSeconds: typeof parsed.countdownSeconds === "number" ? parsed.countdownSeconds : null,
+    rotationMode:
+      parsed.rotationMode === "Fixed" ||
+      parsed.rotationMode === "Sequential" ||
+      parsed.rotationMode === "Random"
+        ? parsed.rotationMode
+        : null,
+    actions: parsed.actions
+      .filter(
+        (action): action is WellnessProgramPayload["actions"][number] =>
+          typeof action === "object" &&
+          action !== null &&
+          typeof action.actionKey === "string" &&
+          typeof action.label === "string" &&
+          (action.kind === "GotIt" ||
+            action.kind === "Done" ||
+            action.kind === "Start" ||
+            action.kind === "Next" ||
+            action.kind === "Close" ||
+            action.kind === "RemindMeLater"),
+      )
+      .map((action) => ({
+        actionKey: action.actionKey,
+        kind: action.kind,
+        label: action.label,
+        style:
+          action.style === "Primary" || action.style === "Secondary" || action.style === "Ghost"
+            ? action.style
+            : null,
+        snoozeMinutes: typeof action.snoozeMinutes === "number" ? action.snoozeMinutes : null,
+      })),
+    steps: Array.isArray(parsed.steps)
+      ? parsed.steps
+          .filter(
+            (step): step is WellnessProgramPayload["steps"][number] =>
+              typeof step === "object" &&
+              step !== null &&
+              typeof step.stepKey === "string" &&
+              typeof step.title === "string" &&
+              typeof step.sortOrder === "number",
+          )
+          .map((step) => ({
+            stepKey: step.stepKey,
+            title: step.title,
+            description: typeof step.description === "string" ? step.description : null,
+            assetUrl: typeof step.assetUrl === "string" ? step.assetUrl : null,
+            durationSeconds: typeof step.durationSeconds === "number" ? step.durationSeconds : null,
+            sortOrder: step.sortOrder,
+          }))
+      : [],
+    localizations: Array.isArray(parsed.localizations)
+      ? parsed.localizations
+          .filter(
+            (localization): localization is WellnessProgramPayload["localizations"][number] =>
+              typeof localization === "object" &&
+              localization !== null &&
+              typeof localization.locale === "string",
+          )
+          .map((localization) => ({
+            locale: localization.locale,
+            title: typeof localization.title === "string" ? localization.title : null,
+            body: typeof localization.body === "string" ? localization.body : null,
+            instruction:
+              typeof localization.instruction === "string" ? localization.instruction : null,
+          }))
+      : [],
+  };
 }
 
 function parseJsonObject<T>(value: unknown): T | null {

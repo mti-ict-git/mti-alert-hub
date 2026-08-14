@@ -46,8 +46,17 @@ const ALL_CHANNELS: { key: Channel; label: string }[] = [
 const CHANNELS = ALL_CHANNELS.filter((channel) => enabledDeliveryChannels.includes(channel.key));
 const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
 const MESSAGE_MAX_LENGTH = 320;
-
-const TARGET_TYPES: TargetType[] = ["All", "Site", "Area", "Department", "Section", "Employee", "Device"];
+const DESKTOP_ONLY_LIVE_PATH =
+  enabledDeliveryChannels.length === 1 && enabledDeliveryChannels[0] === "DesktopAgent";
+const TARGET_TYPES: TargetType[] = [
+  "All",
+  "Site",
+  "Area",
+  "Department",
+  "Section",
+  "Employee",
+  "Device",
+].filter((targetType) => !(DESKTOP_ONLY_LIVE_PATH && targetType === "Employee")) as TargetType[];
 
 interface Search { template?: string }
 
@@ -835,10 +844,9 @@ function CreateNotificationPage() {
                     toastAutoDismissSeconds={parseToastAutoDismissSecondsInput(toastAutoDismissSeconds)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Windows Agent presentation: {effectiveWindowsAgentPresentation}
-                    {effectiveWindowsAgentPresentation === "Toast"
+                    {`Windows Agent presentation: ${effectiveWindowsAgentPresentation}${effectiveWindowsAgentPresentation === "Toast"
                       ? ` · auto-dismiss ${parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5}s`
-                      : ""}
+                      : ""}`}
                   </p>
                 </div>
               )}

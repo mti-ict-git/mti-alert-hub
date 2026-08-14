@@ -29,7 +29,10 @@ export const Route = createFileRoute("/_app/notifications/")({
 function NotificationCenter() {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const { data = [], isLoading } = useQuery({ queryKey: ["notifications"], queryFn: notificationsService.list });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["notifications", "center"],
+    queryFn: notificationsService.listNotificationCenterItems,
+  });
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
@@ -40,6 +43,7 @@ function NotificationCenter() {
     () =>
       data.filter(
         (n) =>
+          !n.wellnessProgram &&
           (!q || n.title.toLowerCase().includes(q.toLowerCase())) &&
           (priority === "all" || n.priority === priority) &&
           (status === "all" || n.status === status) &&
@@ -131,7 +135,7 @@ function NotificationCenter() {
     <div>
       <PageHeader
         title="Notification Center"
-        description="All notifications sent from MTI Alert."
+        description="All standard notifications sent from MTI Alert. Wellness programs are managed separately."
         actions={
           <Button asChild>
             <Link to="/notifications/new"><Plus className="mr-1 h-4 w-4" /> New Notification</Link>
@@ -151,8 +155,8 @@ function NotificationCenter() {
               </TabsList>
             </Tabs>
             <div className="text-sm text-muted-foreground">
-              One-time and recurring notifications stay in Notification Center for monitoring,
-              cancel, duplicate, and draft editing.
+              Standard one-time and recurring notifications stay in Notification Center for monitoring,
+              cancel, duplicate, and draft editing. Wellness programs use their own submenu.
             </div>
           </div>
 
@@ -236,7 +240,7 @@ function NotificationCenter() {
                   <TableRow><TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">No notifications</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">No standard notifications</TableCell></TableRow>
                 )}
                 {filtered.map((n) => (
                   <TableRow key={n.id} className="cursor-pointer" onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}>

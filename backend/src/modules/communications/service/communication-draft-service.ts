@@ -67,6 +67,7 @@ type CreateCommunicationDraftInput = {
   toastAutoDismissSeconds?: number | null;
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
+  wellnessProgram?: WellnessProgramInput | null;
   confirmLockedFieldPolicy?: boolean | null;
 };
 
@@ -84,6 +85,7 @@ type UpdateCommunicationDraftInput = {
   toastAutoDismissSeconds?: number | null;
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
+  wellnessProgram?: WellnessProgramInput | null;
 };
 
 type PublishMode = "Now" | "Scheduled" | "Recurring";
@@ -105,6 +107,52 @@ type ReminderDraftScheduleInput = {
   timezone: string;
   executionMode: ScheduleExecutionMode;
   validUntil?: string | null;
+};
+
+type WellnessProgramType = "SimpleReminder" | "GuidedRoutine";
+type WellnessTheme = "Blue" | "Green";
+type WellnessLayoutVariant =
+  | "ReminderCard"
+  | "CountdownCard"
+  | "OverviewCard"
+  | "GuidedRoutine"
+  | "CompletionCard";
+type WellnessActionKind = "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
+
+type WellnessAction = {
+  actionKey: string;
+  kind: WellnessActionKind;
+  label: string;
+  style?: "Primary" | "Secondary" | "Ghost" | null;
+  snoozeMinutes?: number | null;
+};
+
+type WellnessStep = {
+  stepKey: string;
+  title: string;
+  description?: string | null;
+  assetUrl?: string | null;
+  durationSeconds?: number | null;
+  sortOrder: number;
+};
+
+type WellnessLocalization = {
+  locale: string;
+  title?: string | null;
+  body?: string | null;
+  instruction?: string | null;
+};
+
+type WellnessProgramInput = {
+  programType: WellnessProgramType;
+  theme: WellnessTheme;
+  layoutVariant: WellnessLayoutVariant;
+  heroAssetUrl?: string | null;
+  countdownSeconds?: number | null;
+  rotationMode?: "Fixed" | "Sequential" | "Random" | null;
+  actions: WellnessAction[];
+  steps?: WellnessStep[];
+  localizations?: WellnessLocalization[];
 };
 
 type PublicationActor = {
@@ -155,6 +203,7 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   toastAutoDismissSeconds: number | null;
   deliveryStrategy: DeliveryStrategy | null;
   draftReminderSchedule: unknown | null;
+  wellnessProgram: unknown | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -186,6 +235,7 @@ type ReminderPolicySummaryRow = {
   isActive: boolean;
   lastSyncedAt: string | null;
   updatedAt: string | null;
+  wellnessProgram: unknown | null;
 };
 
 type ReminderEventRow = {
@@ -350,6 +400,7 @@ type CommunicationWriteModel = {
   deliveryStrategy: DeliveryStrategy | null;
   targets: TargetRule[];
   reminderSchedule: ReminderDraftSchedule | null;
+  wellnessProgram: WellnessProgramInput | null;
 };
 
 export class CommunicationDraftService {
@@ -456,7 +507,8 @@ export class CommunicationDraftService {
           toast_auto_dismiss_seconds,
           delivery_strategy,
           scheduled_at,
-          draft_schedule_json
+          draft_schedule_json,
+          wellness_program_json
         )
         values (
           $1::uuid,
@@ -475,7 +527,8 @@ export class CommunicationDraftService {
           $13,
           $14,
           $15::timestamptz,
-          $16::jsonb
+          $16::jsonb,
+          $17::jsonb
         )
         returning id::text as id
       `,
@@ -496,6 +549,7 @@ export class CommunicationDraftService {
         writeModel.deliveryStrategy,
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
+        writeModel.wellnessProgram ? JSON.stringify(writeModel.wellnessProgram) : null,
       ],
     );
     const communicationId = insertedRows[0]?.id;
@@ -549,7 +603,8 @@ export class CommunicationDraftService {
             arp.valid_until::text as "validUntil",
             arp.is_active as "isActive",
             arp.last_synced_at::text as "lastSyncedAt",
-            arp.updated_at::text as "updatedAt"
+            arp.updated_at::text as "updatedAt",
+            arp.wellness_program_json as "wellnessProgram"
           from public.agent_reminder_policies arp
           inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
           left join public.devices d on d.id = arp.device_id
@@ -1041,7 +1096,8 @@ export class CommunicationDraftService {
           toast_auto_dismiss_seconds = $13,
           delivery_strategy = $14,
           scheduled_at = $15::timestamptz,
-          draft_schedule_json = $16::jsonb
+          draft_schedule_json = $16::jsonb,
+          wellness_program_json = $17::jsonb
         where id::text = $1
       `,
       [
@@ -1061,6 +1117,7 @@ export class CommunicationDraftService {
         writeModel.deliveryStrategy,
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
+        writeModel.wellnessProgram ? JSON.stringify(writeModel.wellnessProgram) : null,
       ],
     );
 
@@ -1098,7 +1155,8 @@ export class CommunicationDraftService {
           toast_auto_dismiss_seconds,
           delivery_strategy,
           scheduled_at,
-          draft_schedule_json
+          draft_schedule_json,
+          wellness_program_json
         )
         values (
           $1::uuid,
@@ -1117,7 +1175,8 @@ export class CommunicationDraftService {
           $13,
           $14,
           $15::timestamptz,
-          $16::jsonb
+          $16::jsonb,
+          $17::jsonb
         )
         returning id::text as id
       `,
@@ -1138,6 +1197,7 @@ export class CommunicationDraftService {
         existing.deliveryStrategy,
         existing.scheduledAt,
         existing.draftReminderSchedule ? JSON.stringify(existing.draftReminderSchedule) : null,
+        existing.wellnessProgram ? JSON.stringify(existing.wellnessProgram) : null,
       ],
     );
     const duplicatedId = insertedRows[0]?.id;
@@ -1539,6 +1599,7 @@ export class CommunicationDraftService {
       toastAutoDismissSeconds: detail.toastAutoDismissSeconds,
       deliveryStrategy: detail.deliveryStrategy,
       schedule: schedule ?? parseReminderDraftScheduleRecord(detail.draftReminderSchedule),
+      wellnessProgram: parseWellnessProgramRecord(detail.wellnessProgram),
       workflow,
       targets,
       updatedAt: detail.updatedAt,
@@ -1579,6 +1640,7 @@ export class CommunicationDraftService {
           toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
           delivery_strategy::text as "deliveryStrategy",
           draft_schedule_json as "draftReminderSchedule",
+          wellness_program_json as "wellnessProgram",
           updated_at::text as "updatedAt"
         from public.communications
         where id::text = $1
@@ -1791,6 +1853,7 @@ export class CommunicationDraftService {
       toastAutoDismissSeconds: input.toastAutoDismissSeconds ?? null,
       deliveryStrategy: input.deliveryStrategy ?? null,
       reminderSchedule: input.reminderSchedule ?? null,
+      wellnessProgram: input.wellnessProgram ?? null,
     });
   }
 
@@ -1829,6 +1892,10 @@ export class CommunicationDraftService {
         input.reminderSchedule === undefined
           ? parseReminderDraftScheduleRecord(existing.draftReminderSchedule)
           : input.reminderSchedule,
+      wellnessProgram:
+        input.wellnessProgram === undefined
+          ? parseWellnessProgramRecord(existing.wellnessProgram)
+          : input.wellnessProgram,
     });
   }
 
@@ -1847,6 +1914,7 @@ export class CommunicationDraftService {
     toastAutoDismissSeconds: number | null;
     deliveryStrategy: DeliveryStrategy | null;
     reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null;
+    wellnessProgram: WellnessProgramInput | null;
   }): Promise<CommunicationWriteModel> {
     validateTargets(input.targets);
     validateChannelSelections(input.channelSelections, this.enabledDeliveryChannels);
@@ -1913,6 +1981,11 @@ export class CommunicationDraftService {
       input.communicationType,
       input.reminderSchedule,
     );
+    const wellnessProgram = normalizeWellnessProgramInput(
+      input.communicationType,
+      input.priority,
+      input.wellnessProgram,
+    );
 
     const normalizedInstruction = normalizeNullableText(input.instruction);
     const normalizedWindowsAgentAuthoring = normalizeWindowsAgentAuthoringRules({
@@ -1961,6 +2034,7 @@ export class CommunicationDraftService {
       toastAutoDismissSeconds: normalizedWindowsAgentAuthoring.toastAutoDismissSeconds,
       deliveryStrategy: finalDeliveryStrategy,
       reminderSchedule,
+      wellnessProgram,
       targets: input.targets.map((target) => ({
         targetType: target.targetType,
         targetValue: target.targetValue.trim(),
@@ -2116,6 +2190,260 @@ function normalizeReminderDraftScheduleInput(
     validFrom: scheduledAt?.toISOString() ?? null,
     validUntil: validUntil?.toISOString() ?? null,
     isActive: false,
+  };
+}
+
+function normalizeWellnessProgramInput(
+  communicationType: CommunicationType,
+  priority: Priority,
+  wellnessProgram: WellnessProgramInput | null,
+) {
+  if (!wellnessProgram) {
+    return null;
+  }
+
+  if (communicationType !== "Reminder") {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_ONLY_FOR_REMINDERS",
+      message: "Wellness Programs are only supported for reminder communications.",
+    });
+  }
+
+  if (priority === "Critical") {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_PRIORITY_NOT_ALLOWED",
+      message: "Wellness Programs cannot use Critical priority.",
+    });
+  }
+
+  validateWellnessProgram(wellnessProgram);
+
+  return {
+    ...wellnessProgram,
+    heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
+    countdownSeconds: wellnessProgram.countdownSeconds ?? null,
+    rotationMode: wellnessProgram.rotationMode ?? null,
+    actions: wellnessProgram.actions.map((action) => ({
+      ...action,
+      style: action.style ?? null,
+      snoozeMinutes: action.snoozeMinutes ?? null,
+    })),
+    steps: (wellnessProgram.steps ?? []).map((step) => ({
+      ...step,
+      description: step.description ?? null,
+      assetUrl: step.assetUrl ?? null,
+      durationSeconds: step.durationSeconds ?? null,
+    })),
+    localizations: (wellnessProgram.localizations ?? []).map((localization) => ({
+      ...localization,
+      title: localization.title ?? null,
+      body: localization.body ?? null,
+      instruction: localization.instruction ?? null,
+    })),
+  };
+}
+
+function validateWellnessProgram(wellnessProgram: WellnessProgramInput) {
+  const actionKeys = new Set<string>();
+  for (const action of wellnessProgram.actions) {
+    const normalizedActionKey = action.actionKey.trim();
+    if (actionKeys.has(normalizedActionKey)) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_ACTION_KEY_DUPLICATE",
+        message: "Wellness action keys must be unique.",
+      });
+    }
+
+    actionKeys.add(normalizedActionKey);
+    if (
+      action.kind === "RemindMeLater" &&
+      action.snoozeMinutes !== null &&
+      action.snoozeMinutes !== undefined &&
+      action.snoozeMinutes <= 0
+    ) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_SNOOZE_MINUTES_INVALID",
+        message: "Wellness snoozeMinutes must be greater than zero when provided.",
+      });
+    }
+  }
+
+  if (wellnessProgram.actions.length === 0) {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_ACTION_REQUIRED",
+      message: "Wellness Programs require at least one visible action.",
+    });
+  }
+
+  if (wellnessProgram.programType === "GuidedRoutine") {
+    if (wellnessProgram.layoutVariant !== "GuidedRoutine") {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_LAYOUT_INVALID",
+        message: "GuidedRoutine programs must use the GuidedRoutine layout.",
+      });
+    }
+
+    if (!wellnessProgram.steps || wellnessProgram.steps.length === 0) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_STEPS_REQUIRED",
+        message: "GuidedRoutine wellness programs require at least one step.",
+      });
+    }
+  }
+
+  if (
+    wellnessProgram.programType === "SimpleReminder" &&
+    wellnessProgram.layoutVariant === "GuidedRoutine"
+  ) {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_LAYOUT_INVALID",
+      message: "SimpleReminder programs cannot use the GuidedRoutine layout.",
+    });
+  }
+
+  if (
+    wellnessProgram.layoutVariant === "CountdownCard" &&
+    (wellnessProgram.countdownSeconds === null ||
+      wellnessProgram.countdownSeconds === undefined ||
+      wellnessProgram.countdownSeconds <= 0)
+  ) {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_COUNTDOWN_REQUIRED",
+      message: "CountdownCard wellness programs require countdownSeconds greater than zero.",
+    });
+  }
+
+  const stepKeys = new Set<string>();
+  let previousSortOrder = -Infinity;
+  for (const step of wellnessProgram.steps ?? []) {
+    const normalizedStepKey = step.stepKey.trim();
+    if (stepKeys.has(normalizedStepKey)) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_STEP_KEY_DUPLICATE",
+        message: "Wellness step keys must be unique.",
+      });
+    }
+
+    stepKeys.add(normalizedStepKey);
+    if (step.sortOrder <= previousSortOrder) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_STEP_ORDER_INVALID",
+        message: "Wellness steps must use ascending sortOrder values.",
+      });
+    }
+
+    previousSortOrder = step.sortOrder;
+    if (
+      step.durationSeconds !== null &&
+      step.durationSeconds !== undefined &&
+      step.durationSeconds <= 0
+    ) {
+      throw new AppError({
+        statusCode: 422,
+        code: "WELLNESS_STEP_DURATION_INVALID",
+        message: "Wellness step durationSeconds must be greater than zero when provided.",
+      });
+    }
+  }
+}
+
+function parseWellnessProgramRecord(value: unknown): WellnessProgramInput | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Partial<WellnessProgramInput>;
+  if (
+    (record.programType !== "SimpleReminder" && record.programType !== "GuidedRoutine") ||
+    (record.theme !== "Blue" && record.theme !== "Green") ||
+    (record.layoutVariant !== "ReminderCard" &&
+      record.layoutVariant !== "CountdownCard" &&
+      record.layoutVariant !== "OverviewCard" &&
+      record.layoutVariant !== "GuidedRoutine" &&
+      record.layoutVariant !== "CompletionCard") ||
+    !Array.isArray(record.actions)
+  ) {
+    return null;
+  }
+
+  return {
+    programType: record.programType,
+    theme: record.theme,
+    layoutVariant: record.layoutVariant,
+    heroAssetUrl: typeof record.heroAssetUrl === "string" ? record.heroAssetUrl : null,
+    countdownSeconds: typeof record.countdownSeconds === "number" ? record.countdownSeconds : null,
+    rotationMode:
+      record.rotationMode === "Fixed" ||
+      record.rotationMode === "Sequential" ||
+      record.rotationMode === "Random"
+        ? record.rotationMode
+        : null,
+    actions: record.actions
+      .filter(
+        (action): action is WellnessAction =>
+          isRecord(action) &&
+          typeof action.actionKey === "string" &&
+          typeof action.label === "string" &&
+          (action.kind === "GotIt" ||
+            action.kind === "Done" ||
+            action.kind === "Start" ||
+            action.kind === "Next" ||
+            action.kind === "Close" ||
+            action.kind === "RemindMeLater"),
+      )
+      .map((action) => ({
+        actionKey: action.actionKey,
+        kind: action.kind,
+        label: action.label,
+        style:
+          action.style === "Primary" || action.style === "Secondary" || action.style === "Ghost"
+            ? action.style
+            : null,
+        snoozeMinutes: typeof action.snoozeMinutes === "number" ? action.snoozeMinutes : null,
+      })),
+    steps: Array.isArray(record.steps)
+      ? record.steps
+          .filter(
+            (step): step is WellnessStep =>
+              isRecord(step) &&
+              typeof step.stepKey === "string" &&
+              typeof step.title === "string" &&
+              typeof step.sortOrder === "number",
+          )
+          .map((step) => ({
+            stepKey: step.stepKey,
+            title: step.title,
+            description: typeof step.description === "string" ? step.description : null,
+            assetUrl: typeof step.assetUrl === "string" ? step.assetUrl : null,
+            durationSeconds: typeof step.durationSeconds === "number" ? step.durationSeconds : null,
+            sortOrder: step.sortOrder,
+          }))
+      : [],
+    localizations: Array.isArray(record.localizations)
+      ? record.localizations
+          .filter(
+            (localization): localization is WellnessLocalization =>
+              isRecord(localization) && typeof localization.locale === "string",
+          )
+          .map((localization) => ({
+            locale: localization.locale,
+            title: typeof localization.title === "string" ? localization.title : null,
+            body: typeof localization.body === "string" ? localization.body : null,
+            instruction:
+              typeof localization.instruction === "string" ? localization.instruction : null,
+          }))
+      : [],
   };
 }
 
@@ -2300,6 +2628,7 @@ function validatePublishRequest(
   input: PublishCommunicationInput,
   channelSelections: Channel[],
 ) {
+  const wellnessProgram = parseWellnessProgramRecord(communication.wellnessProgram);
   if (input.confirmedPreview !== true) {
     throw new AppError({
       statusCode: 422,
@@ -2407,6 +2736,13 @@ function validatePublishRequest(
           code: "WINDOWS_AGENT_CHANNEL_REQUIRED",
           message:
             "AgentLocalRoutine execution mode requires the WindowsAgent channel to remain selected.",
+        });
+      }
+      if (wellnessProgram && input.executionMode !== "AgentLocalRoutine") {
+        throw new AppError({
+          statusCode: 422,
+          code: "WELLNESS_AGENT_LOCAL_ROUTINE_REQUIRED",
+          message: "Wellness Programs require AgentLocalRoutine execution mode when published.",
         });
       }
       return;
@@ -2646,6 +2982,15 @@ async function persistPublishExecutionFoundation(
     recipients: options.recipients,
     communication: options.communication,
   });
+
+  if (recipientSeeds.length === 0) {
+    throw new AppError({
+      statusCode: 422,
+      code: "NO_ELIGIBLE_DELIVERY_RECIPIENTS",
+      message:
+        "No eligible recipients were resolved for the selected delivery channels. For Windows Agent delivery, target at least one known device-bound audience.",
+    });
+  }
 
   for (const recipient of recipientSeeds) {
     const recipientRows = await transaction.query<{ id: string }>(
@@ -2902,36 +3247,6 @@ function buildRecipientSeeds(options: {
       }
     }
 
-    if (
-      recipient.recipientType === "Employee" &&
-      options.recipients.selectedChannels.includes("WindowsAgent") &&
-      recipient.availableChannels.includes("WindowsAgent")
-    ) {
-      const channelPlan = channelPlanByChannel.get("WindowsAgent");
-      if (channelPlan) {
-        seeds.push({
-          recipientType: "Employee",
-          deviceId: recipient.deviceId,
-          employeeId: recipient.employeeId,
-          channelEndpoint: recipient.employeeNumber ?? recipient.employeeId ?? null,
-          siteId: recipient.siteId,
-          areaId: recipient.areaId,
-          siteName: recipient.siteName,
-          areaName: recipient.areaName,
-          departmentName: recipient.departmentName,
-          sectionName: recipient.sectionName,
-          recipientName,
-          jobs: [
-            {
-              channel: "WindowsAgent",
-              retryLimit: determineRetryLimit("WindowsAgent"),
-              channelPlan,
-            },
-          ],
-        });
-      }
-    }
-
     for (const contactChannel of ["WhatsApp", "Email"] as const) {
       if (
         !options.recipients.selectedChannels.includes(contactChannel) ||
@@ -3073,6 +3388,7 @@ async function materializeAgentReminderPolicies(
           instruction_snapshot,
           windows_agent_presentation,
           toast_auto_dismiss_seconds,
+          wellness_program_json,
           valid_from,
           valid_until,
           is_active
@@ -3089,8 +3405,9 @@ async function materializeAgentReminderPolicies(
           $9,
           $10,
           $11,
-          $12::timestamptz,
+          $12::jsonb,
           $13::timestamptz,
+          $14::timestamptz,
           true
         )
       `,
@@ -3106,6 +3423,9 @@ async function materializeAgentReminderPolicies(
         options.communication.instruction,
         options.communication.windowsAgentPresentation,
         options.communication.toastAutoDismissSeconds,
+        options.communication.wellnessProgram
+          ? JSON.stringify(parseWellnessProgramRecord(options.communication.wellnessProgram))
+          : null,
         options.validFrom,
         options.validUntil,
       ],

@@ -1,9 +1,9 @@
 # MTI Alert Hybrid Reminder UX
 
 ## Document Status
-- Version: `0.2`
+- Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-15`
+- Last Updated: `2026-07-16`
 - Owner: `Product / Engineering`
 
 ## Purpose
@@ -103,8 +103,16 @@ Keep the current unified communication form, but reveal reminder-specific schedu
 ### Option B: Dedicated Reminder Flow
 Keep the same backend model, but provide a dedicated create/edit experience for reminders so scheduling and execution controls are not hidden inside the generic notification form.
 
+### Option C: Dedicated `Wellness Programs` Flow Under Notifications
+Keep reminders inside the same broad notifications domain, but add a dedicated menu entry for ergonomic recurring programs so the operator sees:
+- specialized visual template selection
+- configurable CTA buttons such as `Got it`, `Remind me in 10 min`, `Start`, or `Done`
+- richer presentation variants such as countdown cards and guided routines
+- dedicated monitoring for locally executed wellness activity
+
 Current safe recommendation:
-- start with `Option A` to minimize implementation surface
+- keep generic recurring reminders functional in the shared communication flow
+- treat OHIH-style ergonomic routines as the first approved case for `Option C`
 - ensure the detail and monitoring views still surface reminder-specific state explicitly
 
 ## Definition Of Done
@@ -129,4 +137,4 @@ As of `2026-07-15`, the admin UX now surfaces:
 
 Remaining follow-up focus:
 - review operator-facing wording and layout polish after the first end-to-end browser validation pass
-- decide whether the unified form remains sufficient long term or whether reminders should graduate to a dedicated flow
+- decide whether all reminder types remain in one shared admin flow or whether `Wellness Programs` becomes the first specialized reminder submodule under `Notifications`

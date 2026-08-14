@@ -1,9 +1,9 @@
 # MTI Alert Windows Agent Client Specification
 
 ## Document Status
-- Version: `0.3`
+- Version: `0.4`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-09`
+- Last Updated: `2026-07-17`
 - Audience: `Windows Agent Engineers`
 
 ## Purpose
@@ -81,6 +81,11 @@ The following client-platform decisions are now considered the baseline for MVP 
 ### UI Quality Baseline
 - the initial release should target an `enterprise-polished` UX baseline, not a merely minimal functional shell
 - tray presence may stay lightweight, but modal, toast, and response surfaces should look intentional, production-ready, and operationally clear from the start
+- wellness-oriented recurring reminders may intentionally use a brighter and friendlier visual language than the operational alert baseline, especially white surfaces with blue and green accents that match the approved eye-break and stretching mockups
+- the client should support themed reminder templates so the same agent can render:
+  - neutral operational notifications
+  - blue eye-break reminder surfaces
+  - green stretching reminder surfaces
 
 ### Device Identity Baseline
 - the client should generate a stable `deviceIdentifier` during first install or first successful initialization
@@ -119,6 +124,7 @@ The Windows Agent should be able to:
 - fetch approved reminder policies for bounded local execution
 - execute synchronized routine reminder policies even when the server is temporarily unreachable
 - render messages according to template policy
+- render structured wellness reminder experiences when the policy payload provides specialized template, action, and step data
 - support workflow responses
 - report delivery lifecycle events accurately
 
@@ -540,6 +546,28 @@ Because many devices may be shared:
 - the MVP should look operationally production-ready rather than prototype-like
 - dialog layout, typography, spacing, and action emphasis should be clear enough for shared-device enterprise environments
 - tray UI, modal UI, and response UI should feel visually consistent with one another
+- the first wellness rendering slice may intentionally break away from the dark operational shell by using a dedicated white friendly card surface for eye-break reminders, as long as operational alerts remain on their existing alert-oriented surface
+
+## Current Wellness Rendering Baseline
+The current first client-side wellness rendering baseline is now:
+- narrowed to `SimpleReminder` eye-break reminders first
+- driven from `wellnessProgram` inside synced reminder policies
+- rendered through a dedicated wellness-specific WPF window instead of the generic operational `NotificationWindow`
+- currently themed for the approved `Blue` eye-break direction
+- now consuming authored `title`, `body`, and `instruction` content consistently across the first eye-break template set instead of relying on fixed copy
+- now supporting local countdown state inside the dedicated wellness surface for countdown-oriented eye-break layouts
+- now persisting reminder activity locally when the agent cannot reach the backend yet, then retrying the queued reminder events after the session and sync loop recover
+- now positioned as a smaller toast-like notice surface near the bottom-right work area instead of a centered modal-style card
+- currently implemented for:
+  - `ReminderCard`
+  - `CountdownCard`
+  - `OverviewCard`
+  - `CompletionCard`
+
+The following remain intentionally open after that first slice:
+- green stretching visuals
+- guided routine rendering
+- progress indicators and multi-step guidance
 
 ## Recommended Client Architecture
 Recommended internal client components:

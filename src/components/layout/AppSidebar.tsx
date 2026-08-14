@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   BellRing,
   PlusCircle,
+  HeartPulse,
   Users,
   MonitorSmartphone,
   MessageCircle,
@@ -28,6 +29,7 @@ const primaryItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Notification Center", url: "/notifications", icon: BellRing },
   { title: "Create Notification", url: "/notifications/new", icon: PlusCircle },
+  { title: "Wellness Programs", url: "/wellness-programs", icon: HeartPulse },
 ];
 
 const manageItems = [

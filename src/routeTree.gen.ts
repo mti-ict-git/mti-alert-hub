@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppWhatsappRouteImport } from './routes/_app.whatsapp'
+import { Route as AppWellnessProgramsRouteImport } from './routes/_app.wellness-programs'
 import { Route as AppTemplatesRouteImport } from './routes/_app.templates'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppReportsRouteImport } from './routes/_app.reports'
@@ -20,6 +21,8 @@ import { Route as AppEmployeesRouteImport } from './routes/_app.employees'
 import { Route as AppDevicesRouteImport } from './routes/_app.devices'
 import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
 import { Route as AppNotificationsIndexRouteImport } from './routes/_app.notifications.index'
+import { Route as AppWellnessProgramsNewRouteImport } from './routes/_app.wellness-programs.new'
+import { Route as AppWellnessProgramsIdRouteImport } from './routes/_app.wellness-programs.$id'
 import { Route as AppNotificationsNewRouteImport } from './routes/_app.notifications.new'
 import { Route as AppNotificationsIdRouteImport } from './routes/_app.notifications.$id'
 
@@ -40,6 +43,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppWhatsappRoute = AppWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWellnessProgramsRoute = AppWellnessProgramsRouteImport.update({
+  id: '/wellness-programs',
+  path: '/wellness-programs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTemplatesRoute = AppTemplatesRouteImport.update({
@@ -77,6 +85,16 @@ const AppNotificationsIndexRoute = AppNotificationsIndexRouteImport.update({
   path: '/notifications/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWellnessProgramsNewRoute = AppWellnessProgramsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppWellnessProgramsRoute,
+} as any)
+const AppWellnessProgramsIdRoute = AppWellnessProgramsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppWellnessProgramsRoute,
+} as any)
 const AppNotificationsNewRoute = AppNotificationsNewRouteImport.update({
   id: '/notifications/new',
   path: '/notifications/new',
@@ -97,9 +115,12 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
+  '/wellness-programs': typeof AppWellnessProgramsRouteWithChildren
   '/whatsapp': typeof AppWhatsappRoute
   '/notifications/$id': typeof AppNotificationsIdRoute
   '/notifications/new': typeof AppNotificationsNewRoute
+  '/wellness-programs/$id': typeof AppWellnessProgramsIdRoute
+  '/wellness-programs/new': typeof AppWellnessProgramsNewRoute
   '/notifications/': typeof AppNotificationsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -110,10 +131,13 @@ export interface FileRoutesByTo {
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
+  '/wellness-programs': typeof AppWellnessProgramsRouteWithChildren
   '/whatsapp': typeof AppWhatsappRoute
   '/': typeof AppIndexRoute
   '/notifications/$id': typeof AppNotificationsIdRoute
   '/notifications/new': typeof AppNotificationsNewRoute
+  '/wellness-programs/$id': typeof AppWellnessProgramsIdRoute
+  '/wellness-programs/new': typeof AppWellnessProgramsNewRoute
   '/notifications': typeof AppNotificationsIndexRoute
 }
 export interface FileRoutesById {
@@ -126,10 +150,13 @@ export interface FileRoutesById {
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/templates': typeof AppTemplatesRoute
+  '/_app/wellness-programs': typeof AppWellnessProgramsRouteWithChildren
   '/_app/whatsapp': typeof AppWhatsappRoute
   '/_app/': typeof AppIndexRoute
   '/_app/notifications/$id': typeof AppNotificationsIdRoute
   '/_app/notifications/new': typeof AppNotificationsNewRoute
+  '/_app/wellness-programs/$id': typeof AppWellnessProgramsIdRoute
+  '/_app/wellness-programs/new': typeof AppWellnessProgramsNewRoute
   '/_app/notifications/': typeof AppNotificationsIndexRoute
 }
 export interface FileRouteTypes {
@@ -143,9 +170,12 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/templates'
+    | '/wellness-programs'
     | '/whatsapp'
     | '/notifications/$id'
     | '/notifications/new'
+    | '/wellness-programs/$id'
+    | '/wellness-programs/new'
     | '/notifications/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -156,10 +186,13 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/templates'
+    | '/wellness-programs'
     | '/whatsapp'
     | '/'
     | '/notifications/$id'
     | '/notifications/new'
+    | '/wellness-programs/$id'
+    | '/wellness-programs/new'
     | '/notifications'
   id:
     | '__root__'
@@ -171,10 +204,13 @@ export interface FileRouteTypes {
     | '/_app/reports'
     | '/_app/settings'
     | '/_app/templates'
+    | '/_app/wellness-programs'
     | '/_app/whatsapp'
     | '/_app/'
     | '/_app/notifications/$id'
     | '/_app/notifications/new'
+    | '/_app/wellness-programs/$id'
+    | '/_app/wellness-programs/new'
     | '/_app/notifications/'
   fileRoutesById: FileRoutesById
 }
@@ -211,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/whatsapp'
       fullPath: '/whatsapp'
       preLoaderRoute: typeof AppWhatsappRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/wellness-programs': {
+      id: '/_app/wellness-programs'
+      path: '/wellness-programs'
+      fullPath: '/wellness-programs'
+      preLoaderRoute: typeof AppWellnessProgramsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/templates': {
@@ -262,6 +305,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNotificationsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/wellness-programs/new': {
+      id: '/_app/wellness-programs/new'
+      path: '/new'
+      fullPath: '/wellness-programs/new'
+      preLoaderRoute: typeof AppWellnessProgramsNewRouteImport
+      parentRoute: typeof AppWellnessProgramsRoute
+    }
+    '/_app/wellness-programs/$id': {
+      id: '/_app/wellness-programs/$id'
+      path: '/$id'
+      fullPath: '/wellness-programs/$id'
+      preLoaderRoute: typeof AppWellnessProgramsIdRouteImport
+      parentRoute: typeof AppWellnessProgramsRoute
+    }
     '/_app/notifications/new': {
       id: '/_app/notifications/new'
       path: '/notifications/new'
@@ -279,6 +336,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppWellnessProgramsRouteChildren {
+  AppWellnessProgramsIdRoute: typeof AppWellnessProgramsIdRoute
+  AppWellnessProgramsNewRoute: typeof AppWellnessProgramsNewRoute
+}
+
+const AppWellnessProgramsRouteChildren: AppWellnessProgramsRouteChildren = {
+  AppWellnessProgramsIdRoute: AppWellnessProgramsIdRoute,
+  AppWellnessProgramsNewRoute: AppWellnessProgramsNewRoute,
+}
+
+const AppWellnessProgramsRouteWithChildren =
+  AppWellnessProgramsRoute._addFileChildren(AppWellnessProgramsRouteChildren)
+
 interface AppRouteChildren {
   AppAuditLogsRoute: typeof AppAuditLogsRoute
   AppDevicesRoute: typeof AppDevicesRoute
@@ -286,6 +356,7 @@ interface AppRouteChildren {
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
+  AppWellnessProgramsRoute: typeof AppWellnessProgramsRouteWithChildren
   AppWhatsappRoute: typeof AppWhatsappRoute
   AppIndexRoute: typeof AppIndexRoute
   AppNotificationsIdRoute: typeof AppNotificationsIdRoute
@@ -300,6 +371,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTemplatesRoute: AppTemplatesRoute,
+  AppWellnessProgramsRoute: AppWellnessProgramsRouteWithChildren,
   AppWhatsappRoute: AppWhatsappRoute,
   AppIndexRoute: AppIndexRoute,
   AppNotificationsIdRoute: AppNotificationsIdRoute,
