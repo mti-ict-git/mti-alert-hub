@@ -1,7 +1,9 @@
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
+import type { DeviceHealthThresholds } from "../../../app/config/env.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import { CommunicationDraftService } from "../../communications/service/communication-draft-service.js";
+import { buildDeviceHealthStatusSql } from "./device-health-sql.js";
 
 type DeviceActionActor = {
   userIdentifier: string;
@@ -24,11 +26,16 @@ type DeviceLookupRow = {
 };
 
 export class DeviceActionService {
+  private readonly statusSql: string;
+
   constructor(
     private readonly database: DatabaseClient,
     private readonly communicationDraftService: CommunicationDraftService,
     private readonly auditLogService: AuditLogService,
-  ) {}
+    thresholds: DeviceHealthThresholds,
+  ) {
+    this.statusSql = buildDeviceHealthStatusSql(thresholds);
+  }
 
   async sendTestNotification(
     deviceId: string,
@@ -109,15 +116,16 @@ export class DeviceActionService {
   }
 
   private async getDeviceById(deviceId: string) {
+    const statusSql = this.statusSql;
     const rows = await this.database.query<DeviceLookupRow>(
       `
         select
-          id::text as id,
-          device_identifier::text as "deviceIdentifier",
-          hostname::text as hostname,
-          status::text as status
-        from public.devices
-        where id::text = $1
+          d.id::text as id,
+          d.device_identifier::text as "deviceIdentifier",
+          d.hostname::text as hostname,
+          ${statusSql}::text as status
+        from public.devices d
+        where d.id::text = $1
         limit 1
       `,
       [deviceId],

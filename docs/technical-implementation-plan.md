@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-08-26`
 
 ## Purpose
 This document defines the recommended technical shape of the `MTI Alert` server so backend, frontend, and Windows Agent teams can work from one consistent implementation direction.
@@ -94,6 +94,8 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Realtime connection negotiation
 - Device heartbeat
 - Presence tracking
+- Approved rollout intent retrieval for updater execution
+- Updater lifecycle status reporting
 - Push message dispatch
 - Routine reminder policy sync for approved local reminder execution
 - Delivery confirmation
@@ -183,12 +185,14 @@ The current repository already leans toward TypeScript for the admin application
 - authenticate or register device session
 - negotiate realtime connection or obtain hub credentials
 - send heartbeat
+- fetch approved rollout intent metadata for updater execution
 - receive or reconcile pending messages
 - fetch active reminder policies eligible for local execution
 - acknowledge display state
 - acknowledge display/read
 - submit workflow response
 - submit reminder occurrence or local interaction events
+- submit updater lifecycle status for rollout visibility
 - report agent version and device state
 - report active user context only as optional audit metadata, not as the primary desktop recipient identity
 

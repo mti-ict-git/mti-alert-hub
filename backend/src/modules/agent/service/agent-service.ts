@@ -5,11 +5,13 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import type { Logger } from "../../../shared/observability/logger.js";
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import type { BackendEnv } from "../../../app/config/env.js";
+import { resolveDeviceHealthThresholds } from "../../../app/config/env.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
 import type { ResponseOverdueService } from "../../communications/service/response-overdue-service.js";
+import { buildDeviceHealthStatusSql } from "../../devices/service/device-health-sql.js";
 
 type DeviceRecord = {
   id: string;
@@ -193,6 +195,33 @@ type ReminderEventInput = {
   metadata?: Record<string, unknown> | null;
 };
 
+type RolloutAction = "Upgrade" | "Repair" | "Uninstall";
+
+type RolloutState =
+  | "UpdateAvailable"
+  | "Downloading"
+  | "Staged"
+  | "InstallPending"
+  | "Installing"
+  | "Succeeded"
+  | "Failed"
+  | "UninstallPending"
+  | "Uninstalling"
+  | "Uninstalled";
+
+type RolloutStatusInput = {
+  rolloutId: string;
+  state: RolloutState;
+  installedVersion?: string | null;
+  targetVersion?: string | null;
+  updaterVersion?: string | null;
+  startupRegistered?: boolean | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  occurredAt: string;
+  metadataJson?: Record<string, unknown> | null;
+};
+
 type ActiveRealtimeConnection = {
   deviceId: string;
   connectionId: string;
@@ -212,8 +241,30 @@ type AgentAuditContext = {
   ipAddress?: string | null;
 };
 
+type AgentRolloutIntentRow = {
+  rolloutId: string;
+  action: RolloutAction;
+  rolloutChannel: string | null;
+  targetVersion: string;
+  mandatory: boolean;
+  deadlineAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  packageType: "MSI";
+  packageUrl: string;
+  sha256: string;
+  signature: string;
+  releaseNotes: string | null;
+};
+
+type AgentOwnedRolloutIntentRow = {
+  rolloutId: string;
+  deviceId: string;
+};
+
 export class AgentService {
   private readonly realtimeConnections = new Map<string, ActiveRealtimeConnection>();
+  private readonly deviceStatusSql: string;
 
   constructor(
     private readonly database: DatabaseClient,
@@ -222,7 +273,9 @@ export class AgentService {
     private readonly responseOverdueService: ResponseOverdueService,
     private readonly env: BackendEnv,
     private readonly logger: Logger,
-  ) {}
+  ) {
+    this.deviceStatusSql = buildDeviceHealthStatusSql(resolveDeviceHealthThresholds(env));
+  }
 
   async createSession(input: CreateAgentSessionInput) {
     const device = await this.requireKnownDevice({
@@ -480,6 +533,118 @@ export class AgentService {
     };
   }
 
+  async getRolloutIntent(sessionToken: string) {
+    const session = await this.requireSession(sessionToken, { renew: true });
+    const rows = await this.database.query<AgentRolloutIntentRow>(
+      `
+        select
+          ari.id::text as "rolloutId",
+          ari.action::text as action,
+          ari.rollout_channel::text as "rolloutChannel",
+          ari.target_version::text as "targetVersion",
+          ari.mandatory as mandatory,
+          ari.deadline_at::text as "deadlineAt",
+          ari.notes::text as notes,
+          ari.created_at::text as "createdAt",
+          arp.package_type::text as "packageType",
+          arp.package_url::text as "packageUrl",
+          arp.sha256::text as sha256,
+          arp.signature::text as signature,
+          arp.release_notes::text as "releaseNotes"
+        from public.agent_rollout_intents ari
+        inner join public.agent_release_packages arp on arp.id = ari.release_package_id
+        where ari.device_id = $1::uuid
+          and ari.is_active = true
+        order by ari.created_at desc
+        limit 1
+      `,
+      [session.device.id],
+    );
+
+    const intent = rows[0];
+
+    return {
+      generatedAt: new Date().toISOString(),
+      intent: intent
+        ? {
+            rolloutId: intent.rolloutId,
+            action: intent.action,
+            rolloutChannel: intent.rolloutChannel,
+            targetVersion: intent.targetVersion,
+            package: {
+              packageType: intent.packageType,
+              packageUrl: intent.packageUrl,
+              sha256: intent.sha256,
+              signature: intent.signature,
+              releaseNotes: intent.releaseNotes,
+            },
+            mandatory: intent.mandatory,
+            deadlineAt: intent.deadlineAt,
+            notes: intent.notes,
+            createdAt: intent.createdAt,
+          }
+        : null,
+    };
+  }
+
+  async reportRolloutStatus(sessionToken: string, input: RolloutStatusInput) {
+    const session = await this.requireSession(sessionToken, { renew: true });
+    this.ensureIsoDate(input.occurredAt, "occurredAt");
+
+    const rollout = await this.requireOwnedRolloutIntent(session, input.rolloutId);
+    await this.database.query(
+      `
+        insert into public.agent_rollout_status_events (
+          rollout_intent_id,
+          device_id,
+          state,
+          installed_version,
+          target_version,
+          updater_version,
+          startup_registered,
+          error_code,
+          error_message,
+          occurred_at,
+          metadata_json
+        )
+        values (
+          $1::uuid,
+          $2::uuid,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10::timestamptz,
+          $11::jsonb
+        )
+      `,
+      [
+        rollout.rolloutId,
+        rollout.deviceId,
+        input.state,
+        input.installedVersion ?? null,
+        input.targetVersion ?? null,
+        input.updaterVersion ?? null,
+        input.startupRegistered ?? null,
+        input.errorCode ?? null,
+        input.errorMessage ?? null,
+        input.occurredAt,
+        JSON.stringify(input.metadataJson ?? {}),
+      ],
+    );
+
+    this.logger.info("agent.rollout.status_recorded", {
+      rolloutId: input.rolloutId,
+      deviceId: rollout.deviceId,
+      state: input.state,
+      hasErrorCode: Boolean(input.errorCode),
+      hasMetadata: Boolean(input.metadataJson && Object.keys(input.metadataJson).length > 0),
+    });
+  }
+
   async reportDisplayed(sessionToken: string, messageId: string, input: LifecycleEventInput) {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
@@ -692,6 +857,7 @@ export class AgentService {
   }
 
   async getOperationalDiagnostics() {
+    const deviceStatusSql = this.deviceStatusSql;
     const [realtimeRows, deviceStatusRows] = await Promise.all([
       this.database.query<{
         connectedCount: number;
@@ -714,10 +880,10 @@ export class AgentService {
       }>(
         `
           select
-            count(*) filter (where status = 'Online')::int as "onlineCount",
-            count(*) filter (where status = 'Stale')::int as "staleCount",
-            count(*) filter (where status = 'Offline')::int as "offlineCount"
-          from public.devices
+            count(*) filter (where ${deviceStatusSql} = 'Online')::int as "onlineCount",
+            count(*) filter (where ${deviceStatusSql} = 'Stale')::int as "staleCount",
+            count(*) filter (where ${deviceStatusSql} = 'Offline')::int as "offlineCount"
+          from public.devices d
         `,
       ),
     ]);
@@ -976,6 +1142,33 @@ export class AgentService {
     }
 
     return policy;
+  }
+
+  private async requireOwnedRolloutIntent(session: AgentSession, rolloutId: string) {
+    const rows = await this.database.query<AgentOwnedRolloutIntentRow>(
+      `
+        select
+          ari.id::text as "rolloutId",
+          ari.device_id::text as "deviceId"
+        from public.agent_rollout_intents ari
+        where ari.id::text = $1
+          and ari.device_id = $2::uuid
+          and ari.is_active = true
+        limit 1
+      `,
+      [rolloutId, session.device.id],
+    );
+
+    const rollout = rows[0];
+    if (!rollout) {
+      throw new AppError({
+        statusCode: 404,
+        code: "ROLLOUT_NOT_FOUND",
+        message: "The rollout intent was not found for this device.",
+      });
+    }
+
+    return rollout;
   }
 
   private registerRealtimeStream(options: {

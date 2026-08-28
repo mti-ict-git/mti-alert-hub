@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.1`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-07`
+- Last Updated: `2026-08-26`
 - Owner: `Architecture`
 
 ## Purpose
@@ -156,6 +156,23 @@ Each decision should include:
   - `docs/database-schema-specification.md`
   - `docs/openapi.yaml`
   - `docs/open-questions-and-challenges.md`
+
+### ADR-10. Windows Agent Rollout Uses Hybrid Endpoint Management And Agent-Driven Updating
+- Status: `Accepted`
+- Date: `2026-08-26`
+- Context: The first desktop pilot may require repeat deployment, silent uninstall, startup enforcement, and future remote update behavior without depending on an operator physically visiting each endpoint. A pure GPO-only rollout is operationally rigid for routine patching, while a pure self-updating tray app creates elevated-privilege, file-locking, and remote-execution trust problems.
+- Decision: Use a hybrid rollout model for the Windows Agent. Endpoint-management tooling such as `GPO`, `Intune`, `SCCM`, or `PDQ` is the authoritative bootstrap and break-glass path for install, recovery, and forced removal. Routine update and uninstall orchestration may be initiated by the running agent, but execution must be delegated to a separate updater component with the privileges needed to stop the app, validate package signature and checksum, run the approved installer or uninstall flow, and report status back safely.
+- Consequences:
+  - The runtime tray app must not overwrite or uninstall itself directly.
+  - Packaging should remain compatible with enterprise deployment tooling, with `MSI` plus silent install and uninstall support as the preferred baseline.
+  - The server should distribute approved rollout metadata such as target version, package URL, checksum, signature, rollout scope, and deadline rather than arbitrary shell commands.
+  - The client contract should eventually expose device version, rollout state, and updater result visibility for operations.
+  - Endpoint management remains the fallback when the updater path is unhealthy, the agent is offline, or trust must be recovered at scale.
+- Related documents:
+  - `docs/windows-agent-client-specification.md`
+  - `docs/deployment-and-environment.md`
+  - `docs/open-questions-and-challenges.md`
+  - `docs/technical-implementation-plan.md`
 
 ## Open Decision Follow-Up
 - Convert new major implementation choices into additional ADR entries instead of burying them inside roadmap notes.

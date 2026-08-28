@@ -1,5 +1,6 @@
 import {
   loadEnv,
+  resolveDeviceHealthThresholds,
   resolveEnabledDeliveryChannels,
   validateSecuritySensitiveEnv,
 } from "../config/env.js";
@@ -36,6 +37,7 @@ export async function createBackendApp() {
   const env = loadEnv();
   validateSecuritySensitiveEnv(env);
   const enabledDeliveryChannels = resolveEnabledDeliveryChannels(env);
+  const deviceHealthThresholds = resolveDeviceHealthThresholds(env);
   const logger = createLogger(env.LOG_LEVEL);
   const startedAt = new Date();
 
@@ -49,7 +51,7 @@ export async function createBackendApp() {
   );
   const ldapAuthenticator = new LdapAuthenticator(env, logger);
   const organizationReadService = new OrganizationReadService(database.client);
-  const deviceReadService = new DeviceReadService(database.client);
+  const deviceReadService = new DeviceReadService(database.client, deviceHealthThresholds);
   const dashboardReadService = new DashboardReadService(database.client);
   const auditLogService = new AuditLogService(database.client);
   const workflowDefinitionService = new WorkflowDefinitionService(database.client);
@@ -81,6 +83,7 @@ export async function createBackendApp() {
     database.client,
     communicationDraftService,
     auditLogService,
+    deviceHealthThresholds,
   );
   const authService = new AuthService(
     ldapAuthenticator,

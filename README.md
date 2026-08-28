@@ -34,6 +34,10 @@ Supporting references may also exist under `docs/`, such as:
 - `docs/testing-strategy.md`
 - `docs/software-acceptance-test.md`
 - `docs/deployment-and-environment.md`
+- `docs/windows-agent-rollout-blueprint.md`
+- `docs/windows-agent-rollout-stage-1-contract.md`
+- `docs/windows-agent-updater-service-spec.md`
+- `docs/windows-agent-wix-msi-packaging-plan.md`
 - `docs/integration-contracts.md`
 - `docs/go-live-checklist.md`
 - `docs/reminder-hybrid-ux.md`

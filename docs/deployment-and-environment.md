@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-14`
+- Last Updated: `2026-08-26`
 - Owner: `Engineering / Operations`
 
 ## Purpose
@@ -23,6 +23,19 @@ The MVP deployment is expected to include:
 - optional `Redis` for queueing, scheduling assistance, or caching
 - outbound connector integration for `WhatsApp`
 - future connector boundaries for `Email` and `Digital Signage`
+
+## Windows Agent Rollout Baseline
+The Windows Agent rollout model is hybrid:
+- initial install and break-glass recovery should remain compatible with enterprise endpoint-management tooling such as `GPO`, `Intune`, `SCCM`, or `PDQ`
+- routine update and uninstall may be orchestrated by the running agent when the endpoint is healthy
+- agent-driven lifecycle execution must still pass through a dedicated updater component rather than direct self-replacement by the tray app
+- endpoint-management tooling remains the fallback path when the agent is offline, unhealthy, or no longer trusted
+
+Operational consequences:
+- the preferred package format is `MSI` with silent install, silent uninstall, and upgrade support
+- startup at user logon should be enforced by the installer, preferably through a `Scheduled Task`
+- remote update commands should be treated as approved rollout metadata, not arbitrary shell execution
+- backend and client telemetry should eventually expose deployed version, desired version, updater state, and last rollout result for support visibility
 
 ## Environment Model
 ### Local Development
@@ -113,6 +126,13 @@ Current implementation baseline:
 - `POST /agent/realtime/negotiate` now builds `connectionUrl` from the inbound request host by default, so shared-environment and remote Windows Agent clients do not receive a loopback-only `localhost` stream URL.
 - Reverse-proxied or split-host deployments may override that derived value with `BACKEND_PUBLIC_BASE_URL` when the externally reachable realtime base URL differs from the immediate request host.
 - Do not set `BACKEND_PUBLIC_BASE_URL` to `localhost` or another loopback host for shared or remote Windows Agent deployments, because agent clients will then attempt to open SSE against themselves instead of the backend host.
+- Device health status in the admin device list is derived from the freshest of:
+  - `devices.last_heartbeat_at`
+  - `devices.last_connection_at`
+  - active realtime connection `device_realtime_connections.last_seen_at` (when status is `Connected`)
+- Health thresholds are configurable through:
+  - `DEVICE_ONLINE_THRESHOLD_SECONDS` (default `120`)
+  - `DEVICE_STALE_THRESHOLD_SECONDS` (default `900`)
 
 ### Authentication Configuration
 Examples:
@@ -211,6 +231,12 @@ Current command conventions:
 4. Deploy to a non-production environment first when the change is meaningful.
 5. Run smoke verification for auth, communication flow, and critical health endpoints.
 6. Promote to production only when verification evidence is acceptable.
+
+For Windows Agent rollout changes, the release checklist should also confirm:
+- installer upgrade and uninstall commands are verified in a non-production environment
+- startup registration survives reinstall and update
+- updater trust checks validate package version, checksum, and signature before execution
+- endpoint-management fallback can still force install or removal if the agent-driven path fails
 
 Recent verification evidence:
 - `2026-07-14`: `npm run backend:typecheck`, `npm run backend:build`, and `npm run build` passed after adding hybrid reminder authoring and monitoring support to the admin flow.

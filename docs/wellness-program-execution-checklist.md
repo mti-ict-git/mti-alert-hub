@@ -247,6 +247,7 @@ Deliver one specialized recurring wellness flow that proves:
 - `2026-07-17`: `Create Notification` is now refocused on standard communications only, while wellness authoring moves to a dedicated `Create Wellness Program` route under the `Wellness Programs` submenu.
 - `2026-07-18`: wellness draft editing now also stays inside the dedicated `Wellness Programs` authoring route. The shared notification detail page no longer exposes a `Wellness Program Mode` toggle, and draft-edit actions from the wellness list now open the dedicated wellness editor instead of the generic notification editor.
 - `2026-07-18`: wellness detail, publish, and lifecycle review now also stay on a dedicated `Wellness Programs` detail route. Wellness list `View` and `Publish` actions no longer bounce operators back into the generic notification detail page, while the route still reuses the existing reminder-oriented backend APIs and monitoring endpoints.
+- `2026-08-17`: guided wellness authoring now starts from office-stretching-oriented defaults instead of generic placeholder steps, and the admin `Desktop Preview` now renders a more faithful green `B1`-style office stretching card so visual iteration can stay aligned with the first Windows Agent stretching slice.
 - The dedicated list now shows:
   - program type
   - theme
@@ -302,11 +303,11 @@ Deliver one specialized recurring wellness flow that proves:
 ### 9. Windows Agent Rendering
 - `[x]` Introduce a dedicated wellness rendering path separate from the generic notification surface.
 - `[x]` Implement the `Blue` theme for eye-break surfaces.
-- `[ ]` Implement the `Green` theme for stretching surfaces.
+- `[x]` Implement the `Green` theme for stretching surfaces.
 - `[x]` Implement `ReminderCard` rendering.
 - `[x]` Implement `CountdownCard` rendering.
 - `[x]` Implement `OverviewCard` rendering for the English eye-break summary variant.
-- `[ ]` Implement narrowed `GuidedRoutine` rendering.
+- `[x]` Implement narrowed `GuidedRoutine` rendering.
 - `[x]` Implement `CompletionCard` rendering.
 - `[x]` Support one or two configurable CTA buttons depending on payload.
 - `[x]` Support configurable snooze actions.
@@ -338,7 +339,26 @@ Deliver one specialized recurring wellness flow that proves:
 - `2026-07-17`: the Windows Agent now also renders an English `OverviewCard` eye-break variant (`A4`) with compact toast sizing and local preview support from the shell.
 - `2026-07-17`: `RemindMeLater` now also schedules a true local snooze and re-trigger timestamp inside agent persistence, and the reminder scheduler prioritizes that snoozed occurrence before returning to the normal recurrence cadence.
 - `2026-07-17`: reminder activity is now queued locally in SQLite whenever the backend/session is unavailable, then flushed and reconciled automatically from the agent connection loop once the session recovers. The queue is persisted per reminder event payload so `Triggered`, `Displayed`, `Snoozed`, `Started`, and `Completed` no longer disappear just because the device was briefly offline.
+- `2026-08-17`: the Windows Agent now renders the first green `Office Stretching` card (`B1`) through the wellness surface instead of the generic reminder shell. The initial stretching slice uses `GuidedRoutine + Green + GuidedRoutine` with a compact first-card layout, ordered step bullets, dedicated `Start Stretching` plus `Remind me in 10 min` actions, and a local shell preview trigger so visual iteration can follow the same pattern used for eye-break `A1-A4`.
+- `2026-08-17`: the Windows Agent local preview flow now also includes an office-stretching `B2` overview slice. A dedicated debug trigger renders `GuidedRoutine + Green + OverviewCard` as a compact six-step stretching summary, and the associated `B2` art tiles are promoted from a single reference-based generated master so all poses stay on the same illustration model.
+- `2026-08-21`: the `B2` office-stretching overview now uses one selected composite image resource for the middle content block instead of depending on separate per-pose tiles. The official `office-stretch-b2-content.png` asset now points to the approved collage, and the stretching overview shell dimensions were widened so the landscape composition fits without awkward vertical compression.
+- `2026-08-21`: the office-stretching `GuidedRoutine` preview now renders as a per-step template instead of a static checklist. The new shell introduces a green title bar, step progress label, large hero area, circular countdown indicator, centered instruction text, and local `Kembali / Jeda / Berikutnya` controls so the post-`Mulai` flow can be reviewed in a shape much closer to the approved stretching mockup.
+- `2026-08-24`: the office-stretching completion flow now includes two dedicated green completion variants. `B4` and `B5` are both available in the renderer, and the current local test routing opens `B4` automatically after the last guided-routine step so completion behavior can be reviewed before final follow-up sequencing is locked.
+- `2026-08-24`: the stretching green theme was refined against the approved sample so the same tone now carries from `B1` through the latest completion card. Shared stretching brushes now drive the darker header/accent pair plus the lighter panel, badge, countdown-track, and header-subtext tints, reducing the visual drift that previously appeared between overview, guided-routine, and completion states.
+- `2026-08-24`: the stretching guided-routine countdown indicator now renders as a continuous circular progress arc instead of discrete dots, keeping the numeric seconds label centered while matching the approved ring-style sample more closely.
+- `2026-08-24`: the stretching guided-routine center control now uses an icon-only play/pause button instead of a text `Jeda/Lanjutkan` label, keeping the same pause behavior while aligning the visual language with the approved template direction.
+- `2026-08-24`: the stretching guided-routine center control was reduced so the side navigation buttons keep safer spacing, and the countdown now stops at `0` instead of automatically moving to the next exercise when a step timer finishes.
+- `2026-08-25`: the stretching guided-routine step timer now resets correctly for each exercise when operators move with `Kembali` or `Berikutnya`, so a stopped timer from the prior step does not carry into the next motion.
+- `2026-08-25`: stretching step 1 (`neck`) now uses the approved resource `Assets/Wellness/exec-df3dbf67-b065-459a-9515-4d9420dcc2d9.png` in both the debug scenario definition and the shared fallback asset resolver, keeping the first guided-routine hero image consistent during local preview and runtime fallback.
+- `2026-08-25`: stretching step 2 (`shoulders`) now uses the approved resource `Assets/Wellness/2026-08-18T07-58-31-515Z-use-the-reference-image-as-the-exact-same-person-in-the-same-1.png` in both the debug scenario definition and the shared fallback asset resolver, keeping the second guided-routine hero image consistent during local preview and runtime fallback.
+- `2026-08-25`: stretching step 3 (`upper-back`) now uses the updated resource `Assets/Wellness/exec-5993a3a0-df9f-4793-ae02-d37e39efc18b.png` in both the debug scenario definition and the shared fallback asset resolver, replacing the previous step-3 hero image during local preview and runtime fallback.
+- `2026-08-25`: stretching step 4 (`lower-back`) now uses the approved resource `Assets/Wellness/exec-7caa467e-b008-42c3-b732-a4341424e295.png` in both the debug scenario definition and the shared fallback asset resolver, keeping the fourth guided-routine hero image consistent during local preview and runtime fallback.
+- `2026-08-25`: stretching step 5 (`wrist` / `wrists`) now uses the approved resource `Assets/Wellness/exec-c043831b-a005-4a11-87e6-56e0748784f8.png` in both the debug scenario definition and the shared fallback asset resolver, keeping the fifth guided-routine hero image consistent during local preview and runtime fallback.
+- `2026-08-25`: stretching step 6 (`move` / `stand-move`) now uses the approved resource `Assets/Wellness/exec-a3a7ce7a-491d-4381-9af8-2964409fb2ba.png` in both the debug scenario definition and the shared fallback asset resolver, keeping the sixth guided-routine hero image consistent during local preview and runtime fallback.
+- `2026-08-25`: the active stretching photo resources for steps 1 through 6 now use transparent backgrounds, reducing the flat studio-backdrop box effect inside the guided-routine hero frame while keeping the existing subject poses and file paths intact.
+- `2026-08-25`: after approving the OpenAI transparent-background test, the active stretching step 1 through 6 PNG resources were replaced with `gpt-image-2` transparent edits while preserving the same runtime file paths, and the previous local-cutout versions were backed up under `Assets/Wellness/backup-openai-transparent-20260825/`.
 - Verification passed with:
+  - alpha-channel inspection on all six active step PNGs reporting `(0, 254)`
   - `dotnet build .\\MTI.Alert.Agent\\MTI.Alert.Agent.csproj --no-restore`
   - `dotnet test .\\MTI.Alert.Agent\\Tests\\MTI.Alert.Agent.Tests\\MTI.Alert.Agent.Tests.csproj --no-restore`
 

@@ -19,6 +19,18 @@ const reminderEventTypeSchema = z.enum([
   "Completed",
   "TimedOut",
 ]);
+const rolloutStateSchema = z.enum([
+  "UpdateAvailable",
+  "Downloading",
+  "Staged",
+  "InstallPending",
+  "Installing",
+  "Succeeded",
+  "Failed",
+  "UninstallPending",
+  "Uninstalling",
+  "Uninstalled",
+]);
 
 const agentSessionRequestSchema = z.object({
   deviceIdentifier: z.string().trim().min(1),
@@ -56,6 +68,19 @@ const agentReminderEventRequestSchema = z.object({
   occurredAt: z.string().trim().min(1),
   activeUserIdentifier: z.string().trim().optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
+});
+
+const agentRolloutStatusRequestSchema = z.object({
+  rolloutId: z.string().trim().min(1),
+  state: rolloutStateSchema,
+  installedVersion: z.string().trim().optional().nullable(),
+  targetVersion: z.string().trim().optional().nullable(),
+  updaterVersion: z.string().trim().optional().nullable(),
+  startupRegistered: z.boolean().optional().nullable(),
+  errorCode: z.string().trim().optional().nullable(),
+  errorMessage: z.string().trim().optional().nullable(),
+  occurredAt: z.string().trim().min(1),
+  metadataJson: z.record(z.unknown()).optional().nullable(),
 });
 
 type RegisterAgentRoutesOptions = {
@@ -131,6 +156,32 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
         const payload = validateWithSchema(agentHeartbeatRequestSchema, await json());
 
         await options.agentService.reportHeartbeat(sessionToken, payload);
+        return {
+          statusCode: 204,
+        };
+      },
+    },
+    {
+      method: "GET",
+      path: "/agent/rollout-intent",
+      allowAnonymous: true,
+      async handler({ request }) {
+        const sessionToken = requireAgentSessionToken(request.headers.authorization);
+        return {
+          statusCode: 200,
+          body: await options.agentService.getRolloutIntent(sessionToken),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/agent/rollout-status",
+      allowAnonymous: true,
+      async handler({ json, request }) {
+        const sessionToken = requireAgentSessionToken(request.headers.authorization);
+        const payload = validateWithSchema(agentRolloutStatusRequestSchema, await json());
+
+        await options.agentService.reportRolloutStatus(sessionToken, payload);
         return {
           statusCode: 204,
         };

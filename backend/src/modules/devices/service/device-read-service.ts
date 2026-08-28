@@ -1,5 +1,7 @@
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
+import type { DeviceHealthThresholds } from "../../../app/config/env.js";
+import { buildDeviceHealthStatusSql } from "./device-health-sql.js";
 
 type DeviceReadOptions = {
   page: number;
@@ -26,7 +28,14 @@ type DeviceRow = {
 };
 
 export class DeviceReadService {
-  constructor(private readonly database: DatabaseClient) {}
+  private readonly statusSql: string;
+
+  constructor(
+    private readonly database: DatabaseClient,
+    thresholds: DeviceHealthThresholds,
+  ) {
+    this.statusSql = buildDeviceHealthStatusSql(thresholds);
+  }
 
   async listDevices(options: DeviceReadOptions) {
     const where = buildDeviceWhereClause(options);
@@ -37,20 +46,20 @@ export class DeviceReadService {
         "devices",
         `
           select
-            id::text as id,
-            primary_employee_id::text as "primaryEmployeeId",
-            device_identifier::text as "deviceIdentifier",
-            hostname::text as hostname,
-            site_id::text as "siteId",
-            area_id::text as "areaId",
-            location_label::text as "locationLabel",
-            ownership_mode::text as "ownershipMode",
-            agent_version::text as "agentVersion",
-            last_heartbeat_at::text as "lastHeartbeatAt",
-            last_connection_at::text as "lastConnectionAt",
-            status::text as status
-          from public.devices
-          ${where.clause}
+            d.id::text as id,
+            d.primary_employee_id::text as "primaryEmployeeId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            d.site_id::text as "siteId",
+            d.area_id::text as "areaId",
+            d.location_label::text as "locationLabel",
+            d.ownership_mode::text as "ownershipMode",
+            d.agent_version::text as "agentVersion",
+            d.last_heartbeat_at::text as "lastHeartbeatAt",
+            d.last_connection_at::text as "lastConnectionAt",
+            ${this.statusSql}::text as status
+          from public.devices d
+          ${where.clause.replace("status::text", `${this.statusSql}::text`)}
           order by hostname asc
           limit $${params.limitIndex}
           offset $${params.offsetIndex}
@@ -61,8 +70,8 @@ export class DeviceReadService {
         "devices",
         `
           select count(*)::int as "totalItems"
-          from public.devices
-          ${where.clause}
+          from public.devices d
+          ${where.clause.replace("status::text", `${this.statusSql}::text`)}
         `,
         where.params,
       ),
@@ -85,12 +94,12 @@ function buildDeviceWhereClause(options: DeviceReadOptions) {
 
   if (options.siteId) {
     values.push(options.siteId);
-    conditions.push(`site_id::text = $${values.length}`);
+    conditions.push(`d.site_id::text = $${values.length}`);
   }
 
   if (options.areaId) {
     values.push(options.areaId);
-    conditions.push(`area_id::text = $${values.length}`);
+    conditions.push(`d.area_id::text = $${values.length}`);
   }
 
   if (options.status) {
@@ -102,7 +111,7 @@ function buildDeviceWhereClause(options: DeviceReadOptions) {
     const term = `%${options.search}%`;
     values.push(term, term, term);
     conditions.push(
-      `(hostname::text ilike $${values.length - 2} or device_identifier::text ilike $${values.length - 1} or location_label::text ilike $${values.length})`,
+      `(d.hostname::text ilike $${values.length - 2} or d.device_identifier::text ilike $${values.length - 1} or d.location_label::text ilike $${values.length})`,
     );
   }
 

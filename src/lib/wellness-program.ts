@@ -66,7 +66,7 @@ export function createDefaultWellnessProgram(
         createDefaultWellnessAction("Start", 1),
         createDefaultWellnessAction("RemindMeLater", 2),
       ],
-      steps: [createDefaultWellnessStep(1)],
+      steps: createDefaultStretchingSteps(),
       localizations: [],
     };
   }
@@ -96,6 +96,23 @@ export function createDefaultWellnessStep(order: number) {
     durationSeconds: 30,
     sortOrder: order,
   };
+}
+
+function createDefaultStretchingSteps() {
+  return [
+    { stepKey: "neck", title: "Relax your neck", description: "", assetUrl: null, durationSeconds: 20, sortOrder: 1 },
+    { stepKey: "shoulders", title: "Relax your shoulders", description: "", assetUrl: null, durationSeconds: 20, sortOrder: 2 },
+    { stepKey: "back", title: "Loosen your back", description: "", assetUrl: null, durationSeconds: 20, sortOrder: 3 },
+    {
+      stepKey: "wrists",
+      title: "Stretch wrists and hands",
+      description: "",
+      assetUrl: null,
+      durationSeconds: 20,
+      sortOrder: 4,
+    },
+    { stepKey: "move", title: "Stand and move", description: "", assetUrl: null, durationSeconds: 30, sortOrder: 5 },
+  ];
 }
 
 export function normalizeWellnessProgramDraft(program: WellnessProgram): WellnessProgram {

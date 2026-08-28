@@ -978,6 +978,64 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
 
+  /agent/rollout-intent:
+    get:
+      tags: [Agent]
+      summary: Fetch approved rollout intent for the calling Windows Agent device
+      description: |
+        Returns the current approved rollout intent for the device bound to the calling persisted agent session.
+
+        Current Phase 4 note:
+        - This endpoint is intentionally limited to approved rollout metadata such as target version, package URL, checksum, and signature.
+        - The backend must not use this endpoint to send arbitrary shell commands or free-form scripts.
+        - When no rollout is currently assigned to the device, the response remains valid with `intent = null`.
+      operationId: getAgentRolloutIntent
+      x-implementation-phase: Phase 4
+      security:
+        - AgentSessionAuth: []
+      responses:
+        "200":
+          description: Approved rollout intent or explicit no-op state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRolloutIntentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /agent/rollout-status:
+    post:
+      tags: [Agent]
+      summary: Report updater lifecycle status for a rollout intent
+      description: |
+        Records updater lifecycle status reported by the calling Windows Agent device for an approved rollout intent.
+
+        Current Phase 4 note:
+        - This endpoint is intended for updater progress and terminal result reporting.
+        - The status payload may include installed version, updater version, startup-registration visibility, and structured error detail.
+        - Rollout status remains device-scoped and must not be accepted for another device.
+      operationId: reportAgentRolloutStatus
+      x-implementation-phase: Phase 4
+      security:
+        - AgentSessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRolloutStatusRequest"
+      responses:
+        "204":
+          description: Rollout status recorded
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /agent/messages:
     get:
       tags: [Agent]
@@ -1261,7 +1319,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: opaque
-      description: Opaque bearer admin session token issued by `POST /auth/login` and sent through the `Authorization: Bearer <token>` header.
+      description: "Opaque bearer admin session token issued by `POST /auth/login` and sent through the `Authorization: Bearer <token>` header."
     AgentSessionAuth:
       type: http
       scheme: bearer
@@ -1446,6 +1504,16 @@ components:
     DeviceStatus:
       type: string
       enum: [Online, Offline, Stale]
+    AgentRolloutAction:
+      type: string
+      enum: [Upgrade, Repair, Uninstall]
+    AgentRolloutPackageType:
+      type: string
+      enum: [MSI]
+    AgentRolloutState:
+      type: string
+      enum:
+        [UpdateAvailable, Downloading, Staged, InstallPending, Installing, Succeeded, Failed, UninstallPending, Uninstalling, Uninstalled]
     DeliveryJobStatus:
       type: string
       enum: [Pending, Sent, Delivered, Displayed, Read, Responded, Failed]
@@ -2778,6 +2846,99 @@ components:
         activeUserIdentifier:
           type: string
           nullable: true
+
+    AgentRolloutIntentResponse:
+      type: object
+      required: [generatedAt, intent]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        intent:
+          allOf:
+            - $ref: "#/components/schemas/AgentRolloutIntent"
+          nullable: true
+
+    AgentRolloutIntent:
+      type: object
+      required: [rolloutId, action, targetVersion, package, createdAt]
+      properties:
+        rolloutId:
+          type: string
+        action:
+          $ref: "#/components/schemas/AgentRolloutAction"
+        rolloutChannel:
+          type: string
+          nullable: true
+        targetVersion:
+          type: string
+        package:
+          $ref: "#/components/schemas/AgentRolloutPackage"
+        mandatory:
+          type: boolean
+          default: false
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    AgentRolloutPackage:
+      type: object
+      required: [packageType, packageUrl, sha256, signature]
+      properties:
+        packageType:
+          $ref: "#/components/schemas/AgentRolloutPackageType"
+        packageUrl:
+          type: string
+          format: uri
+        sha256:
+          type: string
+        signature:
+          type: string
+          description: Expected Authenticode signer certificate thumbprint for the approved MSI payload.
+        releaseNotes:
+          type: string
+          nullable: true
+
+    AgentRolloutStatusRequest:
+      type: object
+      required: [rolloutId, state, occurredAt]
+      properties:
+        rolloutId:
+          type: string
+        state:
+          $ref: "#/components/schemas/AgentRolloutState"
+        installedVersion:
+          type: string
+          nullable: true
+        targetVersion:
+          type: string
+          nullable: true
+        updaterVersion:
+          type: string
+          nullable: true
+        startupRegistered:
+          type: boolean
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        metadataJson:
+          type: object
+          nullable: true
+          additionalProperties: true
 
     AgentMessageListResponse:
       type: object

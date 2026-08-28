@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.5`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-16`
+- Last Updated: `2026-08-26`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -440,6 +440,61 @@ Recommended event types include:
 - `created_at`
 - `updated_at`
 
+### agent_release_packages
+Approved Windows Agent package metadata used for centrally governed updater rollout.
+
+Key columns:
+- `id`
+- `version`
+- `package_type` such as `MSI`
+- `package_url`
+- `sha256`
+- `signature`
+- `release_notes` nullable
+- `channel` nullable such as `pilot` or `stable`
+- `is_active`
+- `created_by_user_id`
+- `created_at`
+- `updated_at`
+
+### agent_rollout_intents
+Approved rollout intent records evaluated for eligible Windows Agent devices.
+
+Key columns:
+- `id`
+- `agent_release_package_id`
+- `rollout_action` such as `Upgrade`, `Repair`, `Uninstall`
+- `scope_type` such as `Global`, `Site`, `Area`, `Device`, `RolloutGroup`
+- `scope_reference`
+- `target_device_id` nullable for direct single-device rollout
+- `mandatory`
+- `deadline_at` nullable
+- `notes` nullable
+- `status`
+- `approved_by_user_id`
+- `approved_at`
+- `created_at`
+- `updated_at`
+
+### agent_rollout_status_events
+Append-only updater lifecycle evidence reported by Windows Agent endpoints for an approved rollout intent.
+
+Key columns:
+- `id`
+- `agent_rollout_intent_id`
+- `device_id`
+- `reported_state` such as `Downloading`, `Installing`, `Succeeded`, `Failed`, `Uninstalling`
+- `installed_version` nullable
+- `target_version` nullable
+- `updater_version` nullable
+- `startup_registered` nullable
+- `error_code` nullable
+- `error_message` nullable
+- `metadata_json` nullable
+- `occurred_at`
+- `reported_at`
+- `created_at`
+
 ### policy_settings
 Stores configurable operational thresholds and retry policies.
 
@@ -506,6 +561,9 @@ Key columns:
 - `delivery_jobs` 1-to-many `delivery_events`
 - `delivery_jobs` 1-to-many response evidence rows through `delivery_events` where `event_type = Responded`
 - `devices` 1-to-many `device_realtime_connections`
+- `agent_release_packages` 1-to-many `agent_rollout_intents`
+- `agent_rollout_intents` 1-to-many `agent_rollout_status_events`
+- `devices` 1-to-many `agent_rollout_status_events`
 
 ## Notes
 - Exact physical schema, indexing, and partitioning may evolve during implementation.

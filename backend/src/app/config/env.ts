@@ -23,6 +23,8 @@ const envSchema = z.object({
   ENABLED_DELIVERY_CHANNELS: z.string().default("WindowsAgent"),
   ADMIN_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(8 * 60),
   AGENT_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(8 * 60),
+  DEVICE_ONLINE_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(120),
+  DEVICE_STALE_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(15 * 60),
   POSTGRES_URL: z.string().min(1, "POSTGRES_URL is required for backend startup."),
   POSTGRES_USERNAME: z.string().optional(),
   POSTGRES_PASSWORD: z.string().optional(),
@@ -78,6 +80,21 @@ export function resolveEnabledDeliveryChannels(env: BackendEnv): DeliveryChannel
     );
 
   return parsed.length > 0 ? [...new Set(parsed)] : ["WindowsAgent"];
+}
+
+export type DeviceHealthThresholds = {
+  onlineSeconds: number;
+  staleSeconds: number;
+};
+
+export function resolveDeviceHealthThresholds(env: BackendEnv): DeviceHealthThresholds {
+  const onlineSeconds = Math.max(1, Math.floor(env.DEVICE_ONLINE_THRESHOLD_SECONDS));
+  const staleSeconds = Math.max(onlineSeconds + 1, Math.floor(env.DEVICE_STALE_THRESHOLD_SECONDS));
+
+  return {
+    onlineSeconds,
+    staleSeconds,
+  };
 }
 
 export function validateSecuritySensitiveEnv(env: BackendEnv) {

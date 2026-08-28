@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.4`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-17`
+- Last Updated: `2026-08-26`
 - Audience: `Windows Agent Engineers`
 
 ## Purpose
@@ -59,7 +59,7 @@ The following client-platform decisions are now considered the baseline for MVP 
 - desktop framework: `WPF`
 - application mode: `tray-first desktop app`
 - runtime behavior: the agent should start into background operation with a system tray presence and only surface full UI when interaction is required
-- MVP should not assume a separate Windows Service unless a later document explicitly introduces it
+- the primary user-facing runtime should not depend on a Windows Service for normal tray behavior, but rollout and lifecycle management may introduce a separate updater helper or service when explicitly documented
 
 ### Target Operating System
 - supported OS baseline: `Windows 10` and `Windows 11`
@@ -67,9 +67,19 @@ The following client-platform decisions are now considered the baseline for MVP 
 
 ### Packaging, Startup, And Update Model
 - packaging baseline: `classic internal installer`, not `MSIX`, for MVP
+- preferred package shape: `MSI` built for managed enterprise deployment, with silent install, silent uninstall, and upgrade support
 - startup policy: `auto start at user login` is required
-- deployment expectation: internal managed rollout by IT or operations
-- update policy for MVP: `manual or centrally scheduled update`, not self-managed auto-update
+- preferred startup registration: installer-created `Scheduled Task at logon`; `Run` registry startup may exist only as a fallback
+- deployment expectation: internal managed rollout by IT or operations for bootstrap and emergency recovery
+- update policy baseline: hybrid centrally governed rollout. Routine update and uninstall may be initiated through the running agent, but execution must be delegated to a dedicated updater component rather than direct self-replacement by the tray app
+
+### Rollout And Recovery Model
+- bootstrap install should remain compatible with enterprise endpoint-management tooling such as `GPO`, `Intune`, `SCCM`, or `PDQ`
+- the same endpoint-management path should remain available as the break-glass recovery and forced-removal channel
+- the running agent may receive approved rollout intent from the server for update, repair, or uninstall orchestration
+- the updater component must validate package origin, version intent, checksum, and signature before execution
+- the server should send approved rollout metadata such as desired version, package location, checksum, signature, rollout scope, and deadline rather than arbitrary command text
+- the client should report enough rollout telemetry for supportability, including current app version, updater state, startup-registration state, and the last rollout result when available
 
 ### Local Persistence And Logging Baseline
 - local persistence is allowed and expected where it improves resilience
@@ -92,6 +102,7 @@ The following client-platform decisions are now considered the baseline for MVP 
 - the generated identifier must be persisted locally and reused across normal restarts and application updates
 - `hostname` should be sent as supporting metadata, not used as the authoritative device identifier
 - MVP should not rely on hardware serial or machine fingerprint as the primary identity source unless a later trust model explicitly requires it
+- updates must preserve the existing local device identity and any persisted rollout state unless a controlled uninstall path explicitly removes them
 
 ## Core Operating Model
 ### Device-Centric Delivery

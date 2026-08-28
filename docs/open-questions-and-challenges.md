@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.3`
 - Status: `Open`
-- Last Updated: `2026-07-16`
+- Last Updated: `2026-08-26`
 
 ## Purpose
 This document records unresolved product and technical questions. No implementation should silently assume answers where these decisions materially affect behavior.
@@ -79,6 +79,12 @@ This document records unresolved product and technical questions. No implementat
 - Why it matters: OHIH appears to behave more like a locally executed device program than a normal ad hoc notification, which affects server menu structure, data modeling, agent UI templates, and whether reminder-policy sync is extended or a new contract family is introduced.
 - Current safe assumption: keep the existing reminder-policy foundation, and proceed with OHIH as a dedicated `Wellness Programs` submodule under the broader `Notifications` cluster, with server-managed policy, agent-executed routine behavior, `Blue` and `Green` theme variants, and a narrowed `GuidedRoutine` MVP for stretching.
 
+### OQ-14. Windows Agent Updater Trust Boundary
+- Question: What exact trust and authorization model should govern server-initiated update, repair, and uninstall intent for the Windows Agent?
+- Why it matters: Agent-driven lifecycle commands can become a remote-execution vector if package origin, operator authorization, command scope, and rollback behavior are not tightly controlled.
+- Current safe assumption: the server should send approved rollout metadata only, the tray app should delegate execution to a dedicated updater component, and endpoint-management tooling remains the fallback path when trust is degraded.
+- Current delivery note: the current updater baseline treats rollout `signature` metadata as the expected Authenticode signer certificate thumbprint for the approved `MSI`, while broader signing governance, approval workflow, and certificate rotation policy remain open.
+
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion
 - Risk: Supporting alerts, reminders, news, articles, and knowledge items in one engine can become too broad.
@@ -111,3 +117,7 @@ This document records unresolved product and technical questions. No implementat
 ### CH-7. Device-Centric Audit Semantics
 - Risk: Shared devices can blur the distinction between endpoint-level proof and person-level proof.
 - Mitigation: Treat device events as authoritative for desktop delivery, while storing active user context only as optional audit metadata when available.
+
+### CH-8. Remote Lifecycle Command Abuse
+- Risk: Remote update and uninstall capabilities for the Windows Agent could become an unsafe command-execution path if the system accepts arbitrary packages, weak signing, or under-scoped operator permissions.
+- Mitigation: Keep rollout centrally governed, distribute only approved package metadata, execute lifecycle actions through a dedicated updater component, verify version plus checksum plus signature before execution, and preserve endpoint-management tooling as the break-glass recovery path.
