@@ -76,6 +76,60 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 
 For Docker HTTPS deployments, challenge login from the public admin origin and confirm the browser issues `POST /api/auth/login` to the same origin instead of calling a raw backend IP or triggering mixed-content / CORS failures.
 
+## Windows Agent Package Release Path
+1. Build the final `MSI` with the environment-specific agent configuration already baked in. Do not plan on editing `appsettings.json` inside the `MSI` after signing.
+2. The release path should be thought of as three explicit stages:
+   - `prepare package`: sign or inspect the `MSI`, compute `sha256`, confirm signer thumbprint, and derive the target version
+   - `publish package`: place the exact signed `MSI` on the final immutable package URL
+   - `create rollout`: register the approved metadata in the backend for the target device or rollout scope
+3. For corporate `AD CS` or other Windows certificate-store flows, the easiest wrapper is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\mti.alert.agent\Installer\invoke-agent-rollout.ps1" -CertThumbprint "<CODE_SIGNING_CERT_THUMBPRINT>" -CertStoreLocation CurrentUser -PackageUrl "https://downloads.example.com/MTI.Alert.Agent.Setup.msi"
+```
+
+4. Confirm the JSON output reports the expected `Version`, `Sha256`, `Thumbprint`, and `SignatureStatus`.
+5. Publish the exact signed `MSI` to an immutable package URL. Do not modify or repackage the file after signing, because checksum and signature evidence will change.
+6. Run the emitted `RolloutCommand` to register the approved package metadata and rollout intent through the backend helper, or repeat the same wrapper with `-ApplyRollout` once the package URL is already live.
+7. Monitor rollout progress through agent status, updater state, and backend rollout status events.
+
+Frontend-assisted rollout is now also available from the `Devices` admin page:
+- the backend exposes `GET /devices/rollout-packages/local` so the UI can discover `backend/local-packages` candidates
+- the backend exposes `POST /devices/rollout-packages/upload` so the UI can upload a locally built `MSI` from the operator browser into the backend package store
+- the backend exposes `POST /devices/{deviceId}/rollouts` so the UI can dry-run or apply a device-scoped rollout intent
+- the frontend operator flow is:
+  1. open `Devices`
+  2. click `Rollout` on the target device
+  3. either upload a local `MSI` from the operator machine or select an already published local package
+  4. review or adjust the package metadata if signature thumbprint must be entered manually
+  5. run `Preview Rollout`
+  6. run `Apply Rollout`
+
+Operational note:
+- package signing and immutable publishing still happen before the admin UI step; the frontend flow creates rollout intent, it does not sign or repackage `MSI` artifacts
+- UI upload is a browser-to-backend transfer, so a Dockerized backend must keep `backend/local-packages` on a persistent volume or shared storage path if uploaded artifacts must survive container replacement
+- if backend runtime inspection cannot recover signer thumbprint automatically for a package, the operator must paste the signer thumbprint manually in the rollout dialog before preview/apply
+- local package discovery always recomputes `sha256`, so hash evidence remains available even when signature metadata falls back to manual entry
+
+For local backend validation, omitting `-PackageUrl` now uses the backend-local publish path automatically:
+- the wrapper copies the signed `MSI` to `backend/local-packages/`
+- the backend serves it from `GET /agent/packages/local/{fileName}`
+- restart the backend runtime after adding or changing this route so the current process recognizes the package endpoint
+
+For local-only lab validation where a self-signed test certificate is acceptable, the compatibility helper remains:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\mti.alert.agent\Installer\sign-local-rollout-test.ps1"
+```
+
+This wrapper now delegates to the same general preparation helper while still creating and trusting a local test certificate automatically.
+
+Example one-command path once the package URL is already live:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\mti.alert.agent\Installer\invoke-agent-rollout.ps1" -CertThumbprint "<CODE_SIGNING_CERT_THUMBPRINT>" -CertStoreLocation CurrentUser -PackageUrl "https://downloads.example.com/MTI.Alert.Agent.Setup.msi" -ApplyRollout
+```
+
 ## Rollback Procedure
 1. Stop accepting new release traffic to the backend instance.
 2. Restore the previous backend build artifact.

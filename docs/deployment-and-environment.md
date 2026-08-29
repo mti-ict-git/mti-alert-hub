@@ -36,6 +36,7 @@ Operational consequences:
 - startup at user logon should be enforced by the installer, preferably through a `Scheduled Task`
 - remote update commands should be treated as approved rollout metadata, not arbitrary shell execution
 - backend and client telemetry should eventually expose deployed version, desired version, updater state, and last rollout result for support visibility
+- when the admin UI is allowed to upload rollout packages, the browser remains the file source and the backend host must persist uploaded `MSI` artifacts on durable storage rather than ephemeral container filesystem layers
 
 ## Environment Model
 ### Local Development
@@ -237,6 +238,10 @@ For Windows Agent rollout changes, the release checklist should also confirm:
 - startup registration survives reinstall and update
 - updater trust checks validate package version, checksum, and signature before execution
 - endpoint-management fallback can still force install or removal if the agent-driven path fails
+- final environment-specific agent configuration is baked into the `MSI` before signing rather than repackaged afterward
+- the signed `MSI` is published to an immutable package URL and the rollout metadata uses the resulting `sha256` plus signer thumbprint from that exact file
+- signing or package-preparation automation uses the Windows certificate store or approved enterprise signing service rather than keeping ad hoc private keys inside the runtime admin or backend application hosts
+- if the admin UI upload path is enabled in Docker or shared environments, `backend/local-packages` is backed by a mounted volume or shared storage target so operator uploads survive restarts and redeployments
 
 Recent verification evidence:
 - `2026-07-14`: `npm run backend:typecheck`, `npm run backend:build`, and `npm run build` passed after adding hybrid reminder authoring and monitoring support to the admin flow.

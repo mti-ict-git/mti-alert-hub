@@ -138,6 +138,95 @@ export interface Device {
   lastSeen?: string | null;
 }
 
+export type DeviceRolloutAction = "Upgrade" | "Repair" | "Uninstall";
+
+export interface DeviceRolloutPackage {
+  fileName: string;
+  fileSizeBytes: number;
+  lastModifiedAt: string;
+  version?: string | null;
+  packageUrl: string;
+  sha256?: string | null;
+  signature?: string | null;
+  signatureStatus?: string | null;
+  signatureStatusMessage?: string | null;
+  signerSubject?: string | null;
+  signerIssuer?: string | null;
+  rolloutCommand?: string | null;
+}
+
+export interface DeviceRolloutUploadResponse {
+  package: DeviceRolloutPackage;
+  alreadyExists: boolean;
+}
+
+export interface DeviceRolloutRequest {
+  version: string;
+  packageUrl: string;
+  sha256: string;
+  signature: string;
+  rolloutChannel?: string | null;
+  action?: DeviceRolloutAction;
+  mandatory?: boolean;
+  notes?: string | null;
+  releaseNotes?: string | null;
+  deadlineAt?: string | null;
+  apply?: boolean;
+}
+
+export interface DeviceRolloutPreviewResponse {
+  ok: true;
+  mode: "dry-run";
+  target: {
+    id: string;
+    hostname: string;
+    deviceIdentifier?: string | null;
+    agentVersion?: string | null;
+    status: DeviceStatus;
+  };
+  rollout: {
+    action: DeviceRolloutAction;
+    targetVersion: string;
+    rolloutChannel?: string | null;
+    mandatory: boolean;
+    deadlineAt?: string | null;
+    notes?: string | null;
+  };
+  package: {
+    packageType: "MSI";
+    packageUrl: string;
+    sha256: string;
+    signature: string;
+    releaseNotes?: string | null;
+  };
+  currentlyActiveRollouts: number;
+}
+
+export interface DeviceRolloutApplyResponse {
+  ok: true;
+  mode: "applied";
+  target: {
+    id: string;
+    hostname: string;
+    deviceIdentifier?: string | null;
+    agentVersion?: string | null;
+    status: DeviceStatus;
+    updatedAt?: string | null;
+  };
+  deactivatedPreviousRollouts: number;
+  releasePackage: {
+    id: string;
+    version: string;
+    packageUrl: string;
+  };
+  rolloutIntent: {
+    id: string;
+    action: DeviceRolloutAction;
+    targetVersion: string;
+    createdAt: string;
+  };
+}
+
 export interface Notification {
   id: string;
   communicationType: CommunicationType;
