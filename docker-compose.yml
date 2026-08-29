@@ -27,7 +27,8 @@ services:
       LDAP_ALLOWED_GROUPS: ${LDAP_ALLOWED_GROUPS:-}
       LDAP_ALLOW_INSECURE_URL: ${LDAP_ALLOW_INSECURE_URL:-false}
       LDAP_SKIP_TLS_VERIFY: ${LDAP_SKIP_TLS_VERIFY:-false}
-    command: ["sh", "-lc", "node backend/dist/scripts/run-migrations.js up && node backend/dist/index.js"]
+    #command: ["sh", "-lc", "node backend/dist/scripts/run-migrations.js up && node backend/dist/index.js"]
+    command: ["sh", "-lc", "node backend/dist/index.js"]
     ports:
       - "${BACKEND_HOST_PORT:-4019}:${BACKEND_PORT:-4019}"
     healthcheck:
