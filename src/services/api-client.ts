@@ -12,13 +12,25 @@ type ApiErrorPayload = {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const sessionToken = sessionService.getSessionToken();
+  const headers = new Headers(init?.headers);
+  const body = init?.body;
+
+  if (
+    body !== undefined &&
+    !headers.has("Content-Type") &&
+    !(typeof FormData !== "undefined" && body instanceof FormData) &&
+    !(typeof Blob !== "undefined" && body instanceof Blob)
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (sessionToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -53,6 +65,8 @@ export const apiClient = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  postRaw: <T>(path: string, body?: BodyInit, headers?: HeadersInit) =>
+    request<T>(path, { method: "POST", body, headers }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>

@@ -767,6 +767,126 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /devices/rollout-packages/local:
+    get:
+      tags: [Devices]
+      summary: List locally published rollout MSI packages
+      description: |
+        Returns MSI packages currently available under `backend/local-packages` for operator-selected frontend rollout.
+
+        Current Phase 4 note:
+        - This is the admin-side convenience surface for rollout testing from the `Devices` page.
+        - The backend always recomputes `sha256`.
+        - If signature metadata cannot be inspected from the backend runtime, operators may still supply the signer thumbprint manually before applying the rollout.
+      operationId: listDeviceRolloutPackages
+      x-implementation-phase: Phase 4
+      responses:
+        "200":
+          description: Local rollout packages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRolloutPackageListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /devices/rollout-packages/upload:
+    post:
+      tags: [Devices]
+      summary: Upload a local rollout MSI package for admin rollout
+      description: |
+        Accepts a raw MSI file upload from the authenticated admin browser, stores it in the backend-local
+        package area, inspects rollout metadata, and returns the resulting package entry for the `Devices`
+        rollout dialog.
+
+        Current Phase 4 note:
+        - The browser is the upload source; the frontend container does not read local operator files directly.
+        - The backend persists the uploaded file into `backend/local-packages` and must therefore run on
+          durable storage when used in Docker or shared environments.
+        - Upload does not sign or mutate the MSI; it only stores and inspects the exact artifact received.
+      operationId: uploadDeviceRolloutPackage
+      x-implementation-phase: Phase 4
+      parameters:
+        - in: header
+          name: X-File-Name
+          required: true
+          schema:
+            type: string
+          description: Original MSI file name selected by the operator browser.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          application/x-msi:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Local rollout package uploaded and inspected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRolloutUploadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A different package already exists with the same published file name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /devices/{deviceId}/rollouts:
+    post:
+      tags: [Devices]
+      summary: Preview or create a device-scoped Windows Agent rollout
+      description: |
+        Validates or applies a single-device rollout intent using explicit package metadata from the admin `Devices` page.
+
+        Current Phase 4 note:
+        - `apply=false` performs a dry run so operators can validate target resolution and package metadata before mutation.
+        - `apply=true` upserts the release package, deactivates prior active rollout intents for the device, and inserts a fresh active intent.
+        - This endpoint does not sign or repackage MSI files; it assumes the selected package is already signed and immutable.
+      operationId: createDeviceRollout
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRolloutRequest"
+      responses:
+        "200":
+          description: Rollout dry run completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRolloutPreviewResponse"
+        "201":
+          description: Rollout intent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRolloutApplyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /devices/{deviceId}/test-notification:
     post:
       tags: [Devices]
@@ -2591,6 +2711,196 @@ components:
             $ref: "#/components/schemas/Device"
         page:
           $ref: "#/components/schemas/PageMeta"
+
+    DeviceRolloutPackage:
+      type: object
+      required: [fileName, fileSizeBytes, lastModifiedAt, packageUrl]
+      properties:
+        fileName:
+          type: string
+        fileSizeBytes:
+          type: integer
+        lastModifiedAt:
+          type: string
+          format: date-time
+        version:
+          type: string
+          nullable: true
+        packageUrl:
+          type: string
+          format: uri
+        sha256:
+          type: string
+          nullable: true
+        signature:
+          type: string
+          nullable: true
+        signatureStatus:
+          type: string
+          nullable: true
+        signatureStatusMessage:
+          type: string
+          nullable: true
+        signerSubject:
+          type: string
+          nullable: true
+        signerIssuer:
+          type: string
+          nullable: true
+        rolloutCommand:
+          type: string
+          nullable: true
+
+    DeviceRolloutPackageListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceRolloutPackage"
+
+    DeviceRolloutUploadResponse:
+      type: object
+      required: [package, alreadyExists]
+      properties:
+        package:
+          $ref: "#/components/schemas/DeviceRolloutPackage"
+        alreadyExists:
+          type: boolean
+
+    DeviceRolloutRequest:
+      type: object
+      required: [version, packageUrl, sha256, signature]
+      properties:
+        version:
+          type: string
+        packageUrl:
+          type: string
+          format: uri
+        sha256:
+          type: string
+        signature:
+          type: string
+        rolloutChannel:
+          type: string
+          nullable: true
+        action:
+          type: string
+          enum: [Upgrade, Repair, Uninstall]
+        mandatory:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        releaseNotes:
+          type: string
+          nullable: true
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        apply:
+          type: boolean
+          description: When `false`, perform a dry run only.
+
+    DeviceRolloutPreviewResponse:
+      type: object
+      required: [ok, mode, target, rollout, package, currentlyActiveRollouts]
+      properties:
+        ok:
+          type: boolean
+        mode:
+          type: string
+          enum: [dry-run]
+        target:
+          $ref: "#/components/schemas/Device"
+        rollout:
+          type: object
+          required: [action, targetVersion, mandatory]
+          properties:
+            action:
+              type: string
+              enum: [Upgrade, Repair, Uninstall]
+            targetVersion:
+              type: string
+            rolloutChannel:
+              type: string
+              nullable: true
+            mandatory:
+              type: boolean
+            deadlineAt:
+              type: string
+              format: date-time
+              nullable: true
+            notes:
+              type: string
+              nullable: true
+        package:
+          type: object
+          required: [packageType, packageUrl, sha256, signature]
+          properties:
+            packageType:
+              type: string
+              enum: [MSI]
+            packageUrl:
+              type: string
+              format: uri
+            sha256:
+              type: string
+            signature:
+              type: string
+            releaseNotes:
+              type: string
+              nullable: true
+        currentlyActiveRollouts:
+          type: integer
+
+    DeviceRolloutApplyResponse:
+      type: object
+      required: [ok, mode, target, deactivatedPreviousRollouts, releasePackage, rolloutIntent]
+      properties:
+        ok:
+          type: boolean
+        mode:
+          type: string
+          enum: [applied]
+        target:
+          allOf:
+            - $ref: "#/components/schemas/Device"
+            - type: object
+              properties:
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+        deactivatedPreviousRollouts:
+          type: integer
+        releasePackage:
+          type: object
+          required: [id, version, packageUrl]
+          properties:
+            id:
+              type: string
+            version:
+              type: string
+            packageUrl:
+              type: string
+              format: uri
+        rolloutIntent:
+          type: object
+          required: [id, action, targetVersion, createdAt]
+          properties:
+            id:
+              type: string
+            action:
+              type: string
+              enum: [Upgrade, Repair, Uninstall]
+            targetVersion:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
 
     HealthResponse:
       type: object

@@ -1,6 +1,13 @@
 import { apiClient } from "@/services/api-client";
 import { referenceService } from "@/services/reference.service";
-import type { Device } from "@/types";
+import type {
+  Device,
+  DeviceRolloutApplyResponse,
+  DeviceRolloutPackage,
+  DeviceRolloutUploadResponse,
+  DeviceRolloutPreviewResponse,
+  DeviceRolloutRequest,
+} from "@/types";
 
 type ApiDevice = {
   id: string;
@@ -29,6 +36,10 @@ type DeviceTestNotificationResponse = {
   communicationStatus: "Queued" | "Scheduled" | "Active";
   title: string;
   instruction?: string | null;
+};
+
+type DeviceRolloutPackageListResponse = {
+  items: DeviceRolloutPackage[];
 };
 
 export const devicesService = {
@@ -64,5 +75,37 @@ export const devicesService = {
   },
   async sendTest(id: string): Promise<DeviceTestNotificationResponse> {
     return apiClient.post<DeviceTestNotificationResponse>(`/devices/${id}/test-notification`, {});
+  },
+  async listRolloutPackages(): Promise<DeviceRolloutPackage[]> {
+    const response = await apiClient.get<DeviceRolloutPackageListResponse>("/devices/rollout-packages/local");
+    return response.items;
+  },
+  async uploadRolloutPackage(file: File): Promise<DeviceRolloutUploadResponse> {
+    return apiClient.postRaw<DeviceRolloutUploadResponse>(
+      "/devices/rollout-packages/upload",
+      file,
+      {
+        "Content-Type": file.type || "application/octet-stream",
+        "X-File-Name": file.name,
+      },
+    );
+  },
+  async previewRollout(
+    id: string,
+    payload: DeviceRolloutRequest,
+  ): Promise<DeviceRolloutPreviewResponse> {
+    return apiClient.post<DeviceRolloutPreviewResponse>(`/devices/${id}/rollouts`, {
+      ...payload,
+      apply: false,
+    });
+  },
+  async applyRollout(
+    id: string,
+    payload: DeviceRolloutRequest,
+  ): Promise<DeviceRolloutApplyResponse> {
+    return apiClient.post<DeviceRolloutApplyResponse>(`/devices/${id}/rollouts`, {
+      ...payload,
+      apply: true,
+    });
   },
 };
