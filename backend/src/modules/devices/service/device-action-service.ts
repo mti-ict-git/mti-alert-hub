@@ -183,7 +183,7 @@ export class DeviceActionService {
       } catch (error) {
         const code = (error as NodeJS.ErrnoException | undefined)?.code;
         if (code === "ENOENT") {
-          await fs.rename(tempPath, publishedPath);
+          await moveFileIntoPackageStore(tempPath, publishedPath);
         } else {
           throw error;
         }
@@ -704,6 +704,20 @@ function buildLocalPackageUrl(fileName: string, baseUrl: string) {
     `/agent/packages/local/${encodeURIComponent(fileName)}`,
     ensureTrailingSlash(baseUrl),
   ).toString();
+}
+
+async function moveFileIntoPackageStore(sourcePath: string, destinationPath: string) {
+  try {
+    await fs.rename(sourcePath, destinationPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code !== "EXDEV") {
+      throw error;
+    }
+
+    await fs.copyFile(sourcePath, destinationPath);
+    await fs.rm(sourcePath, { force: true });
+  }
 }
 
 async function hashFileSha256(filePath: string) {
