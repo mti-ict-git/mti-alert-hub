@@ -35,6 +35,7 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 - Use `.env.docker` derived from `.env.docker.example` for container-focused startup instead of overwriting the local `.env` used by non-Docker development.
 - Build the frontend container with `NITRO_PRESET=node-server`.
 - The Docker publish path now exposes the admin UI through an `nginx` gateway; keep browser API traffic same-origin by using `DOCKER_VITE_API_URL=/api` for container builds.
+- The Docker `nginx` gateway also fronts MSI upload traffic for `Settings > Desktop Agent`; keep `docker/nginx.admin-gateway.conf` at `client_max_body_size 512m` or higher so package uploads do not fail with `413 Request Entity Too Large`.
 - The base `docker-compose.yml` assumes PostgreSQL is already managed outside Docker.
 - Use `docker-compose.with-postgres.yml` only when a local PostgreSQL container is actually needed.
 

@@ -209,6 +209,7 @@ Current implementation baseline:
 - A desktop-first container baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `docker/nginx.admin-gateway.conf`, and `.env.docker.example`.
 - The frontend Docker build must use `NITRO_PRESET=node-server`; the default local Lovable build preset remains Cloudflare-oriented and is not the correct runtime target for the current Docker path.
 - The containerized admin publish path now uses a same-origin reverse proxy: browser requests go to `/api/*` on the admin host, and the gateway forwards them to the internal backend service. This avoids mixed-content and browser-visible backend host leakage when the public admin site is served over HTTPS.
+- The Docker `nginx` admin gateway must allow MSI-sized upload bodies for `Settings > Desktop Agent` package publishing. Keep `client_max_body_size` aligned with the backend rollout upload path; the current baseline is `512m` in `docker/nginx.admin-gateway.conf`.
 
 ## Secret Handling Rules
 - Never hardcode secrets in source code or documentation examples.
@@ -285,6 +286,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
 - The admin gateway container exposes the browser-facing frontend port and proxies `/api/*` to `backend:${BACKEND_PORT}` inside the Compose network.
+- The admin gateway also terminates browser-side package uploads for `/api/devices/rollout-packages/upload`, so its body-size limit must remain large enough for signed MSI files. The current baseline is `client_max_body_size 512m`.
 - Dockerized frontend builds should use `DOCKER_VITE_API_URL=/api` so browser requests stay same-origin through the gateway rather than embedding the backend host directly in frontend assets.
 - Non-Docker development may still use `VITE_API_URL` with a browser-reachable backend URL such as `http://localhost:4019`.
 - Keep `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent` for the approved desktop-first live scope.
