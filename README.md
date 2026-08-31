@@ -142,6 +142,7 @@ Implementation notes:
 - the backend container runs migrations before starting the HTTP server
 - the frontend container builds TanStack Start with `NITRO_PRESET=node-server` so it can run as a normal Node SSR process inside Docker
 - the admin browser path now goes through an `nginx` gateway that proxies same-origin `/api/*` requests to the internal backend service, avoiding mixed-content and CORS issues when the public site is served over HTTPS
+- public rollout package links under `/agent/packages/*` must be proxied by the same gateway to the backend service; otherwise package metadata can resolve in admin while direct package URLs still return the frontend `404` page
 - Docker now defaults the frontend API base to `DOCKER_VITE_API_URL=/api`, so the browser no longer needs to embed the backend host directly in frontend assets for the containerized publish path
 - the Docker `nginx` gateway now also needs to allow MSI-sized request bodies for `Settings > Desktop Agent` uploads; keep `docker/nginx.admin-gateway.conf` aligned with the backend upload baseline (`client_max_body_size 512m`)
 - the first live desktop scope still expects `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`

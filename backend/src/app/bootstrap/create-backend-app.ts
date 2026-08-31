@@ -128,6 +128,7 @@ export async function createBackendApp() {
       }),
       ...registerAgentRoutes({
         agentService,
+        deviceActionService,
       }),
       ...registerCommunicationRoutes({
         communicationDraftService,

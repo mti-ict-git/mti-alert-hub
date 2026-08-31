@@ -223,6 +223,32 @@ export class DeviceActionService {
     }
   }
 
+  async readLocalPackage(fileName: string) {
+    const sanitizedFileName = sanitizeUploadedMsiFileName(fileName);
+    const fullPath = path.join(localPackagesDirectory, sanitizedFileName);
+
+    try {
+      const stats = await fs.stat(fullPath);
+      if (!stats.isFile()) {
+        throw createPackageNotFoundError(sanitizedFileName);
+      }
+
+      return {
+        fileName: sanitizedFileName,
+        content: await fs.readFile(fullPath),
+        contentLength: stats.size,
+        lastModifiedAt: stats.mtime.toUTCString(),
+      };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        throw createPackageNotFoundError(sanitizedFileName);
+      }
+
+      throw error;
+    }
+  }
+
   async createRollout(
     deviceId: string,
     input: CreateDeviceRolloutInput,
@@ -702,6 +728,14 @@ async function buildMinimalPackageInspection(msiPath: string) {
 function inferVersionFromFileName(fileName: string) {
   const match = fileName.match(/(\d+\.\d+\.\d+(?:\.\d+)?)/);
   return match?.[1] ?? null;
+}
+
+function createPackageNotFoundError(fileName: string) {
+  return new AppError({
+    statusCode: 404,
+    code: "NOT_FOUND",
+    message: `Local rollout package '${fileName}' was not found.`,
+  });
 }
 
 function sanitizeUploadedMsiFileName(fileName: string) {

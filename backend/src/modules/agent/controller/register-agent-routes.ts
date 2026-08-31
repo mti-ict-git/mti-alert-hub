@@ -5,6 +5,7 @@ import type { AppRoute } from "../../../app/http/create-server.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { AgentService } from "../service/agent-service.js";
+import type { DeviceActionService } from "../../devices/service/device-action-service.js";
 
 const deviceStatusSchema = z.enum(["Online", "Offline", "Stale"]);
 const reminderEventTypeSchema = z.enum([
@@ -85,10 +86,30 @@ const agentRolloutStatusRequestSchema = z.object({
 
 type RegisterAgentRoutesOptions = {
   agentService: AgentService;
+  deviceActionService: DeviceActionService;
 };
 
 export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRoute[] {
   return [
+    {
+      method: "GET",
+      path: "/agent/packages/local/{fileName}",
+      allowAnonymous: true,
+      async handler({ params, response }) {
+        const packageAsset = await options.deviceActionService.readLocalPackage(params.fileName ?? "");
+        response.statusCode = 200;
+        response.setHeader("content-type", "application/x-msi");
+        response.setHeader("content-length", String(packageAsset.contentLength));
+        response.setHeader("content-disposition", `inline; filename=\"${packageAsset.fileName}\"`);
+        response.setHeader("cache-control", "public, max-age=300");
+        response.setHeader("last-modified", packageAsset.lastModifiedAt);
+        response.end(packageAsset.content);
+
+        return {
+          statusCode: 200,
+        };
+      },
+    },
     {
       method: "POST",
       path: "/agent/session",
