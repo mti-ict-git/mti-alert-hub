@@ -91,6 +91,7 @@ The system uses a unified communication model for:
 - Show counts for queued, sent, delivered, read, responded, failed, and overdue responses.
 - Show recipient drill-down with status and response detail.
 - Provide dashboard summaries and historical reports.
+- For `Wellness Programs`, keep operational monitoring device-centric in MVP, while allowing the currently logged-in Windows user to be captured as optional audit metadata when the device can report it safely.
 
 ### 7. Administration
 - Manage organizational structure references.
@@ -113,6 +114,7 @@ The system uses a unified communication model for:
 - Device ownership is location-oriented rather than person-oriented for desktop targeting.
 - Device health uses the states `Online`, `Offline`, and `Stale`.
 - Routine reminder policies may be synchronized to Windows Agent for bounded local execution, but the server remains authoritative for policy lifecycle and invalidation.
+- `Wellness Programs` assignment remains device-targeted in MVP. Active user identity on the endpoint may be collected as supporting audit context for activity evidence, but it does not replace the device as the authoritative execution target.
 
 ### 10. Template Policy
 - Templates are full policy objects, not just content presets.
@@ -211,8 +213,8 @@ All MVP communication types remain delivery-tracked and read-tracked.
 5. Server publishes a versioned reminder policy for eligible Windows Agent devices.
 6. Windows Agent executes the reminder locally using the specialized wellness presentation template.
 7. For guided routines, the agent may continue into a multi-step local flow after the initial reminder card is acknowledged.
-8. Agent reconciles activity such as `Triggered`, `Displayed`, `Snoozed`, `Started`, or `Completed` back to the server.
-9. Operators review program activity and compliance from the dedicated wellness monitoring surface.
+8. Agent reconciles activity such as `Triggered`, `Displayed`, `RemindMeLater`-driven defer or snooze, `Started`, `Completed`, or `GotIt`-confirmed completion back to the server, together with active user context when the endpoint can report it safely.
+9. Operators review program activity and compliance from the dedicated wellness monitoring surface, primarily by device and optionally by the captured active-user audit context.
 
 ### Workflow 3: Critical Emergency Communication
 1. User creates a critical alert.
@@ -258,6 +260,9 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
 - `FR-4H` The admin monitoring experience shall expose reminder schedule metadata, reminder policy activity, and reconciled reminder evidence so hybrid reminder behavior remains auditable and understandable for operators.
 - `FR-4I` The admin experience shall keep wellness authoring and wellness monitoring outside `Notification Center`, even when the backend reuses reminder-oriented contracts and persistence.
+- `FR-4J` Wellness CTA semantics shall remain explicit in MVP: `GotIt` and `Done` confirm the routine was performed, while `RemindMeLater` records a defer or snooze decision rather than a completion.
+- `FR-4K` Wellness operational reporting shall remain device-centric in MVP, with active-user identity treated only as optional audit metadata captured at event time when available.
+- `FR-4L` A dedicated post-routine feedback prompt for rating wellness-program usefulness or need is deferred beyond the current MVP until the survey contract, trigger timing, and reporting expectations are separately approved.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
 

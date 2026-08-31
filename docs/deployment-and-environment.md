@@ -134,6 +134,9 @@ Current implementation baseline:
 - Health thresholds are configurable through:
   - `DEVICE_ONLINE_THRESHOLD_SECONDS` (default `120`)
   - `DEVICE_STALE_THRESHOLD_SECONDS` (default `900`)
+- Windows Agent one-time pending-message replay is configurable through:
+  - `WINDOWS_AGENT_PENDING_MESSAGE_TTL_MINUTES` (default `4320`, set `0` to disable age-based expiry and rely only on explicit schedule validity windows)
+- The backend now uses that TTL to stop replaying old one-time Windows Agent delivery jobs after reconnect or reinstall when the original publish had no explicit `valid_until`.
 
 ### Authentication Configuration
 Examples:

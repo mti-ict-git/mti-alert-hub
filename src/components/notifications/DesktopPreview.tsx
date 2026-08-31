@@ -29,6 +29,9 @@ export function DesktopPreview({
   wellnessProgram?: WellnessProgram | null;
 }) {
   if (wellnessProgram) {
+    const isStretchingOverview =
+      wellnessProgram.programType === "GuidedRoutine" &&
+      wellnessProgram.layoutVariant === "OverviewCard";
     const accent =
       wellnessProgram.theme === "Blue"
         ? "from-sky-500/15 via-sky-200/50 to-white border-sky-300"
@@ -59,7 +62,7 @@ export function DesktopPreview({
                 </div>
               </div>
             )}
-            {wellnessProgram.layoutVariant === "OverviewCard" && (
+            {wellnessProgram.layoutVariant === "OverviewCard" && !isStretchingOverview && (
               <div className="grid grid-cols-3 gap-2 rounded-2xl bg-background/80 p-4 text-center shadow-sm">
                 <div>
                   <div className="text-2xl font-semibold">20</div>
@@ -75,7 +78,69 @@ export function DesktopPreview({
                 </div>
               </div>
             )}
-            {wellnessProgram.programType === "GuidedRoutine" && (
+            {isStretchingOverview && (
+              <div className="rounded-[22px] border border-emerald-200/80 bg-white/85 p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700">
+                    <StretchHorizontal className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[1.35rem] font-semibold leading-tight text-emerald-700">
+                          {title || "Time to Stretch!"}
+                        </div>
+                        <div className="mt-1 text-sm font-medium leading-5 text-slate-700">
+                          {message || "You've been working continuously for 60 minutes."}
+                        </div>
+                      </div>
+                      <X className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-slate-800">Take 2-3 minutes to:</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-[7.5rem_1fr] gap-4">
+                  <div className="overflow-hidden rounded-[18px] border border-emerald-100 bg-gradient-to-b from-emerald-50 via-white to-emerald-50 px-2 py-3">
+                    <div className="relative mx-auto h-36 w-24">
+                      <div className="absolute left-7 top-1 h-5 w-5 rounded-full bg-[#F2C19B]" />
+                      <div className="absolute left-[1.55rem] top-5 h-10 w-6 rounded-[12px] bg-emerald-500" />
+                      <div className="absolute left-1 top-5 h-2 w-12 origin-bottom-left rotate-[-58deg] rounded-full bg-emerald-500" />
+                      <div className="absolute left-[2.45rem] top-4 h-2 w-10 origin-bottom-left rotate-[-120deg] rounded-full bg-emerald-500" />
+                      <div className="absolute left-[1.7rem] top-[3.75rem] h-11 w-2 origin-top rotate-[4deg] rounded-full bg-slate-700" />
+                      <div className="absolute left-[2.55rem] top-[3.8rem] h-11 w-2 origin-top rotate-[-18deg] rounded-full bg-slate-700" />
+                      <div className="absolute left-0 top-[5.2rem] h-6 w-5 rounded-t-md bg-emerald-200" />
+                      <div className="absolute left-[0.55rem] top-[4rem] h-5 w-1 rounded-full bg-slate-400" />
+                      <div className="absolute left-[3.7rem] top-[4.4rem] h-2 w-7 rounded-full bg-slate-500" />
+                      <div className="absolute left-[4.55rem] top-[5.05rem] h-8 w-1 rounded-full bg-slate-500" />
+                      <div className="absolute left-[3.35rem] top-[5rem] h-8 w-1 rounded-full bg-slate-500" />
+                      <div className="absolute left-[4rem] top-[3.55rem] h-3 w-5 rounded-md border border-slate-300 bg-sky-100" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(wellnessProgram.steps ?? []).slice(0, 5).map((step) => (
+                      <div key={step.stepKey} className="flex items-start gap-2">
+                        <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        <div className="text-[0.92rem] font-medium leading-5 text-slate-800">
+                          {step.title}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                    <Heart className="h-4 w-4 fill-current" />
+                  </div>
+                  <div className="text-sm font-medium leading-5 text-slate-700">
+                    {instruction || "Small breaks. Healthier body. Better performance."}
+                  </div>
+                </div>
+              </div>
+            )}
+            {wellnessProgram.programType === "GuidedRoutine" && !isStretchingOverview && (
               <div className="rounded-[22px] border border-emerald-200/80 bg-white/85 p-4 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">

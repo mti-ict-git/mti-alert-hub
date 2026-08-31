@@ -52,6 +52,12 @@ The current MVP lock for Product and UX is:
   - `Start`
   - `Next`
   - `RemindMeLater`
+- CTA semantics:
+  - `GotIt` and `Done` confirm the routine was performed or completed
+  - `RemindMeLater` means defer or snooze, not skip or completion
+- assignment and operational monitoring remain device-centric in MVP
+- the currently logged-in Windows user may be captured as optional audit metadata on activity events, but not as the authoritative assignment key
+- dedicated post-routine usefulness or need rating prompts remain deferred beyond the current MVP until the survey contract and reporting shape are approved
 - multilingual authoring: deferred beyond MVP, with one locale plus fallback acceptable for the first slice
 - Office Stretching MVP shape: narrowed guided flow first, not the fully generalized multi-step routine engine
 
@@ -152,6 +158,7 @@ Deliver one specialized recurring wellness flow that proves:
 - `[ ]` Define assignment APIs or equivalent reminder assignment flow.
 - `[ ]` Define activity APIs for program-level monitoring.
 - `[ ]` Ensure operator-facing detail reads return effective schedule, theme, actions, and step metadata.
+- `[ ]` Extend activity reads to expose active-user-at-event metadata when the client supplies it.
 
 ### 5. Agent Policy Sync Contract
 - `[x]` Decide whether wellness stays inside `GET /agent/reminder-policies` for MVP.
@@ -299,6 +306,8 @@ Deliver one specialized recurring wellness flow that proves:
 - `[x]` Add device-level last sync or last activity visibility.
 - `[x]` Add timeline or recent-events view for troubleshooting.
 - `[x]` Add compliance summary view suitable for operational review.
+- `[ ]` Add active-user-at-event visibility in monitoring when the backend exposes that audit metadata.
+- `[ ]` Add a dedicated deferred-versus-completed summary that treats `RemindMeLater` as defer or snooze rather than `skip`.
 
 ### 9. Windows Agent Rendering
 - `[x]` Introduce a dedicated wellness rendering path separate from the generic notification surface.
@@ -314,10 +323,35 @@ Deliver one specialized recurring wellness flow that proves:
 - `[ ]` Support optional hero asset display.
 - `[ ]` Support progress indicators for guided routines.
 - `[x]` Keep wellness surfaces visually distinct from operational alert surfaces.
+- `[ ]` Capture and report active-user-at-event metadata together with wellness activity evidence when the endpoint can supply it safely.
+- `[ ]` Implement a dedicated post-routine feedback prompt for usefulness or need rating after the survey contract is approved.
 
 ## Latest Windows Agent Rendering Evidence
 - `2026-07-16`: the Windows Agent now carries `wellnessProgram` through the reminder-policy contract, local SQLite reminder-policy persistence, runtime request mapping, and the reminder renderer entry point.
+- `2026-08-30`: a real-device checkpoint verification now confirms the patched `OverviewCard` path across publish, sync, and render. On local backend runtime `http://127.0.0.1:4019`, communication `c4a88b28-a328-479b-9578-d0770cdf3334` was published as a device-targeted recurring wellness program for `MTI-NB-373`, reminder policy `0d590d3c-1a78-4fe1-9e3d-8022f9ce915b` materialized with `layoutVariant = OverviewCard`, the device reported `lastSyncedAt = 2026-08-30 02:59:42.470696+00`, and subsequent reminder activity included real `Displayed` events from the same target device.
 - The first client rendering slice is intentionally narrowed to `SimpleReminder` eye-break experiences on the `Blue` theme.
+
+## Current Alignment Snapshot
+### Already Aligned With The Locked Direction
+- wellness assignment is already device-bound and server-managed through the reminder-policy foundation
+- the admin monitoring slice already exposes device-level activity, reminder timelines, and compliance summaries
+- the dedicated `Wellness Programs` create flow is now narrowing toward a locked template catalog (`A1`, `A2`, `A4`, `B1`, `B2`) instead of unconstrained freeform copy, which better matches the fixed WPF agent surface
+- the office-stretching catalog is now realigned so the publishable admin entry point is `B2` (start/overview card), while the guided exercise step shell is treated as the internal post-start `B1` state rather than a directly authored first surface
+- the agent already supports `GotIt`, `Done`, `Start`, `Next`, and `RemindMeLater` CTA vocabulary in the dedicated wellness path
+- the current runtime already distinguishes completion-oriented actions from snooze-oriented actions in the event vocabulary and UX flow
+- the agent sync contract now has an explicit change cursor input through policy `updatedAt`, instead of re-saving the stale local cursor during reminder-policy sync
+- the agent sync path now accepts inactive reminder-policy rows so replacement or cancellation can deactivate local wellness policies without waiting for expiry
+- the backend agent-sync parser now accepts `OverviewCard`, matching the admin authoring vocabulary and the Windows Agent wellness renderer support
+- the backend draft validator now accepts `GuidedRoutine + OverviewCard`, which opens the `B2` office-stretching overview path to admin authoring instead of leaving it only in debug preview code
+- local runtime verification on `2026-08-31` now proves the publishable `B2` path on the real target device: device `MTI-NB-373` at `agentVersion = 1.0.7` synced reminder policy `fba67fe7-3755-4556-87ae-b2841bc43714` from backend `http://127.0.0.1:4019`, and reminder activity later recorded real `Triggered` plus `Displayed` events for communication `6e07c523-887a-4a3f-bd39-929905611a55`
+- the latest runtime evidence still shows no automatic `Started` event immediately after `B2` render, which is aligned with the intended behavior that the guided stretching countdown only begins after the user explicitly chooses `Start`
+
+### Still Not Implemented
+- explicit active-user-at-event capture and monitoring visibility
+- a normalized deferred-versus-completed KPI view that presents `RemindMeLater` as defer or snooze instead of an implied skip metric
+- a dedicated client feedback prompt for usefulness or need rating, plus the corresponding backend contract and admin analytics
+- a browser-driven admin UI verification pass on the current patched runtime proving the dedicated template-driven `Wellness Programs` authoring and publish screens still reach the same successful sync and render path already validated through direct runtime API calls
+- the exact `B2` collage-style Windows Agent visual shell shown in the latest operator screenshot still needs a renderer pass, even though the server-driven publish, sync, and render lifecycle is now evidenced
 - A dedicated `WellnessReminderWindow` now renders separately from the existing dark operational `NotificationWindow`, so eye-break reminders no longer inherit the alert-oriented shell.
 - Implemented initial eye-break templates:
   - `ReminderCard`

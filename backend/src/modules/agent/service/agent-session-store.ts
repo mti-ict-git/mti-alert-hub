@@ -11,11 +11,13 @@ type AgentSessionDevice = {
 export type AgentSession = {
   sessionToken: string;
   expiresAt: string;
+  activeUserIdentifier: string | null;
   device: AgentSessionDevice;
 };
 
 type CreateAgentSessionOptions = {
   device: AgentSessionDevice;
+  activeUserIdentifier?: string | null;
 };
 
 export class AgentSessionStore {
@@ -31,6 +33,7 @@ export class AgentSessionStore {
     const session: AgentSession = {
       sessionToken,
       expiresAt,
+      activeUserIdentifier: options.activeUserIdentifier ?? null,
       device: options.device,
     };
 
@@ -48,15 +51,22 @@ export class AgentSessionStore {
           insert into public.device_sessions (
             device_id,
             session_token_hash,
-            expires_at
+            expires_at,
+            active_user_identifier
           )
           values (
             $1::uuid,
             $2,
-            $3::timestamptz
+            $3::timestamptz,
+            $4
           )
         `,
-        [options.device.id, hashSessionToken(sessionToken), expiresAt],
+        [
+          options.device.id,
+          hashSessionToken(sessionToken),
+          expiresAt,
+          options.activeUserIdentifier ?? null,
+        ],
       );
     });
 
@@ -102,6 +112,17 @@ export class AgentSessionStore {
       ...mapPersistedSession(sessionToken, persistedSession),
       expiresAt,
     };
+  }
+
+  async updateSessionActiveUser(sessionToken: string, activeUserIdentifier: string | null) {
+    await this.database.query(
+      `
+        update public.device_sessions
+        set active_user_identifier = $2
+        where session_token_hash = $1
+      `,
+      [hashSessionToken(sessionToken), activeUserIdentifier],
+    );
   }
 
   async revokeDeviceSessions(deviceId: string) {
@@ -153,6 +174,7 @@ export class AgentSessionStore {
         select
           ds.session_token_hash as "sessionTokenHash",
           ds.expires_at::text as "expiresAt",
+          ds.active_user_identifier::text as "activeUserIdentifier",
           d.id::text as "deviceId",
           d.device_identifier::text as "deviceIdentifier",
           d.hostname::text as hostname
@@ -181,6 +203,7 @@ export class AgentSessionStore {
 type PersistedAgentSessionRow = {
   sessionTokenHash: string;
   expiresAt: string;
+  activeUserIdentifier: string | null;
   deviceId: string;
   deviceIdentifier: string | null;
   hostname: string;
@@ -201,6 +224,7 @@ function mapPersistedSession(
   return {
     sessionToken,
     expiresAt: persistedSession.expiresAt,
+    activeUserIdentifier: persistedSession.activeUserIdentifier,
     device: {
       id: persistedSession.deviceId,
       deviceIdentifier: persistedSession.deviceIdentifier,

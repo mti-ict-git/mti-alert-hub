@@ -795,16 +795,18 @@ paths:
   /devices/rollout-packages/upload:
     post:
       tags: [Devices]
-      summary: Upload a local rollout MSI package for admin rollout
+      summary: Upload a local rollout MSI package into the global Desktop Agent package registry
       description: |
         Accepts a raw MSI file upload from the authenticated admin browser, stores it in the backend-local
-        package area, inspects rollout metadata, and returns the resulting package entry for the `Devices`
-        rollout dialog.
+        package area, inspects rollout metadata, and returns the resulting package entry for the global
+        Desktop Agent package registry.
 
         Current Phase 4 note:
         - The browser is the upload source; the frontend container does not read local operator files directly.
         - The backend persists the uploaded file into `backend/local-packages` and must therefore run on
           durable storage when used in Docker or shared environments.
+        - Upload belongs to the shared `Settings > Desktop Agent` package-management surface; device rollout
+          dialogs only select from the already uploaded package registry.
         - Upload does not sign or mutate the MSI; it only stores and inspects the exact artifact received.
       operationId: uploadDeviceRolloutPackage
       x-implementation-phase: Phase 4
@@ -965,6 +967,7 @@ paths:
         - Session trust is device-centric and stored in `device_sessions`.
         - Refreshing a session rotates the opaque token and invalidates the previous device token.
         - `employeeNumber` and `activeUserIdentifier` are optional metadata and do not replace device trust.
+        - The latest `activeUserIdentifier` is retained on the active device session for audit context and shared-device pending-message replay suppression.
       operationId: createAgentSession
       x-implementation-phase: Phase 2
       security: []
@@ -1166,6 +1169,11 @@ paths:
         Current Phase 2 note:
         - Results come from `delivery_jobs` and `communication_recipients`, not placeholder memory state.
         - The response remains valid when no pending messages exist.
+        - Only delivery jobs whose schedule is active and already inside the effective delivery window are returned.
+        - Recurring and explicitly bounded schedules stop syncing after `communication_schedules.valid_until`.
+        - One-time `Immediate` or `Scheduled` Windows Agent messages also stop syncing after a bounded replay window derived from backend configuration when no explicit `valid_until` exists.
+        - Already `Read` or `Responded` Windows Agent jobs are not returned as pending reconciliation items.
+        - When prior device lifecycle evidence is already stamped with a different `activeUserIdentifier`, that job is omitted from later pending sync for the current session to reduce cross-user replay on shared devices.
       operationId: listPendingAgentMessages
       x-implementation-phase: Phase 2
       security:
@@ -1192,11 +1200,11 @@ paths:
       tags: [Agent]
       summary: Fetch active locally executable reminder policies for the Windows Agent
       description: |
-        Returns active `AgentLocalRoutine` reminder policies synchronized for the calling device.
+        Returns `AgentLocalRoutine` reminder policy changes synchronized for the calling device.
 
         Current Phase 2 note:
         - Policies are materialized from recurring `communication_schedules` into `agent_reminder_policies`.
-        - Cancelled, replaced, expired, or inactive policies are omitted from the sync response.
+        - The sync response may include inactive policy rows so the Windows Agent can deactivate replaced or cancelled local policies without waiting for expiry.
         - Initial implementation currently syncs only device-bound Windows Agent reminder recipients.
       operationId: listAgentReminderPolicies
       x-implementation-phase: Phase 2
@@ -3377,6 +3385,8 @@ components:
         - validUntil
         - title
         - body
+        - isActive
+        - updatedAt
       properties:
         policyId:
           type: string
@@ -3419,6 +3429,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/WellnessProgramPayload"
           nullable: true
+        isActive:
+          type: boolean
+          description: Whether the reminder policy should remain active on the device after sync.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Server-side policy change timestamp used by the agent sync cursor.
 
     AgentReminderEventRequest:
       type: object

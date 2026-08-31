@@ -3,8 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
-import { MarkdownEditor } from "@/components/common/MarkdownEditor";
-import { WellnessProgramEditor } from "@/components/notifications/WellnessProgramEditor";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +10,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
-import { createDefaultWellnessProgram, isValidWellnessProgramDraft } from "@/lib/wellness-program";
-import type { WellnessProgram } from "@/types";
-
-const MESSAGE_MAX_LENGTH = 320;
+import {
+  getWellnessTemplate,
+  inferWellnessTemplateKey,
+  listWellnessTemplates,
+  type WellnessTemplateKey,
+} from "@/lib/wellness-template-catalog";
 
 export const Route = createFileRoute("/_app/wellness-programs/new")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -31,6 +30,7 @@ function CreateWellnessProgramPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/_app/wellness-programs/new" });
   const queryClient = useQueryClient();
+  const templates = listWellnessTemplates();
   const editingDraftId = search.draftId?.trim() || undefined;
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -42,21 +42,17 @@ function CreateWellnessProgramPage() {
     enabled: Boolean(editingDraftId),
   });
 
-  const [title, setTitle] = useState("");
-  const [message, setMessage] = useState("");
-  const [instruction, setInstruction] = useState("");
+  const [templateKey, setTemplateKey] = useState<WellnessTemplateKey | "">("");
   const [deviceId, setDeviceId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [timezone, setTimezone] = useState(getLocalTimeZone());
   const [recurrenceRule, setRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
-  const [wellnessProgram, setWellnessProgram] = useState<WellnessProgram>(
-    createDefaultWellnessProgram("SimpleReminder"),
-  );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [initializedDraftId, setInitializedDraftId] = useState<string | null>(null);
   const isEditMode = Boolean(editingDraftId);
   const hasValidEditableDraft = !editingDraftId || Boolean(editingDraft?.wellnessProgram);
+  const selectedTemplate = templateKey ? getWellnessTemplate(templateKey) : null;
 
   useEffect(() => {
     if (!editingDraftId || !editingDraft || !editingDraft.wellnessProgram) {
@@ -67,15 +63,12 @@ function CreateWellnessProgramPage() {
       return;
     }
 
-    setTitle(editingDraft.title);
-    setMessage(editingDraft.message);
-    setInstruction(editingDraft.instruction ?? "");
+    setTemplateKey(inferWellnessTemplateKey(editingDraft) ?? "");
     setDeviceId(editingDraft.targetDeviceId ?? "");
     setScheduledAt(editingDraft.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(editingDraft.reminderSchedule.scheduledAt) : "");
     setValidUntil(editingDraft.reminderSchedule?.validUntil ? toDateTimeLocalInput(editingDraft.reminderSchedule.validUntil) : "");
     setTimezone(editingDraft.reminderSchedule?.timezone ?? getLocalTimeZone());
     setRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
-    setWellnessProgram(editingDraft.wellnessProgram);
     setInitializedDraftId(editingDraftId);
   }, [editingDraft, editingDraftId, initializedDraftId]);
 
@@ -108,18 +101,19 @@ function CreateWellnessProgramPage() {
   });
   const canSubmit =
     hasValidEditableDraft &&
-    title.trim().length > 0 &&
-    message.trim().length > 0 &&
-    message.trim().length <= MESSAGE_MAX_LENGTH &&
+    Boolean(selectedTemplate) &&
     Boolean(deviceId) &&
-    hasValidSchedule &&
-    isValidWellnessProgramDraft(wellnessProgram);
+    hasValidSchedule;
 
   function submit() {
+    if (!selectedTemplate) {
+      return;
+    }
+
     createMutation.mutate({
-      title,
-      message,
-      instruction,
+      title: selectedTemplate.title,
+      message: selectedTemplate.message,
+      instruction: selectedTemplate.instruction,
       communicationType: "Reminder",
       priority: "Info",
       category: "OHSE",
@@ -136,7 +130,7 @@ function CreateWellnessProgramPage() {
         timezone,
         recurrenceRule,
       }),
-      wellnessProgram,
+      wellnessProgram: selectedTemplate.wellnessProgram,
     });
   }
 
@@ -157,14 +151,29 @@ function CreateWellnessProgramPage() {
     );
   }
 
+  if (isEditMode && editingDraft && !templateKey) {
+    return (
+      <div className="space-y-4 p-6">
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This draft uses a legacy custom wellness shape that does not map cleanly to the locked
+          template catalog. Create or duplicate a new template-driven draft to continue testing the
+          stable agent path.
+        </div>
+        <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
+          Back To Wellness Programs
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title={isEditMode ? "Edit Wellness Program" : "Create Wellness Program"}
         description={
           isEditMode
-            ? "Update the dedicated wellness draft without going back through the generic notification editor."
-            : "Author a dedicated eye-break or stretching routine without using the generic notification form."
+            ? "Update the dedicated wellness draft using the locked template catalog so the agent surface stays predictable."
+            : "Pick one locked wellness template so the agent surface stays predictable during testing."
         }
       />
 
@@ -172,50 +181,68 @@ function CreateWellnessProgramPage() {
         <Card className="lg:col-span-2">
           <CardContent className="space-y-5 p-6">
             <div className="rounded-md border border-sky-200 bg-sky-50/70 p-4">
-              <div className="text-sm font-medium">Dedicated Wellness Authoring</div>
+              <div className="text-sm font-medium">Template-Driven Wellness Authoring</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Wellness Programs live under their own submenu. The server still reuses the reminder
-                policy backend contract, but operators author the experience here instead of in
-                `Create Notification`.
+                Wellness Programs now use a locked template catalog so layout, CTA placement, and
+                copy length remain safe for the Windows Agent popup. Operators choose the template,
+                target, and schedule here instead of editing freeform card content.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Program Title</Label>
-              <Input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. Eye Break 20-20-20"
-              />
-            </div>
+            <div className="space-y-4 rounded-md border p-4">
+              <div>
+                <div className="text-sm font-medium">Wellness Template</div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Choose the approved template family first. Copy, layout, actions, and step
+                  structure are locked to keep the WPF popup stable.
+                </p>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Program Summary</Label>
-              <Textarea
-                rows={4}
-                maxLength={MESSAGE_MAX_LENGTH}
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Short operator-authored summary shown on the wellness card."
-              />
-              <p className="text-xs text-muted-foreground">
-                Keep the Windows Agent copy concise. Maximum {MESSAGE_MAX_LENGTH} characters.{" "}
-                {message.trim().length}/{MESSAGE_MAX_LENGTH}
-              </p>
-            </div>
+              <div className="space-y-2">
+                <Label>Template</Label>
+                <Select value={templateKey} onValueChange={(value) => setTemplateKey(value as WellnessTemplateKey)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select wellness template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.key} value={template.key}>
+                        {template.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Instruction</Label>
-              <MarkdownEditor
-                value={instruction}
-                onChange={setInstruction}
-                rows={5}
-                previewEmptyText="Instruction preview will appear here."
-                placeholder="Optional longer guidance for the wellness routine."
-              />
-              <p className="text-xs text-muted-foreground">
-                Use this for richer eye-break or stretching guidance. The agent keeps rendering local.
-              </p>
+              {selectedTemplate && (
+                <div className="rounded-md border bg-muted/20 p-4">
+                  <div className="text-sm font-medium">{selectedTemplate.label}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedTemplate.description}</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <TemplateReadOnlyField label="Title" value={selectedTemplate.title} />
+                    <TemplateReadOnlyField label="Summary" value={selectedTemplate.message} />
+                    <TemplateReadOnlyField label="Instruction" value={selectedTemplate.instruction} />
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <TemplateMetaRow
+                      label="Layout"
+                      value={`${selectedTemplate.wellnessProgram.programType} · ${selectedTemplate.wellnessProgram.layoutVariant}`}
+                    />
+                    <TemplateMetaRow
+                      label="Actions"
+                      value={selectedTemplate.wellnessProgram.actions.map((action) => action.label).join(" · ")}
+                    />
+                    <TemplateMetaRow
+                      label="Theme"
+                      value={`${selectedTemplate.family} · ${selectedTemplate.wellnessProgram.theme}`}
+                    />
+                    <TemplateMetaRow
+                      label="Step Count"
+                      value={`${selectedTemplate.wellnessProgram.steps?.length ?? 0} step(s)`}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4 rounded-md border p-4">
@@ -296,8 +323,6 @@ function CreateWellnessProgramPage() {
               </div>
             </div>
 
-            <WellnessProgramEditor value={wellnessProgram} onChange={setWellnessProgram} />
-
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
                 Cancel
@@ -316,16 +341,16 @@ function CreateWellnessProgramPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <DesktopPreview
-                title={title}
-                message={message}
+                title={selectedTemplate?.title ?? ""}
+                message={selectedTemplate?.message ?? ""}
                 priority="Info"
-                instruction={instruction}
+                instruction={selectedTemplate?.instruction ?? ""}
                 presentation="Toast"
-                wellnessProgram={wellnessProgram}
+                wellnessProgram={selectedTemplate?.wellnessProgram ?? null}
               />
               <p className="text-xs text-muted-foreground">
-                Desktop Agent is fixed for this MVP slice. Runtime rendering still uses the dedicated
-                wellness surface inside the Windows Agent.
+                Desktop Agent preview now follows the selected locked template. Operators only set
+                schedule and assignment in this MVP slice.
               </p>
             </CardContent>
           </Card>
@@ -343,11 +368,10 @@ function CreateWellnessProgramPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
-            <div className="font-medium">{title}</div>
-            <p className="mt-1 text-muted-foreground">{message}</p>
+            <div className="font-medium">{selectedTemplate?.title ?? "No template selected"}</div>
+            <p className="mt-1 text-muted-foreground">{selectedTemplate?.message ?? "Select a template first."}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Layout: {wellnessProgram.layoutVariant} · Theme: {wellnessProgram.theme} · Device:{" "}
-              {deviceId || "Not selected"}
+              Template: {selectedTemplate?.label ?? "Not selected"} · Device: {deviceId || "Not selected"}
             </p>
           </div>
           <DialogFooter>
@@ -416,6 +440,24 @@ function isValidWellnessSchedule(input: {
 
 function getLocalTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function TemplateReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="rounded-md border bg-background px-3 py-2 text-sm">{value}</div>
+    </div>
+  );
+}
+
+function TemplateMetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-background px-3 py-2">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm">{value}</div>
+    </div>
+  );
 }
 
 function toDateTimeLocalInput(value: string) {

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Package, Rocket, Send, Upload } from "lucide-react";
+import { Loader2, Package, Rocket, Send } from "lucide-react";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -59,7 +59,6 @@ type RolloutFormState = {
 
 function DevicesPage() {
   const qc = useQueryClient();
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
   const [rolloutDevice, setRolloutDevice] = useState<Device | null>(null);
   const [rolloutOpen, setRolloutOpen] = useState(false);
@@ -113,23 +112,6 @@ function DevicesPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to create rollout.");
-    },
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => devicesService.uploadRolloutPackage(file),
-    onSuccess: async (result) => {
-      await qc.invalidateQueries({ queryKey: ["device-rollout-packages"] });
-      setForm(createRolloutFormFromPackage(result.package));
-      setPreviewResult(null);
-      toast.success(
-        result.alreadyExists
-          ? `Package ${result.package.fileName} already exists and is ready to use.`
-          : `Uploaded ${result.package.fileName} successfully.`,
-      );
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to upload MSI package.");
     },
   });
 
@@ -322,40 +304,10 @@ function DevicesPage() {
                         Packages are discovered from `backend/local-packages` and inspected from the backend
                         server before this dialog renders them.
                       </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          ref={uploadInputRef}
-                          type="file"
-                          accept=".msi,application/x-msi"
-                          className="hidden"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            event.currentTarget.value = "";
-                            if (!file) {
-                              return;
-                            }
-
-                            uploadMutation.mutate(file);
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={uploadMutation.isPending}
-                          onClick={() => uploadInputRef.current?.click()}
-                        >
-                          {uploadMutation.isPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Upload className="mr-2 h-4 w-4" />
-                          )}
-                          Upload MSI
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Upload runs from the operator browser to the backend package store.
-                        </p>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Manage package uploads from {"Settings > Desktop Agent"}. This rollout dialog only
+                        applies packages that are already registered globally.
+                      </p>
                     </div>
 
                     {selectedPackage && (
@@ -550,8 +502,7 @@ function DevicesPage() {
               disabled={
                 !isRolloutFormValid(form) ||
                 previewMutation.isPending ||
-                applyMutation.isPending ||
-                uploadMutation.isPending
+                applyMutation.isPending
               }
             >
               {previewMutation.isPending ? (
@@ -564,8 +515,7 @@ function DevicesPage() {
               disabled={
                 !isRolloutFormValid(form) ||
                 previewMutation.isPending ||
-                applyMutation.isPending ||
-                uploadMutation.isPending
+                applyMutation.isPending
               }
             >
               {applyMutation.isPending ? (

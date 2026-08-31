@@ -25,6 +25,7 @@ const envSchema = z.object({
   AGENT_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(8 * 60),
   DEVICE_ONLINE_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(120),
   DEVICE_STALE_THRESHOLD_SECONDS: z.coerce.number().int().positive().default(15 * 60),
+  WINDOWS_AGENT_PENDING_MESSAGE_TTL_MINUTES: z.coerce.number().int().nonnegative().default(72 * 60),
   POSTGRES_URL: z.string().min(1, "POSTGRES_URL is required for backend startup."),
   POSTGRES_USERNAME: z.string().optional(),
   POSTGRES_PASSWORD: z.string().optional(),
@@ -95,6 +96,10 @@ export function resolveDeviceHealthThresholds(env: BackendEnv): DeviceHealthThre
     onlineSeconds,
     staleSeconds,
   };
+}
+
+export function resolveWindowsAgentPendingMessageTtlMinutes(env: BackendEnv): number {
+  return Math.max(0, Math.floor(env.WINDOWS_AGENT_PENDING_MESSAGE_TTL_MINUTES));
 }
 
 export function validateSecuritySensitiveEnv(env: BackendEnv) {

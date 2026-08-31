@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Activity, Eye, HeartPulse, Pencil, Rocket, ShieldCheck, XCircle } from "lucide-react";
+import { Activity, Eye, HeartPulse, Pencil, RefreshCw, Rocket, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MarkdownText } from "@/components/common/MarkdownText";
@@ -38,6 +38,7 @@ import type {
   NotificationStatus,
   Recipient,
 } from "@/types";
+import { cn } from "@/lib/utils";
 
 type DetailSearch = {
   mode?: "publish";
@@ -55,24 +56,49 @@ function WellnessProgramDetailPage() {
   const search = useSearch({ from: "/_app/wellness-programs/$id" });
   const navigate = useNavigate({ from: "/_app/wellness-programs/$id" });
   const qc = useQueryClient();
-  const { data: notification, isLoading } = useQuery({
+  const {
+    data: notification,
+    isLoading,
+    isFetching: isNotificationFetching,
+    refetch: refetchNotification,
+  } = useQuery({
     queryKey: ["notification", id],
     queryFn: () => notificationsService.get(id),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
-  const { data: audiencePreview } = useQuery({
+  const {
+    data: audiencePreview,
+    isFetching: isAudienceFetching,
+    refetch: refetchAudiencePreview,
+  } = useQuery({
     queryKey: ["audience-preview", id],
     queryFn: () => notificationsService.audiencePreview(id),
     enabled: Boolean(notification?.wellnessProgram),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
-  const { data: deliveryVisibility } = useQuery({
+  const {
+    data: deliveryVisibility,
+    isFetching: isDeliveryFetching,
+    refetch: refetchDeliveryVisibility,
+  } = useQuery({
     queryKey: ["delivery-visibility", id],
     queryFn: () => notificationsService.deliveryVisibility(id),
     enabled: Boolean(notification?.wellnessProgram),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
-  const { data: reminderActivity } = useQuery({
+  const {
+    data: reminderActivity,
+    isFetching: isReminderActivityFetching,
+    refetch: refetchReminderActivity,
+  } = useQuery({
     queryKey: ["notification-reminder-activity", id],
     queryFn: () => notificationsService.reminderActivity(id),
     enabled: Boolean(notification?.wellnessProgram),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
 
   const [publishOpen, setPublishOpen] = useState(false);
@@ -81,6 +107,11 @@ function WellnessProgramDetailPage() {
   const [validUntil, setValidUntil] = useState("");
   const [timezone, setTimezone] = useState(getLocalTimeZone());
   const [recurrenceRule, setRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
+  const isRefreshing =
+    isNotificationFetching ||
+    isAudienceFetching ||
+    isDeliveryFetching ||
+    isReminderActivityFetching;
 
   const publishMutation = useMutation({
     mutationFn: () =>
@@ -204,6 +235,22 @@ function WellnessProgramDetailPage() {
         description={buildWellnessDescription(notification)}
         actions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                void Promise.all([
+                  refetchNotification(),
+                  refetchAudiencePreview(),
+                  refetchDeliveryVisibility(),
+                  refetchReminderActivity(),
+                ])
+              }
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/wellness-programs">Back To Wellness Programs</Link>
             </Button>

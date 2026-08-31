@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Activity, Copy, Eye, HeartPulse, Leaf, Pencil, Plus, Rocket, ShieldCheck, XCircle } from "lucide-react";
+import { Activity, Copy, Eye, HeartPulse, Leaf, Pencil, Plus, RefreshCw, Rocket, ShieldCheck, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -30,11 +30,34 @@ export const Route = createFileRoute("/_app/wellness-programs")({
 });
 
 function WellnessProgramsPage() {
+  const isChildRouteActive = useRouterState({
+    select: (state) =>
+      state.matches.some(
+        (match) =>
+          match.routeId === "/_app/wellness-programs/new" ||
+          match.routeId === "/_app/wellness-programs/$id",
+      ),
+  });
+
+  if (isChildRouteActive) {
+    return <Outlet />;
+  }
+
   const qc = useQueryClient();
   const nav = useNavigate();
-  const { data = [], isLoading } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+    dataUpdatedAt,
+  } = useQuery({
     queryKey: ["wellness-programs"],
     queryFn: notificationsService.listWellnessPrograms,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
   });
 
   const [query, setQuery] = useState("");
@@ -117,6 +140,10 @@ function WellnessProgramsPage() {
         description="Dedicated list for blue and green recurring wellness drafts and live routines, separate from Notification Center."
         actions={
           <>
+            <Button variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
+              {isFetching ? "Refreshing..." : "Refresh"}
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/notifications">Open Notification Center</Link>
             </Button>
@@ -180,6 +207,19 @@ function WellnessProgramsPage() {
             </div>
           </div>
 
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              Last synced {formatOptionalDateTime(dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : null)}
+            </span>
+            <span>Auto refresh every 15 seconds</span>
+          </div>
+
+          {isError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Failed to load wellness programs: {error instanceof Error ? error.message : "Unknown error"}.
+            </div>
+          )}
+
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Input
               placeholder="Search wellness title..."
@@ -242,10 +282,18 @@ function WellnessProgramsPage() {
                   </TableRow>
                 )}
 
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && !isError && filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                       No wellness programs found for the current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {!isLoading && isError && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                      Wellness programs could not be loaded. Use Refresh after the backend is reachable.
                     </TableCell>
                   </TableRow>
                 )}

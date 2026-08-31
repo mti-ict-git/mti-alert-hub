@@ -6,6 +6,7 @@ import type { Logger } from "../../../shared/observability/logger.js";
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import type { BackendEnv } from "../../../app/config/env.js";
 import { resolveDeviceHealthThresholds } from "../../../app/config/env.js";
+import { resolveWindowsAgentPendingMessageTtlMinutes } from "../../../app/config/env.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
@@ -102,7 +103,12 @@ type ReminderEventType =
 type WellnessProgramPayload = {
   programType: "SimpleReminder" | "GuidedRoutine";
   theme: "Blue" | "Green";
-  layoutVariant: "ReminderCard" | "CountdownCard" | "GuidedRoutine" | "CompletionCard";
+  layoutVariant:
+    | "ReminderCard"
+    | "CountdownCard"
+    | "GuidedRoutine"
+    | "CompletionCard"
+    | "OverviewCard";
   heroAssetUrl: string | null;
   countdownSeconds: number | null;
   rotationMode: "Fixed" | "Sequential" | "Random" | null;
@@ -144,6 +150,7 @@ type AgentReminderPolicyRow = {
   toastAutoDismissSeconds: number | null;
   requiresResponse: boolean;
   workflowId: string | null;
+  isActive: boolean;
   updatedAt: string;
   wellnessProgram: unknown;
 };
@@ -225,6 +232,7 @@ type RolloutStatusInput = {
 type ActiveRealtimeConnection = {
   deviceId: string;
   connectionId: string;
+  sessionToken: string;
   response: ServerResponse;
   keepAliveTimer: ReturnType<typeof setInterval>;
 };
@@ -265,6 +273,7 @@ type AgentOwnedRolloutIntentRow = {
 export class AgentService {
   private readonly realtimeConnections = new Map<string, ActiveRealtimeConnection>();
   private readonly deviceStatusSql: string;
+  private readonly pendingMessageTtlMinutes: number;
 
   constructor(
     private readonly database: DatabaseClient,
@@ -275,6 +284,7 @@ export class AgentService {
     private readonly logger: Logger,
   ) {
     this.deviceStatusSql = buildDeviceHealthStatusSql(resolveDeviceHealthThresholds(env));
+    this.pendingMessageTtlMinutes = resolveWindowsAgentPendingMessageTtlMinutes(env);
   }
 
   async createSession(input: CreateAgentSessionInput) {
@@ -289,6 +299,7 @@ export class AgentService {
         deviceIdentifier: device.deviceIdentifier,
         hostname: device.hostname,
       },
+      activeUserIdentifier: input.activeUserIdentifier ?? null,
     });
 
     await this.database.query(
@@ -381,6 +392,7 @@ export class AgentService {
     this.registerRealtimeStream({
       connectionId: input.connectionId,
       deviceId: session.device.id,
+      sessionToken: input.sessionToken,
       request: input.request,
       response: input.response,
     });
@@ -393,7 +405,11 @@ export class AgentService {
       transport: "SSE",
     });
 
-    const pendingMessages = await this.listPendingMessagesByDeviceId(session.device.id);
+    const pendingMessages = await this.listPendingMessagesByDeviceId(
+      session.device.id,
+      null,
+      session.activeUserIdentifier,
+    );
     this.writeRealtimeEvent(input.response, "messages.snapshot", {
       items: pendingMessages.items,
       nextCursor: pendingMessages.nextCursor,
@@ -404,6 +420,7 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     await this.ensureSessionOwnsDevice(session, input.deviceIdentifier);
     this.ensureIsoDate(input.heartbeatAt, "heartbeatAt");
+    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
 
     await this.database.query(
       `
@@ -428,7 +445,7 @@ export class AgentService {
 
   async listPendingMessages(sessionToken: string, since?: string | null) {
     const session = await this.requireSession(sessionToken, { renew: true });
-    return this.listPendingMessagesByDeviceId(session.device.id, since);
+    return this.listPendingMessagesByDeviceId(session.device.id, since, session.activeUserIdentifier);
   }
 
   async notifyPendingMessagesForDevices(deviceIds: string[]) {
@@ -440,7 +457,12 @@ export class AgentService {
           return;
         }
 
-        const pendingMessages = await this.listPendingMessagesByDeviceId(deviceId);
+        const session = await this.sessionStore.getSession(connection.sessionToken);
+        const pendingMessages = await this.listPendingMessagesByDeviceId(
+          deviceId,
+          null,
+          session?.activeUserIdentifier ?? null,
+        );
         this.writeRealtimeEvent(connection.response, "messages.available", {
           items: pendingMessages.items,
           nextCursor: pendingMessages.nextCursor,
@@ -477,14 +499,13 @@ export class AgentService {
           arp.toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
           c.requires_response as "requiresResponse",
           c.workflow_id::text as "workflowId",
+          arp.is_active as "isActive",
           arp.updated_at::text as "updatedAt",
           arp.wellness_program_json as "wellnessProgram"
         from public.agent_reminder_policies arp
         inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
         inner join public.communications c on c.id = arp.communication_id
         where arp.device_id = $1::uuid
-          and arp.is_active = true
-          and coalesce(arp.valid_until, 'infinity'::timestamptz) > now()
           ${sinceClause}
         order by arp.updated_at asc, arp.created_at asc
       `,
@@ -527,6 +548,8 @@ export class AgentService {
             wellnessProgram: parseWellnessProgramPayload(row.wellnessProgram),
             requiresResponse: row.requiresResponse,
             workflow,
+            isActive: row.isActive,
+            updatedAt: row.updatedAt,
           };
         }),
       ),
@@ -649,6 +672,7 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
     this.ensureIsoDate(input.occurredAt, "occurredAt");
+    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
     await this.recordLifecycleEvent(session, messageId, input, "Displayed");
 
     this.logger.info("agent.message.displayed", {
@@ -661,6 +685,7 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
     this.ensureIsoDate(input.occurredAt, "occurredAt");
+    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
     await this.recordLifecycleEvent(session, messageId, input, "Read");
 
     this.logger.info("agent.message.read", {
@@ -680,6 +705,7 @@ export class AgentService {
     if (input.occurredAt) {
       this.ensureOptionalIsoDate(input.occurredAt, "occurredAt");
     }
+    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
 
     const respondedAt = input.occurredAt ?? new Date().toISOString();
     const message = await this.requireOwnedMessage(session, messageId);
@@ -801,6 +827,7 @@ export class AgentService {
 
   async reportReminderEvent(sessionToken: string, policyId: string, input: ReminderEventInput) {
     const session = await this.requireSession(sessionToken, { renew: true });
+    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
     if (!policyId.trim()) {
       throw new AppError({
         statusCode: 422,
@@ -1174,6 +1201,7 @@ export class AgentService {
   private registerRealtimeStream(options: {
     connectionId: string;
     deviceId: string;
+    sessionToken: string;
     request: IncomingMessage;
     response: ServerResponse;
   }) {
@@ -1204,6 +1232,7 @@ export class AgentService {
     this.realtimeConnections.set(options.connectionId, {
       connectionId: options.connectionId,
       deviceId: options.deviceId,
+      sessionToken: options.sessionToken,
       response: options.response,
       keepAliveTimer,
     });
@@ -1246,17 +1275,25 @@ export class AgentService {
     response.write(`data: ${JSON.stringify(payload)}\n\n`);
   }
 
-  private async listPendingMessagesByDeviceId(deviceId: string, since?: string | null) {
+  private async listPendingMessagesByDeviceId(
+    deviceId: string,
+    since?: string | null,
+    activeUserIdentifier?: string | null,
+  ) {
     await this.responseOverdueService.evaluateRecipientOnlyOverdueForDevice(deviceId);
 
     if (since) {
       this.ensureOptionalIsoDate(since, "since");
     }
 
-    const params: unknown[] = [deviceId];
+    const params: unknown[] = [deviceId, this.pendingMessageTtlMinutes];
     const sinceClause = since
       ? `and dj.updated_at >= $${params.push(since)}::timestamptz`
       : "";
+    const activeUserClause = `and (
+      latest_actor.active_user_identifier is null
+      or latest_actor.active_user_identifier = $${params.push(activeUserIdentifier ?? null)}
+    )`;
     const rows = await this.database.query<AgentMessageRow>(
       `
         select
@@ -1276,9 +1313,43 @@ export class AgentService {
         from public.delivery_jobs dj
         inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
         inner join public.communications c on c.id = dj.communication_id
+        inner join public.communication_schedules cs on cs.id = dj.communication_schedule_id
+        left join lateral (
+          select
+            (de.event_payload_json ->> 'activeUserIdentifier')::text as active_user_identifier
+          from public.delivery_events de
+          where de.delivery_job_id = dj.id
+            and de.event_type in ('Displayed', 'Read', 'Responded')
+          order by de.occurred_at desc, de.created_at desc
+          limit 1
+        ) latest_actor on true
         where dj.channel = 'WindowsAgent'
           and cr.device_id = $1::uuid
-          and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed', 'Read')
+          and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed')
+          and cs.is_active = true
+          and cs.cancelled_at is null
+          and coalesce(
+            cs.valid_from,
+            cs.scheduled_at,
+            c.published_at,
+            dj.queued_at,
+            dj.created_at
+          ) <= now()
+          and coalesce(
+            cs.valid_until,
+            case
+              when cs.schedule_type in ('Immediate', 'Scheduled') and $2::int > 0 then
+                coalesce(
+                  cs.valid_from,
+                  cs.scheduled_at,
+                  c.published_at,
+                  dj.queued_at,
+                  dj.created_at
+                ) + ($2::int * interval '1 minute')
+              else 'infinity'::timestamptz
+            end
+          ) > now()
+          ${activeUserClause}
           ${sinceClause}
         order by coalesce(dj.queued_at, dj.created_at) asc, dj.created_at asc
       `,
@@ -1898,7 +1969,8 @@ function parseWellnessProgramPayload(value: unknown): WellnessProgramPayload | n
     (parsed.layoutVariant !== "ReminderCard" &&
       parsed.layoutVariant !== "CountdownCard" &&
       parsed.layoutVariant !== "GuidedRoutine" &&
-      parsed.layoutVariant !== "CompletionCard") ||
+      parsed.layoutVariant !== "CompletionCard" &&
+      parsed.layoutVariant !== "OverviewCard") ||
     !Array.isArray(parsed.actions)
   ) {
     return null;

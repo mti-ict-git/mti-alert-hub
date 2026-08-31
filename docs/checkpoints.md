@@ -1,0 +1,34 @@
+# Working Checkpoints
+
+## Active Checkpoint: wellness_e2e_server_to_client
+- Intent: finish the `Wellness Programs` flow end to end so admin authoring and publish on the server side result in a synchronized, locally executable wellness routine on Windows Agent.
+- Scope:
+  - admin `Wellness Programs` menu and authoring or publish flow must function
+  - backend reminder-policy sync must carry wellness payload changes correctly
+  - Windows Agent must receive, persist, and execute the synchronized wellness policy correctly
+- Locked findings at this checkpoint:
+  - `OverviewCard` was allowed in admin and client rendering, but the backend agent-sync parser rejected it, causing `wellnessProgram` to drop to `null`
+  - reminder-policy sync lacked `updatedAt` cursor support on the client path, so incremental sync could stall on an old cursor
+  - reminder-policy sync omitted inactive rows, so the Windows Agent could miss cancellation or replacement tombstones and keep stale local policies active
+- Current implementation work under this checkpoint:
+  - add `OverviewCard` support to backend agent reminder-policy parsing
+  - extend agent reminder-policy sync contract with `isActive` and `updatedAt`
+  - persist the latest reminder-policy cursor on the Windows Agent using the newest `updatedAt`
+  - allow inactive policy rows to deactivate local reminder policies during sync
+- Latest runtime evidence:
+  - local backend runtime on `http://127.0.0.1:4019` now serves the patched agent-sync path used for checkpoint validation
+  - rebuilt agent package `1.0.7` was signed, published to `GET /agent/packages/local/MTI.Alert.Agent.Setup.msi`, and rollout intent `35c89d83-d7aa-4d77-bb13-b857956c2488` was created for `MTI-NB-373`
+  - test wellness communication `c4a88b28-a328-479b-9578-d0770cdf3334` was published as `SimpleReminder + Blue + OverviewCard` to target device `MTI-NB-373`
+  - reminder policy `0d590d3c-1a78-4fe1-9e3d-8022f9ce915b` materialized and synced, with server-side `lastSyncedAt = 2026-08-30 02:59:42.470696+00`
+  - reminder activity later recorded real device events including `Displayed`, proving the server publish -> agent sync -> wellness render path now works after the checkpoint fixes
+  - follow-up runtime bug found during operator testing: the `OverviewCard` wellness popup could appear to ignore all buttons because `WellnessReminderWindow` waited for dismiss or completion event reporting before closing, so slow or stuck event reporting made the close and CTA buttons feel dead
+  - client fix applied in `MTI.Alert.Agent/Presentation/Notifications/WellnessReminderWindow.xaml.cs`: the popup now fades out and closes immediately on user action, while `Dismissed`, `Completed`, and `Snoozed` reporting continues in the background with warning logs on failure instead of blocking the visible UI
+  - frontend follow-up hardening applied on `src/routes/_app.wellness-programs.tsx` and `src/routes/_app.wellness-programs.$id.tsx`: the dedicated wellness pages now expose explicit query failure state instead of silently falling back to an empty zero-count view, and both list plus detail screens now support manual refresh plus 15-second auto-refresh so externally published wellness changes and live monitoring updates become visible without relying on a full page reload
+  - frontend service binding bug fixed in `src/services/notifications.service.ts`: the dedicated wellness query path had been calling object methods through `this.*`, which breaks when TanStack Query invokes `notificationsService.listWellnessPrograms` as a detached callback. The service now calls `notificationsService.*` explicitly so `Create Wellness Program`, `Last synced`, and wellness list loading no longer fail behind `Cannot read properties of undefined (reading 'list')`
+  - local admin-authenticated runtime verification on `2026-08-31` created and published `B2` communication `3e8cbad5-d553-4d85-900b-201b606acfdf` for the same target device, materializing reminder policy `0ae96c33-39ca-4e4a-86d5-9b66b00f4c72` with `GuidedRoutine + Green + OverviewCard`
+  - a follow-up minutely `B2` verification communication `6e07c523-887a-4a3f-bd39-929905611a55` then produced reminder policy `fba67fe7-3755-4556-87ae-b2841bc43714`, synced with `lastSyncedAt = 2026-08-31 04:24:55.179574+00`, and later recorded real `Triggered` plus `Displayed` events from `MTI-NB-373`
+  - the target device now reports `agentVersion = 1.0.7` and `status = Online`, so rollout completion to the latest test package is now evidenced
+  - the latest `B2` runtime evidence still shows no automatic `Started` event immediately after render, which is aligned with the intended `B2 -> B1` behavior where the guided countdown should only begin after the user chooses start
+  - remaining gap: the exact Windows Agent `B2` visual shell still needs to be re-aligned with the latest collage-style operator screenshot even though the server publish -> sync -> render lifecycle is now validated
+- Resume instruction:
+  - if the user says `kembali ke checkpoint`, resume from this checkpoint and continue with end-to-end wellness verification, not from rollout work or packaging work

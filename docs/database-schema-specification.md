@@ -219,6 +219,7 @@ Current implementation note:
 - For the first integrated slice, published wellness identity remains communication-rooted:
   - `programId = communication_id`
   - `programVersion = schedule_version`
+- Windows Agent pending-message reconciliation now treats `valid_from` as the not-before boundary and `valid_until` as the authoritative stop-sync boundary whenever those values are present on the schedule.
 
 ### agent_reminder_policies
 Materialized recurring reminder policies distributed to eligible Windows Agent devices for bounded local execution.
@@ -376,6 +377,12 @@ Key columns:
 - `next_retry_at`
 - `last_error_message`
 
+Current implementation note:
+- `GET /agent/messages` is device-centric and reads from persisted Windows Agent `delivery_jobs`, but it now omits jobs that are outside the active schedule window.
+- When a one-time `Immediate` or `Scheduled` communication has no explicit `valid_until`, backend configuration supplies a finite replay TTL so stale desktop jobs do not remain eligible for agent reconciliation forever.
+- Windows Agent jobs that have already advanced to `Read` or `Responded` are no longer treated as pending reconciliation items.
+- When a delivery job already has `Displayed`, `Read`, or `Responded` evidence stamped with `activeUserIdentifier`, the server omits that job from later pending-message sync for a different active user on the same device session.
+
 ### delivery_attempts
 Each send or retry attempt for a delivery job.
 
@@ -426,6 +433,7 @@ Recommended event types include:
 - `id`
 - `device_id`
 - `session_token_hash`
+- `active_user_identifier` nullable snapshot of the latest agent-reported desktop user for the current device session
 - `expires_at`
 - `created_at`
 

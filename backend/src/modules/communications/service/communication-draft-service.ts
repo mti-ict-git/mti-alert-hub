@@ -2281,11 +2281,14 @@ function validateWellnessProgram(wellnessProgram: WellnessProgramInput) {
   }
 
   if (wellnessProgram.programType === "GuidedRoutine") {
-    if (wellnessProgram.layoutVariant !== "GuidedRoutine") {
+    if (
+      wellnessProgram.layoutVariant !== "GuidedRoutine" &&
+      wellnessProgram.layoutVariant !== "OverviewCard"
+    ) {
       throw new AppError({
         statusCode: 422,
         code: "WELLNESS_LAYOUT_INVALID",
-        message: "GuidedRoutine programs must use the GuidedRoutine layout.",
+        message: "GuidedRoutine programs must use the GuidedRoutine or OverviewCard layout.",
       });
     }
 

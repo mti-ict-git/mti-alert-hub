@@ -32,7 +32,7 @@ export function getAllowedWellnessLayoutVariants(
   programType: WellnessProgramType,
 ): WellnessLayoutVariant[] {
   if (programType === "GuidedRoutine") {
-    return ["GuidedRoutine"];
+    return ["GuidedRoutine", "OverviewCard"];
   }
 
   return ["ReminderCard", "CountdownCard", "OverviewCard", "CompletionCard"];
@@ -202,7 +202,10 @@ export function isValidWellnessProgramDraft(program: WellnessProgram) {
   }
 
   if (normalized.programType === "GuidedRoutine") {
-    if (normalized.layoutVariant !== "GuidedRoutine") {
+    if (
+      normalized.layoutVariant !== "GuidedRoutine" &&
+      normalized.layoutVariant !== "OverviewCard"
+    ) {
       return false;
     }
 

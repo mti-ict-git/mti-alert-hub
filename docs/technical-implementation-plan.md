@@ -106,6 +106,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Client capability reporting
 - Flat device metadata with site, area, and location label
 - Location-owned device targeting support
+- Wellness activity evidence that remains device-centric while optionally carrying the currently active Windows user as audit metadata when the endpoint can report it safely
 
 ### 8. WhatsApp Module
 - Outbound message dispatch
@@ -194,7 +195,7 @@ The current repository already leans toward TypeScript for the admin application
 - submit reminder occurrence or local interaction events
 - submit updater lifecycle status for rollout visibility
 - report agent version and device state
-- report active user context only as optional audit metadata, not as the primary desktop recipient identity
+- report active user context only as optional audit metadata and shared-device replay suppression input, not as the primary desktop recipient identity
 
 ## WhatsApp Integration Direction
 ### Responsibilities Of The Server
@@ -211,8 +212,10 @@ The current repository already leans toward TypeScript for the admin application
 - Store template policy and channel preference state needed for delivery decisions and auditability.
 - Store template version snapshots on communications and delivery records when policy materially affects execution.
 - Store recurring schedule execution mode, schedule version, and bounded validity windows when local routine reminder execution is enabled.
+- Keep Windows Agent pending-message reconciliation bounded by the server-authoritative schedule window, and apply a finite replay TTL for one-time desktop delivery when no explicit validity window exists.
 - Preserve local reminder occurrence evidence after reconciliation so monitoring and audit trails remain server-queryable.
 - Keep flat device records with site, area, and location metadata directly on the device model for MVP simplicity.
+- Treat wellness-program assignment and execution evidence as device-primary in MVP. Optional active-user context may enrich auditability, but it must not replace device identity as the authoritative assignment boundary on shared endpoints.
 
 ## Security Direction
 - Enforce authentication for all admin APIs.

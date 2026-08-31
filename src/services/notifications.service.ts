@@ -237,20 +237,22 @@ export const notificationsService = {
     return response.items.map(mapSummaryToNotification);
   },
   async listNotificationCenterItems(): Promise<Notification[]> {
-    const items = await this.list();
-    const details = await Promise.all(items.map((item) => this.get(item.id)));
+    const items = await notificationsService.list();
+    const details = await Promise.all(items.map((item) => notificationsService.get(item.id)));
     return details.filter((item): item is Notification => Boolean(item && !item.wellnessProgram));
   },
   async listWellnessPrograms(): Promise<WellnessProgramListItem[]> {
-    const items = await this.list();
+    const items = await notificationsService.list();
     const reminderSummaries = items.filter((item) => item.communicationType === "Reminder");
-    const details = await Promise.all(reminderSummaries.map((item) => this.get(item.id)));
+    const details = await Promise.all(
+      reminderSummaries.map((item) => notificationsService.get(item.id)),
+    );
     const wellnessItems = details.filter((item): item is Notification => Boolean(item?.wellnessProgram));
     const monitoringItems = await Promise.all(
       wellnessItems.map(async (item) => {
         const reminderActivity =
           item.communicationType === "Reminder"
-            ? await this.reminderActivity(item.id).catch(() => null)
+            ? await notificationsService.reminderActivity(item.id).catch(() => null)
             : null;
 
         return {
@@ -283,15 +285,15 @@ export const notificationsService = {
     };
   },
   async recipients(id: string): Promise<Recipient[]> {
-    return (await this.deliveryVisibility(id)).recipients;
+    return (await notificationsService.deliveryVisibility(id)).recipients;
   },
   async deliveryLogs(id: string): Promise<DeliveryLog[]> {
-    return (await this.deliveryVisibility(id)).logs;
+    return (await notificationsService.deliveryVisibility(id)).logs;
   },
   async responses(id: string): Promise<ResponseRecord[]> {
     const [response, deliveryVisibility] = await Promise.all([
       apiClient.get<ApiResponseListResponse>(`/communications/${id}/responses?page=1&pageSize=200`),
-      this.deliveryVisibility(id),
+      notificationsService.deliveryVisibility(id),
     ]);
     const recipientNames = new Map(
       deliveryVisibility.recipients.map((recipient) => [recipient.id, recipient.name]),

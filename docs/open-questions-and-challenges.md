@@ -23,7 +23,7 @@ This document records unresolved product and technical questions. No implementat
 ### OQ-2. Windows Agent Authentication Strategy
 - Question: How should the C# agent authenticate to the server and bind a device to an employee?
 - Why it matters: Device trust, impersonation risk, and deployment workflow depend on this.
-- Current safe assumption: device registration plus renewable device session token, with desktop delivery remaining device-centric rather than user-centric.
+- Current safe assumption: device registration plus renewable device session token, with desktop delivery remaining device-centric rather than user-centric. Optional active-user context may still be retained on the session to reduce cross-user pending-message replay on shared endpoints.
 
 ### OQ-3. Organizational Source Of Truth
 - Question: What exact boundaries apply to the hybrid organization source model between external systems and MTI-managed overrides?
@@ -85,6 +85,11 @@ This document records unresolved product and technical questions. No implementat
 - Current safe assumption: the server should send approved rollout metadata only, the tray app should delegate execution to a dedicated updater component, and endpoint-management tooling remains the fallback path when trust is degraded.
 - Current delivery note: the current updater baseline treats rollout `signature` metadata as the expected Authenticode signer certificate thumbprint for the approved `MSI`, while broader signing governance, approval workflow, and certificate rotation policy remain open.
 
+### OQ-15. Wellness Feedback Prompt Shape
+- Question: What exact post-routine feedback should the Windows Agent collect for `Wellness Programs`, and when should that prompt appear?
+- Why it matters: a usefulness or need rating flow changes the agent UX, event contract, storage model, and admin analytics surface.
+- Current safe assumption: keep the current wellness MVP focused on assignment, defer or snooze versus completion evidence, and device-centric compliance monitoring. A dedicated feedback prompt is deferred until the rating scale, trigger timing, required fields, and reporting expectations are explicitly approved.
+
 ## Challenges
 ### CH-1. Unified Content Without Scope Explosion
 - Risk: Supporting alerts, reminders, news, articles, and knowledge items in one engine can become too broad.
@@ -116,7 +121,7 @@ This document records unresolved product and technical questions. No implementat
 
 ### CH-7. Device-Centric Audit Semantics
 - Risk: Shared devices can blur the distinction between endpoint-level proof and person-level proof.
-- Mitigation: Treat device events as authoritative for desktop delivery, while storing active user context only as optional audit metadata when available.
+- Mitigation: Treat device events as authoritative for desktop delivery, while storing active user context only as optional audit metadata when available. Keep Windows Agent message replay bounded by schedule validity windows and a finite one-time replay TTL so stale backlog does not linger indefinitely across reconnect, reinstall, or later user login on the same endpoint.
 
 ### CH-8. Remote Lifecycle Command Abuse
 - Risk: Remote update and uninstall capabilities for the Windows Agent could become an unsafe command-execution path if the system accepts arbitrary packages, weak signing, or under-scoped operator permissions.

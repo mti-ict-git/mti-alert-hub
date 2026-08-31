@@ -97,17 +97,22 @@ Frontend-assisted rollout is now also available from the `Devices` admin page:
 - the backend exposes `GET /devices/rollout-packages/local` so the UI can discover `backend/local-packages` candidates
 - the backend exposes `POST /devices/rollout-packages/upload` so the UI can upload a locally built `MSI` from the operator browser into the backend package store
 - the backend exposes `POST /devices/{deviceId}/rollouts` so the UI can dry-run or apply a device-scoped rollout intent
-- the frontend operator flow is:
-  1. open `Devices`
-  2. click `Rollout` on the target device
-  3. either upload a local `MSI` from the operator machine or select an already published local package
-  4. review or adjust the package metadata if signature thumbprint must be entered manually
-  5. run `Preview Rollout`
-  6. run `Apply Rollout`
+- the frontend operator flow is now split by responsibility:
+  1. open `Settings > Desktop Agent`
+  2. upload a signed local `MSI` from the operator machine into the global package registry
+  3. review the discovered package metadata in the same Desktop Agent settings tab
+  4. open `Devices`
+  5. click `Rollout` on the target device
+  6. select one of the globally registered packages
+  7. review or adjust the package metadata if signature thumbprint must be entered manually
+  8. run `Preview Rollout`
+  9. run `Apply Rollout`
 
 Operational note:
 - package signing and immutable publishing still happen before the admin UI step; the frontend flow creates rollout intent, it does not sign or repackage `MSI` artifacts
 - UI upload is a browser-to-backend transfer, so a Dockerized backend must keep `backend/local-packages` on a persistent volume or shared storage path if uploaded artifacts must survive container replacement
+- package upload is treated as a global package-management concern under `Settings > Desktop Agent`, while `Devices > Rollout` remains a device-scoped execution surface
+- local rollout helper scripts may now resolve signing configuration from the repo `.env` file via `AGENT_CODE_SIGNING_CERT_THUMBPRINT` and `AGENT_CODE_SIGNING_CERT_STORE_LOCATION`, so operators do not need to remember or retype the code-signing thumbprint on every prepare/apply command
 - if backend runtime inspection cannot recover signer thumbprint automatically for a package, the operator must paste the signer thumbprint manually in the rollout dialog before preview/apply
 - local package discovery always recomputes `sha256`, so hash evidence remains available even when signature metadata falls back to manual entry
 

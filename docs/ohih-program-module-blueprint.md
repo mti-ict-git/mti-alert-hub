@@ -150,6 +150,7 @@ Responsibilities:
 - completed count
 - timed-out count
 - last device sync
+- optional active-user-at-event visibility when the endpoint can report it safely
 - compliance summaries
 
 ## Server Versus Agent Responsibility
@@ -238,6 +239,11 @@ The current MVP program decision is now locked as:
   - `Start`
   - `Next`
   - `RemindMeLater`
+- CTA semantic lock:
+  - `GotIt` and `Done` confirm the routine was performed or completed
+  - `RemindMeLater` records a defer or snooze decision, not a completion
+- assignment and monitoring remain device-centric in MVP; the currently logged-in Windows user may be captured as optional audit metadata, but not as the authoritative assignment key
+- dedicated post-routine feedback prompts for usefulness or need rating remain deferred beyond the current MVP until the survey contract and reporting model are approved
 
 ## Suggested OHIH Content Model
 The current `title`, `body`, and `instruction` fields are not sufficient on their own for rich guided routines.
