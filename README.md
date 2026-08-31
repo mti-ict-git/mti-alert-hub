@@ -145,6 +145,7 @@ Implementation notes:
 - public rollout package links under `/agent/packages/*` must be proxied by the same gateway to the backend service; otherwise package metadata can resolve in admin while direct package URLs still return the frontend `404` page
 - Docker now defaults the frontend API base to `DOCKER_VITE_API_URL=/api`, so the browser no longer needs to embed the backend host directly in frontend assets for the containerized publish path
 - the Docker `nginx` gateway now also needs to allow MSI-sized request bodies for `Settings > Desktop Agent` uploads; keep `docker/nginx.admin-gateway.conf` aligned with the backend upload baseline (`client_max_body_size 512m`)
+- the Compose backend service now mounts the named volume `backend_local_packages` to `/app/backend/local-packages` so uploaded rollout packages survive backend container rebuilds
 - the first live desktop scope still expects `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
 
 ## MVP Highlights

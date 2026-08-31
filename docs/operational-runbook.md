@@ -37,6 +37,7 @@ This runbook defines the minimum deployment, rollback, and incident workflow for
 - The Docker publish path now exposes the admin UI through an `nginx` gateway; keep browser API traffic same-origin by using `DOCKER_VITE_API_URL=/api` for container builds.
 - The Docker `nginx` gateway also fronts MSI upload traffic for `Settings > Desktop Agent`; keep `docker/nginx.admin-gateway.conf` at `client_max_body_size 512m` or higher so package uploads do not fail with `413 Request Entity Too Large`.
 - The same gateway must proxy public package download links under `/agent/packages/*` to the backend service; otherwise uploaded rollout packages will appear in admin metadata but public download links will return the frontend `404` page.
+- The backend service must mount durable storage for `/app/backend/local-packages`; the current Docker baseline uses the named volume `backend_local_packages` so uploaded packages survive `docker compose up --build` and container replacement.
 - The base `docker-compose.yml` assumes PostgreSQL is already managed outside Docker.
 - Use `docker-compose.with-postgres.yml` only when a local PostgreSQL container is actually needed.
 
@@ -113,6 +114,7 @@ Frontend-assisted rollout is now also available from the `Devices` admin page:
 Operational note:
 - package signing and immutable publishing still happen before the admin UI step; the frontend flow creates rollout intent, it does not sign or repackage `MSI` artifacts
 - UI upload is a browser-to-backend transfer, so a Dockerized backend must keep `backend/local-packages` on a persistent volume or shared storage path if uploaded artifacts must survive container replacement
+- in the current Compose baseline, that persistent package store is the named volume `backend_local_packages` mounted to `/app/backend/local-packages`
 - package upload is treated as a global package-management concern under `Settings > Desktop Agent`, while `Devices > Rollout` remains a device-scoped execution surface
 - local rollout helper scripts may now resolve signing configuration from the repo `.env` file via `AGENT_CODE_SIGNING_CERT_THUMBPRINT` and `AGENT_CODE_SIGNING_CERT_STORE_LOCATION`, so operators do not need to remember or retype the code-signing thumbprint on every prepare/apply command
 - if backend runtime inspection cannot recover signer thumbprint automatically for a package, the operator must paste the signer thumbprint manually in the rollout dialog before preview/apply

@@ -37,6 +37,7 @@ Operational consequences:
 - remote update commands should be treated as approved rollout metadata, not arbitrary shell execution
 - backend and client telemetry should eventually expose deployed version, desired version, updater state, and last rollout result for support visibility
 - when the admin UI is allowed to upload rollout packages, the browser remains the file source and the backend host must persist uploaded `MSI` artifacts on durable storage rather than ephemeral container filesystem layers
+- the current Docker baseline persists uploaded rollout packages through the named volume `backend_local_packages`, mounted into the backend container at `/app/backend/local-packages`
 
 ## Environment Model
 ### Local Development
@@ -284,6 +285,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 ### Runtime Notes
 - The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
+- The backend container must mount durable storage at `/app/backend/local-packages`; the current baseline uses the named Docker volume `backend_local_packages` so uploaded rollout packages survive backend container rebuilds and replacements.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
 - The admin gateway container exposes the browser-facing frontend port and proxies both `/api/*` plus `/agent/packages/*` to `backend:${BACKEND_PORT}` inside the Compose network.
 - The admin gateway also terminates browser-side package uploads for `/api/devices/rollout-packages/upload`, so its body-size limit must remain large enough for signed MSI files. The current baseline is `client_max_body_size 512m`.

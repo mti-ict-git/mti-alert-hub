@@ -31,6 +31,8 @@ services:
     command: ["sh", "-lc", "node backend/dist/index.js"]
     ports:
       - "${BACKEND_HOST_PORT:-4019}:${BACKEND_PORT:-4019}"
+    volumes:
+      - backend_local_packages:/app/backend/local-packages
     healthcheck:
       test:
         [
@@ -81,3 +83,6 @@ services:
       - ./docker/nginx.admin-gateway.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "${FRONTEND_HOST_PORT:-8080}:80"
+
+volumes:
+  backend_local_packages:
