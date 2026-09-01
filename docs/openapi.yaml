@@ -767,6 +767,107 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /devices/pending:
+    get:
+      tags: [Devices]
+      summary: List pending Windows Agent device approval requests
+      description: |
+        Returns Windows Agent enrollment attempts that have not been approved into the trusted `public.devices`
+        baseline yet.
+
+        Current Phase 4 note:
+        - Unknown devices still cannot create trusted sessions silently.
+        - The agent `POST /agent/session` path records or refreshes a pending request instead of requiring an
+          operator to pre-register every hostname manually.
+        - The admin `Devices` experience uses this queue to approve or reject newly seen endpoints.
+      operationId: listPendingDeviceEnrollments
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Pending device enrollment requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingDeviceEnrollmentListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /devices/pending/{requestId}/approve:
+    post:
+      tags: [Devices]
+      summary: Approve a pending Windows Agent device
+      description: |
+        Approves a pending enrollment request and creates a trusted baseline record in `public.devices`.
+
+        Current Phase 4 note:
+        - Approval remains the trust gate for unknown Windows Agent endpoints.
+        - The next agent retry can then create a normal trusted session without reinstalling the MSI.
+      operationId: approvePendingDeviceEnrollment
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovePendingDeviceRequest"
+      responses:
+        "201":
+          description: Pending device approved and baseline device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovePendingDeviceResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /devices/pending/{requestId}/reject:
+    post:
+      tags: [Devices]
+      summary: Reject a pending Windows Agent device
+      description: |
+        Rejects a pending enrollment request without creating a trusted device record.
+      operationId: rejectPendingDeviceEnrollment
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectPendingDeviceRequest"
+      responses:
+        "200":
+          description: Pending device rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RejectPendingDeviceResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   /devices/rollout-packages/local:
     get:
       tags: [Devices]
@@ -961,13 +1062,14 @@ paths:
       tags: [Agent]
       summary: Create or refresh a Windows Agent session
       description: |
-        Creates a persisted device session for a known Windows Agent device.
+        Creates a persisted device session for an approved Windows Agent device.
 
         Current Phase 2 note:
         - Session trust is device-centric and stored in `device_sessions`.
         - Refreshing a session rotates the opaque token and invalidates the previous device token.
         - `employeeNumber` and `activeUserIdentifier` are optional metadata and do not replace device trust.
         - The latest `activeUserIdentifier` is retained on the active device session for audit context and shared-device pending-message replay suppression.
+        - When the endpoint is still unknown, the server records or refreshes a pending enrollment request and returns a conflict response instead of creating a trusted session automatically.
       operationId: createAgentSession
       x-implementation-phase: Phase 2
       security: []
@@ -2719,6 +2821,142 @@ components:
             $ref: "#/components/schemas/Device"
         page:
           $ref: "#/components/schemas/PageMeta"
+
+    PendingDeviceEnrollmentRequestStatus:
+      type: string
+      enum: [Pending, Approved, Rejected]
+
+    PendingDeviceEnrollment:
+      type: object
+      required:
+        [id, deviceIdentifier, hostname, requestStatus, requestCount, firstSeenAt, lastSeenAt]
+      properties:
+        id:
+          type: string
+        deviceIdentifier:
+          type: string
+        hostname:
+          type: string
+        agentVersion:
+          type: string
+          nullable: true
+        employeeNumber:
+          type: string
+          nullable: true
+        activeUserIdentifier:
+          type: string
+          nullable: true
+        requestStatus:
+          $ref: "#/components/schemas/PendingDeviceEnrollmentRequestStatus"
+        requestCount:
+          type: integer
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+        decidedByUserId:
+          type: string
+          nullable: true
+        decidedByUsername:
+          type: string
+          nullable: true
+        decisionReason:
+          type: string
+          nullable: true
+        approvedDeviceId:
+          type: string
+          nullable: true
+
+    PendingDeviceEnrollmentListResponse:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingDeviceEnrollment"
+        page:
+          $ref: "#/components/schemas/PageMeta"
+
+    ApprovePendingDeviceRequest:
+      type: object
+      required: [siteId]
+      properties:
+        siteId:
+          type: string
+          format: uuid
+        areaId:
+          type: string
+          format: uuid
+          nullable: true
+        locationLabel:
+          type: string
+          nullable: true
+        ownershipMode:
+          type: string
+          enum: [LocationOwned, EmployeeAssigned, Mixed]
+          nullable: true
+
+    RejectPendingDeviceRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+
+    ApprovePendingDeviceResponse:
+      type: object
+      required: [ok, request, device]
+      properties:
+        ok:
+          type: boolean
+        request:
+          $ref: "#/components/schemas/PendingDeviceEnrollment"
+        device:
+          type: object
+          required: [id, hostname, siteId, ownershipMode, status, createdAt]
+          properties:
+            id:
+              type: string
+            hostname:
+              type: string
+            deviceIdentifier:
+              type: string
+              nullable: true
+            siteId:
+              type: string
+            areaId:
+              type: string
+              nullable: true
+            locationLabel:
+              type: string
+              nullable: true
+            ownershipMode:
+              type: string
+              enum: [LocationOwned, EmployeeAssigned, Mixed]
+            agentVersion:
+              type: string
+              nullable: true
+            status:
+              $ref: "#/components/schemas/DeviceStatus"
+            createdAt:
+              type: string
+              format: date-time
+
+    RejectPendingDeviceResponse:
+      type: object
+      required: [ok, request]
+      properties:
+        ok:
+          type: boolean
+        request:
+          $ref: "#/components/schemas/PendingDeviceEnrollment"
 
     DeviceRolloutPackage:
       type: object

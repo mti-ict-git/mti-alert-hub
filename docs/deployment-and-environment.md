@@ -33,6 +33,7 @@ The Windows Agent rollout model is hybrid:
 
 Operational consequences:
 - the preferred package format is `MSI` with silent install, silent uninstall, and upgrade support
+- managed bootstrap may stage the `MSI` onto local disk first and then execute a local silent install during computer startup when direct network-share execution would create too much simultaneous load
 - startup at user logon should be enforced by the installer, preferably through a `Scheduled Task`
 - remote update commands should be treated as approved rollout metadata, not arbitrary shell execution
 - backend and client telemetry should eventually expose deployed version, desired version, updater state, and last rollout result for support visibility
@@ -103,6 +104,7 @@ Examples:
 Current implementation baseline:
 - `ENABLED_DELIVERY_CHANNELS` now controls which backend delivery channels may be used by create, update, and publish flows. The desktop-first live default is `WindowsAgent`.
 - `VITE_ENABLED_DELIVERY_CHANNELS` now controls which delivery channels are shown in the admin compose and edit flows. The desktop-first live default is `DesktopAgent`.
+- Windows Agent package builds keep runtime environment settings and package versioning separate: `ServerBaseUrl` is baked into `appsettings.json`, while build versioning should flow through installer metadata (`Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, and MSI `ProductVersion`) using `build-agent-package.ps1 -PackageVersion`.
 
 ### Database Configuration
 Examples:
@@ -247,6 +249,7 @@ For Windows Agent rollout changes, the release checklist should also confirm:
 - the signed `MSI` is published to an immutable package URL and the rollout metadata uses the resulting `sha256` plus signer thumbprint from that exact file
 - signing or package-preparation automation uses the Windows certificate store or approved enterprise signing service rather than keeping ad hoc private keys inside the runtime admin or backend application hosts
 - if the admin UI upload path is enabled in Docker or shared environments, `backend/local-packages` is backed by a mounted volume or shared storage target so operator uploads survive restarts and redeployments
+- for large on-prem bootstrap rollout, prefer copying the signed `MSI` to a local cache such as `%ProgramData%\MTI\Packages\` before install, then invoke a local silent install from a computer startup script; the current repository helper is `MTI.Alert.Agent\Installer\install-agent-if-missing.vbs`
 
 Recent verification evidence:
 - `2026-07-14`: `npm run backend:typecheck`, `npm run backend:build`, and `npm run build` passed after adding hybrid reminder authoring and monitoring support to the admin flow.

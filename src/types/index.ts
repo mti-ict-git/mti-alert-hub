@@ -138,6 +138,59 @@ export interface Device {
   lastSeen?: string | null;
 }
 
+export type DeviceEnrollmentRequestStatus = "Pending" | "Approved" | "Rejected";
+
+export interface PendingDeviceEnrollment {
+  id: string;
+  deviceIdentifier: string;
+  hostname: string;
+  agentVersion?: string | null;
+  employeeNumber?: string | null;
+  activeUserIdentifier?: string | null;
+  requestStatus: DeviceEnrollmentRequestStatus;
+  requestCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  decidedAt?: string | null;
+  decidedByUserId?: string | null;
+  decidedByUsername?: string | null;
+  decisionReason?: string | null;
+  approvedDeviceId?: string | null;
+}
+
+export interface ApprovePendingDeviceRequest {
+  siteId: string;
+  areaId?: string | null;
+  locationLabel?: string | null;
+  ownershipMode?: "LocationOwned" | "EmployeeAssigned" | "Mixed" | null;
+}
+
+export interface RejectPendingDeviceRequest {
+  reason?: string | null;
+}
+
+export interface ApprovePendingDeviceResponse {
+  ok: true;
+  request: PendingDeviceEnrollment;
+  device: {
+    id: string;
+    hostname: string;
+    deviceIdentifier?: string | null;
+    siteId: string;
+    areaId?: string | null;
+    locationLabel?: string | null;
+    ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
+    agentVersion?: string | null;
+    status: DeviceStatus;
+    createdAt: string;
+  };
+}
+
+export interface RejectPendingDeviceResponse {
+  ok: true;
+  request: PendingDeviceEnrollment;
+}
+
 export type DeviceRolloutAction = "Upgrade" | "Repair" | "Uninstall";
 
 export interface DeviceRolloutPackage {

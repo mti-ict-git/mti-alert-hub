@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.5`
 - Status: `Draft Baseline`
-- Last Updated: `2026-08-26`
+- Last Updated: `2026-09-01`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -21,6 +21,7 @@ This document defines the conceptual database schema for the `MTI Alert` server 
 - The second migration is `backend/migrations/0002_phase1_communications.up.sql`.
 - The third migration is `backend/migrations/0003_phase2_agent_sessions.up.sql`.
 - The latest reminder-authoring migration is `backend/migrations/0010_phase4_reminder_draft_authoring.up.sql`.
+- The latest device-enrollment migration is `backend/migrations/0016_phase4_device_enrollment_approvals.up.sql`.
 - The currently implemented migration baseline covers:
   - admin users and scopes
   - organization references
@@ -134,6 +135,28 @@ Key columns:
 - `last_heartbeat_at`
 - `last_connection_at`
 - `status`
+- `created_at`
+- `updated_at`
+
+### device_enrollment_requests
+Pending Windows Agent enrollment attempts waiting for admin approval before they can create trusted sessions.
+
+Key columns:
+- `id`
+- `device_identifier`
+- `hostname`
+- `agent_version`
+- `employee_number` nullable audit metadata from the agent bootstrap attempt
+- `active_user_identifier` nullable audit metadata from the current desktop session
+- `request_status` such as `Pending`, `Approved`, `Rejected`
+- `request_count`
+- `first_seen_at`
+- `last_seen_at`
+- `decided_at`
+- `decided_by_user_id`
+- `decided_by_username`
+- `decision_reason`
+- `approved_device_id` nullable reference to the created `devices` baseline row after approval
 - `created_at`
 - `updated_at`
 

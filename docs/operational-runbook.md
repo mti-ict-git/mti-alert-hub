@@ -81,6 +81,7 @@ For Docker HTTPS deployments, challenge login from the public admin origin and c
 
 ## Windows Agent Package Release Path
 1. Build the final `MSI` with the environment-specific agent configuration already baked in. Do not plan on editing `appsettings.json` inside the `MSI` after signing.
+   - `build-agent-package.ps1` now supports `-PackageVersion <major.minor.patch>` so one build command can stamp the tray binary, updater binary, and MSI `ProductVersion` consistently for upgrade testing and rollout packaging.
 2. The release path should be thought of as three explicit stages:
    - `prepare package`: sign or inspect the `MSI`, compute `sha256`, confirm signer thumbprint, and derive the target version
    - `publish package`: place the exact signed `MSI` on the final immutable package URL

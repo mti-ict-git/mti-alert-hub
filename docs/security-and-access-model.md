@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.1`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-14`
+- Last Updated: `2026-09-01`
 
 ## Purpose
 This document captures the current security posture for the desktop-first release path and the minimum rules that must remain true in production.
@@ -19,6 +19,7 @@ This document captures the current security posture for the desktop-first releas
 ## Windows Agent Trust Model
 - Windows Agent delivery remains device-centric for the first live release.
 - Device sessions are renewable and tied to known device records.
+- Unknown Windows Agent endpoints may create pending enrollment requests for operator review, but they must not receive trusted sessions until approved into the device baseline.
 - Active user context from the desktop remains optional audit metadata, not the primary recipient identity.
 - Windows Agent response submission must continue to use the dedicated agent session path, not admin-side delivery response endpoints.
 - Device session TTL is now configurable through `AGENT_SESSION_TTL_MINUTES`.
@@ -44,5 +45,4 @@ This document captures the current security posture for the desktop-first releas
 
 ## Remaining Hardening Work
 - Admin session persistence beyond the current in-memory baseline.
-- Device quarantine or approval workflow beyond the current revoke-session control.
 - Production review of log retention and audit-log access boundaries.

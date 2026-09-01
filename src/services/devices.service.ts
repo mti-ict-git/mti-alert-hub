@@ -1,12 +1,17 @@
 import { apiClient } from "@/services/api-client";
 import { referenceService } from "@/services/reference.service";
 import type {
+  ApprovePendingDeviceRequest,
+  ApprovePendingDeviceResponse,
   Device,
+  PendingDeviceEnrollment,
   DeviceRolloutApplyResponse,
   DeviceRolloutPackage,
   DeviceRolloutUploadResponse,
   DeviceRolloutPreviewResponse,
   DeviceRolloutRequest,
+  RejectPendingDeviceRequest,
+  RejectPendingDeviceResponse,
 } from "@/types";
 
 type ApiDevice = {
@@ -26,6 +31,28 @@ type ApiDevice = {
 
 type DeviceListResponse = {
   items: ApiDevice[];
+};
+
+type PendingDeviceEnrollmentApi = {
+  id: string;
+  deviceIdentifier: string;
+  hostname: string;
+  agentVersion?: string | null;
+  employeeNumber?: string | null;
+  activeUserIdentifier?: string | null;
+  requestStatus: "Pending" | "Approved" | "Rejected";
+  requestCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  decidedAt?: string | null;
+  decidedByUserId?: string | null;
+  decidedByUsername?: string | null;
+  decisionReason?: string | null;
+  approvedDeviceId?: string | null;
+};
+
+type PendingDeviceEnrollmentListResponse = {
+  items: PendingDeviceEnrollmentApi[];
 };
 
 type DeviceTestNotificationResponse = {
@@ -72,6 +99,47 @@ export const devicesService = {
       status: item.status,
       lastSeen: item.lastHeartbeatAt ?? item.lastConnectionAt ?? null,
     }));
+  },
+  async listPending(): Promise<PendingDeviceEnrollment[]> {
+    const response = await apiClient.get<PendingDeviceEnrollmentListResponse>(
+      "/devices/pending?page=1&pageSize=200",
+    );
+
+    return response.items.map((item) => ({
+      id: item.id,
+      deviceIdentifier: item.deviceIdentifier,
+      hostname: item.hostname,
+      agentVersion: item.agentVersion ?? null,
+      employeeNumber: item.employeeNumber ?? null,
+      activeUserIdentifier: item.activeUserIdentifier ?? null,
+      requestStatus: item.requestStatus,
+      requestCount: item.requestCount,
+      firstSeenAt: item.firstSeenAt,
+      lastSeenAt: item.lastSeenAt,
+      decidedAt: item.decidedAt ?? null,
+      decidedByUserId: item.decidedByUserId ?? null,
+      decidedByUsername: item.decidedByUsername ?? null,
+      decisionReason: item.decisionReason ?? null,
+      approvedDeviceId: item.approvedDeviceId ?? null,
+    }));
+  },
+  async approvePending(
+    requestId: string,
+    payload: ApprovePendingDeviceRequest,
+  ): Promise<ApprovePendingDeviceResponse> {
+    return apiClient.post<ApprovePendingDeviceResponse>(
+      `/devices/pending/${requestId}/approve`,
+      payload,
+    );
+  },
+  async rejectPending(
+    requestId: string,
+    payload: RejectPendingDeviceRequest = {},
+  ): Promise<RejectPendingDeviceResponse> {
+    return apiClient.post<RejectPendingDeviceResponse>(
+      `/devices/pending/${requestId}/reject`,
+      payload,
+    );
   },
   async sendTest(id: string): Promise<DeviceTestNotificationResponse> {
     return apiClient.post<DeviceTestNotificationResponse>(`/devices/${id}/test-notification`, {});

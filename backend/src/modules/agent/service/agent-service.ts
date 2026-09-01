@@ -12,6 +12,7 @@ import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
 import type { ResponseOverdueService } from "../../communications/service/response-overdue-service.js";
+import type { DeviceEnrollmentService } from "../../devices/service/device-enrollment-service.js";
 import { buildDeviceHealthStatusSql } from "../../devices/service/device-health-sql.js";
 
 type DeviceRecord = {
@@ -280,6 +281,7 @@ export class AgentService {
     private readonly sessionStore: AgentSessionStore,
     private readonly auditLogService: AuditLogService,
     private readonly responseOverdueService: ResponseOverdueService,
+    private readonly deviceEnrollmentService: DeviceEnrollmentService,
     private readonly env: BackendEnv,
     private readonly logger: Logger,
   ) {
@@ -288,10 +290,41 @@ export class AgentService {
   }
 
   async createSession(input: CreateAgentSessionInput) {
-    const device = await this.requireKnownDevice({
-      deviceIdentifier: input.deviceIdentifier,
-      hostname: input.hostname ?? null,
-    });
+    let device: DeviceRecord;
+    try {
+      device = await this.requireKnownDevice({
+        deviceIdentifier: input.deviceIdentifier,
+        hostname: input.hostname ?? null,
+      });
+    } catch (error) {
+      if (isDeviceNotRegisteredError(error)) {
+        const enrollmentRequest = await this.deviceEnrollmentService.recordAgentEnrollmentAttempt({
+          deviceIdentifier: input.deviceIdentifier,
+          hostname: input.hostname ?? null,
+          agentVersion: input.agentVersion ?? null,
+          employeeNumber: input.employeeNumber ?? null,
+          activeUserIdentifier: input.activeUserIdentifier ?? null,
+        });
+
+        if (enrollmentRequest?.requestStatus === "Rejected") {
+          throw new AppError({
+            statusCode: 409,
+            code: "DEVICE_ENROLLMENT_REJECTED",
+            message:
+              "This Windows Agent device was rejected by an administrator and cannot create a trusted session.",
+          });
+        }
+
+        throw new AppError({
+          statusCode: 409,
+          code: "DEVICE_PENDING_APPROVAL",
+          message:
+            "This Windows Agent device is waiting for admin approval before it can create a trusted session.",
+        });
+      }
+
+      throw error;
+    }
 
     const session = await this.sessionStore.createSession({
       device: {
@@ -2129,4 +2162,12 @@ function readActorUserIdentifier(value: unknown) {
 
 function isExpiredReminderPolicy(validUntil: string | null) {
   return validUntil ? Date.parse(validUntil) <= Date.now() : false;
+}
+
+function isDeviceNotRegisteredError(error: unknown) {
+  return (
+    error instanceof AppError &&
+    error.statusCode === 409 &&
+    error.code === "DEVICE_NOT_REGISTERED"
+  );
 }

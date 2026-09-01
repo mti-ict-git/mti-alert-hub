@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-08-26`
+- Last Updated: `2026-09-01`
 
 ## Purpose
 This document defines the recommended technical shape of the `MTI Alert` server so backend, frontend, and Windows Agent teams can work from one consistent implementation direction.
@@ -91,6 +91,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 
 ### 7. Windows Agent Module
 - Device registration
+- Pending device enrollment capture and admin approval workflow for unknown endpoints
 - Realtime connection negotiation
 - Device heartbeat
 - Presence tracking
@@ -184,6 +185,7 @@ The current repository already leans toward TypeScript for the admin application
 
 ### Minimum Agent API Needs
 - authenticate or register device session
+- capture unknown device enrollment requests without silently auto-trusting the endpoint
 - negotiate realtime connection or obtain hub credentials
 - send heartbeat
 - fetch approved rollout intent metadata for updater execution
@@ -221,6 +223,7 @@ The current repository already leans toward TypeScript for the admin application
 - Enforce authentication for all admin APIs.
 - Enforce scoped authorization for all create, publish, and report actions.
 - Protect agent endpoints with device credentials, signed tokens, or equivalent secure mechanism.
+- Keep Windows Agent trust server-owned: unknown endpoints may appear in a pending enrollment queue, but they must not create trusted sessions until an admin approves them into the device baseline.
 - Log high-risk actions such as publish, cancel, scope changes, and role changes.
 - Block template-locked field overrides at the API layer and return explicit validation errors.
 

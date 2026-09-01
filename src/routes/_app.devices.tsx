@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Package, Rocket, Send } from "lucide-react";
+import { Check, Loader2, Package, Rocket, Send, ShieldAlert, X } from "lucide-react";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -28,14 +28,17 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { devicesService } from "@/services/devices.service";
+import { referenceService } from "@/services/reference.service";
 import type {
+  ApprovePendingDeviceResponse,
   Device,
   DeviceRolloutAction,
-  DeviceRolloutApplyResponse,
   DeviceRolloutPackage,
   DeviceRolloutPreviewResponse,
   DeviceRolloutRequest,
+  PendingDeviceEnrollment,
 } from "@/types";
 import { toast } from "sonner";
 
@@ -57,6 +60,15 @@ type RolloutFormState = {
   releaseNotes: string;
 };
 
+type PendingApprovalFormState = {
+  siteId: string;
+  areaId: string;
+  locationLabel: string;
+  ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
+};
+
+const NO_AREA_VALUE = "__none__";
+
 function DevicesPage() {
   const qc = useQueryClient();
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
@@ -64,11 +76,28 @@ function DevicesPage() {
   const [rolloutOpen, setRolloutOpen] = useState(false);
   const [previewResult, setPreviewResult] = useState<DeviceRolloutPreviewResponse | null>(null);
   const [form, setForm] = useState<RolloutFormState>(() => createDefaultRolloutForm());
+  const [pendingSelection, setPendingSelection] = useState<PendingDeviceEnrollment | null>(null);
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [pendingForm, setPendingForm] = useState<PendingApprovalFormState>(
+    () => createDefaultPendingApprovalForm(),
+  );
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: devicesService.list,
     refetchInterval: 8000,
+  });
+
+  const { data: pendingDevices = [] } = useQuery({
+    queryKey: ["devices", "pending"],
+    queryFn: devicesService.listPending,
+    refetchInterval: 8000,
+  });
+
+  const { data: organizationReference } = useQuery({
+    queryKey: ["reference", "organization"],
+    queryFn: referenceService.getOrganizationReference,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: rolloutPackages = [], isLoading: packagesLoading } = useQuery({
@@ -115,7 +144,52 @@ function DevicesPage() {
     },
   });
 
+  const approvePendingMutation = useMutation({
+    mutationFn: async () => {
+      if (!pendingSelection) {
+        throw new Error("Select a pending device first.");
+      }
+
+      return devicesService.approvePending(pendingSelection.id, {
+        siteId: pendingForm.siteId,
+        areaId: pendingForm.areaId === NO_AREA_VALUE ? null : pendingForm.areaId || null,
+        locationLabel: pendingForm.locationLabel.trim() || null,
+        ownershipMode: pendingForm.ownershipMode,
+      });
+    },
+    onSuccess: async (result: ApprovePendingDeviceResponse) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["devices"] }),
+        qc.invalidateQueries({ queryKey: ["devices", "pending"] }),
+      ]);
+      toast.success(`Pending device ${result.device.hostname} approved`);
+      setPendingOpen(false);
+      setPendingSelection(null);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to approve pending device.");
+    },
+  });
+
+  const rejectPendingMutation = useMutation({
+    mutationFn: async (request: PendingDeviceEnrollment) => {
+      return devicesService.rejectPending(request.id, {});
+    },
+    onSuccess: async (result) => {
+      await qc.invalidateQueries({ queryKey: ["devices", "pending"] });
+      toast.success(`Pending device ${result.request.hostname} rejected`);
+      if (pendingSelection?.id === result.request.id) {
+        setPendingOpen(false);
+        setPendingSelection(null);
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to reject pending device.");
+    },
+  });
+
   const online = devices.filter((device) => device.status === "Online").length;
+  const pendingCount = pendingDevices.length;
   const readyPackages = rolloutPackages.filter(
     (item) => item.signatureStatus === "Valid" && item.version && item.sha256 && item.signature,
   );
@@ -124,113 +198,211 @@ function DevicesPage() {
     () => rolloutPackages.find((item) => item.packageUrl === form.selectedPackageUrl) ?? null,
     [form.selectedPackageUrl, rolloutPackages],
   );
+  const availableAreas = useMemo(() => {
+    if (!organizationReference || !pendingForm.siteId) {
+      return [];
+    }
+
+    return organizationReference.areas.filter((area) => area.siteId === pendingForm.siteId);
+  }, [organizationReference, pendingForm.siteId]);
 
   return (
     <div>
       <PageHeader
         title="Desktop Agents"
-        description={`${online} of ${devices.length} agents online. Rollout testing can now be launched directly from this console.`}
+        description={`${online} of ${devices.length} approved agents online, with ${pendingCount} pending device approval request${pendingCount === 1 ? "" : "s"}.`}
       />
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Device ID</TableHead>
-                  <TableHead>Hostname</TableHead>
-                  <TableHead>Site</TableHead>
-                  <TableHead>Area</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Ownership</TableHead>
-                  <TableHead>Assigned Employee</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Last Seen</TableHead>
-                  <TableHead className="w-[220px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {devices.map((device) => (
-                  <TableRow key={device.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            device.status === "Online" ? "bg-success animate-pulse" : "bg-muted-foreground"
-                          }`}
-                        />
-                        <StatusBadge status={device.status} />
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{device.deviceId}</TableCell>
-                    <TableCell className="font-medium">{device.hostname}</TableCell>
-                    <TableCell className="text-sm">{device.siteName ?? device.siteId}</TableCell>
-                    <TableCell className="text-sm">{device.areaName ?? "-"}</TableCell>
-                    <TableCell className="text-sm">{device.locationLabel ?? "-"}</TableCell>
-                    <TableCell className="text-sm">{device.ownershipMode}</TableCell>
-                    <TableCell className="text-sm">{device.primaryEmployeeName ?? "-"}</TableCell>
-                    <TableCell className="text-xs">{device.agentVersion ?? "-"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {device.lastSeen
-                        ? formatDistanceToNow(new Date(device.lastSeen), { addSuffix: true })
-                        : "Never"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={device.status !== "Online" || testingDeviceId !== null}
-                          onClick={async () => {
-                            try {
-                              setTestingDeviceId(device.id);
-                              const result = await devicesService.sendTest(device.id);
-                              await Promise.all([
-                                qc.invalidateQueries({ queryKey: ["notifications"] }),
-                                qc.invalidateQueries({ queryKey: ["devices"] }),
-                              ]);
-                              toast.success(`Test notification queued for ${result.hostname}`);
-                            } catch (error) {
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "Failed to send device test notification.",
-                              );
-                            } finally {
-                              setTestingDeviceId(null);
-                            }
-                          }}
-                        >
-                          {testingDeviceId === device.id ? (
-                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          ) : (
-                            <Send className="mr-1 h-3 w-3" />
-                          )}
-                          Test
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setRolloutDevice(device);
-                            setPreviewResult(null);
-                            setForm(createRolloutFormFromPackage(readyPackages[0] ?? rolloutPackages[0] ?? null));
-                            setRolloutOpen(true);
-                          }}
-                        >
-                          <Rocket className="mr-1 h-3 w-3" />
-                          Rollout
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="approved" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="approved">Approved Devices</TabsTrigger>
+          <TabsTrigger value="pending">Pending Approval ({pendingCount})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="approved">
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Device ID</TableHead>
+                      <TableHead>Hostname</TableHead>
+                      <TableHead>Site</TableHead>
+                      <TableHead>Area</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Ownership</TableHead>
+                      <TableHead>Assigned Employee</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Last Seen</TableHead>
+                      <TableHead className="w-[220px] text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {devices.map((device) => (
+                      <TableRow key={device.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                device.status === "Online" ? "bg-success animate-pulse" : "bg-muted-foreground"
+                              }`}
+                            />
+                            <StatusBadge status={device.status} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{device.deviceId}</TableCell>
+                        <TableCell className="font-medium">{device.hostname}</TableCell>
+                        <TableCell className="text-sm">{device.siteName ?? device.siteId}</TableCell>
+                        <TableCell className="text-sm">{device.areaName ?? "-"}</TableCell>
+                        <TableCell className="text-sm">{device.locationLabel ?? "-"}</TableCell>
+                        <TableCell className="text-sm">{device.ownershipMode}</TableCell>
+                        <TableCell className="text-sm">{device.primaryEmployeeName ?? "-"}</TableCell>
+                        <TableCell className="text-xs">{device.agentVersion ?? "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {device.lastSeen
+                            ? formatDistanceToNow(new Date(device.lastSeen), { addSuffix: true })
+                            : "Never"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={device.status !== "Online" || testingDeviceId !== null}
+                              onClick={async () => {
+                                try {
+                                  setTestingDeviceId(device.id);
+                                  const result = await devicesService.sendTest(device.id);
+                                  await Promise.all([
+                                    qc.invalidateQueries({ queryKey: ["notifications"] }),
+                                    qc.invalidateQueries({ queryKey: ["devices"] }),
+                                  ]);
+                                  toast.success(`Test notification queued for ${result.hostname}`);
+                                } catch (error) {
+                                  toast.error(
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Failed to send device test notification.",
+                                  );
+                                } finally {
+                                  setTestingDeviceId(null);
+                                }
+                              }}
+                            >
+                              {testingDeviceId === device.id ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : (
+                                <Send className="mr-1 h-3 w-3" />
+                              )}
+                              Test
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setRolloutDevice(device);
+                                setPreviewResult(null);
+                                setForm(createRolloutFormFromPackage(readyPackages[0] ?? rolloutPackages[0] ?? null));
+                                setRolloutOpen(true);
+                              }}
+                            >
+                              <Rocket className="mr-1 h-3 w-3" />
+                              Rollout
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pending">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldAlert className="h-4 w-4" />
+                Pending Device Approval
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Hostname</TableHead>
+                      <TableHead>Device Identifier</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Active User</TableHead>
+                      <TableHead>Attempts</TableHead>
+                      <TableHead>First Seen</TableHead>
+                      <TableHead>Last Seen</TableHead>
+                      <TableHead className="w-[220px] text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingDevices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                          No pending device approval requests.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pendingDevices.map((request) => (
+                        <TableRow key={request.id}>
+                          <TableCell>
+                            <StatusBadge status={request.requestStatus} />
+                          </TableCell>
+                          <TableCell className="font-medium">{request.hostname}</TableCell>
+                          <TableCell className="font-mono text-xs">{request.deviceIdentifier}</TableCell>
+                          <TableCell className="text-xs">{request.agentVersion ?? "-"}</TableCell>
+                          <TableCell className="text-sm">{request.activeUserIdentifier ?? "-"}</TableCell>
+                          <TableCell className="text-sm">{request.requestCount}</TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(request.firstSeenAt), { addSuffix: true })}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(request.lastSeenAt), { addSuffix: true })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setPendingSelection(request);
+                                  setPendingForm(createPendingApprovalFormFromRequest(request, organizationReference?.sites[0]?.id ?? ""));
+                                  setPendingOpen(true);
+                                }}
+                              >
+                                <Check className="mr-1 h-3 w-3" />
+                                Approve
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={rejectPendingMutation.isPending}
+                                onClick={() => rejectPendingMutation.mutate(request)}
+                              >
+                                <X className="mr-1 h-3 w-3" />
+                                Reject
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog
         open={rolloutOpen}
@@ -528,6 +700,136 @@ function DevicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={pendingOpen}
+        onOpenChange={(nextOpen) => {
+          setPendingOpen(nextOpen);
+          if (!nextOpen) {
+            setPendingSelection(null);
+            approvePendingMutation.reset();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Approve Pending Device</DialogTitle>
+            <DialogDescription>
+              Approving this request moves the device into the trusted `public.devices` baseline. The existing
+              agent will retry automatically and should connect on the next session attempt.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingSelection ? (
+            <div className="space-y-5">
+              <Card className="border-dashed">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Pending Request</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                  <InfoRow label="Hostname" value={pendingSelection.hostname} />
+                  <InfoRow label="Version" value={pendingSelection.agentVersion ?? "-"} />
+                  <InfoRow label="Device Identifier" value={pendingSelection.deviceIdentifier} mono />
+                  <InfoRow label="Last Seen" value={formatDistanceToNow(new Date(pendingSelection.lastSeenAt), { addSuffix: true })} />
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Site">
+                  <Select
+                    value={pendingForm.siteId}
+                    onValueChange={(value) => {
+                      setPendingForm((current) => ({ ...current, siteId: value, areaId: NO_AREA_VALUE }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(organizationReference?.sites ?? []).map((site) => (
+                        <SelectItem key={site.id} value={site.id}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field label="Area">
+                  <Select
+                    value={pendingForm.areaId}
+                    onValueChange={(value) => setPendingForm((current) => ({ ...current, areaId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Optional area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_AREA_VALUE}>No area</SelectItem>
+                      {availableAreas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field label="Location Label">
+                  <Input
+                    value={pendingForm.locationLabel}
+                    onChange={(event) =>
+                      setPendingForm((current) => ({ ...current, locationLabel: event.target.value }))
+                    }
+                    placeholder="Example: Office Floor 2"
+                  />
+                </Field>
+
+                <Field label="Ownership">
+                  <Select
+                    value={pendingForm.ownershipMode}
+                    onValueChange={(value) =>
+                      setPendingForm((current) => ({
+                        ...current,
+                        ownershipMode: value as PendingApprovalFormState["ownershipMode"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LocationOwned">Location Owned</SelectItem>
+                      <SelectItem value="EmployeeAssigned">Employee Assigned</SelectItem>
+                      <SelectItem value="Mixed">Mixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPendingOpen(false)}
+              disabled={approvePendingMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => approvePendingMutation.mutate()}
+              disabled={!pendingSelection || !pendingForm.siteId || approvePendingMutation.isPending}
+            >
+              {approvePendingMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-2 h-4 w-4" />
+              )}
+              Approve Device
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -580,6 +882,27 @@ function createRolloutFormFromPackage(pkg: DeviceRolloutPackage | null): Rollout
     deadlineAt: "",
     notes: `Pilot rollout ${pkg.version ?? ""} from frontend`.trim(),
     releaseNotes: "",
+  };
+}
+
+function createDefaultPendingApprovalForm(): PendingApprovalFormState {
+  return {
+    siteId: "",
+    areaId: NO_AREA_VALUE,
+    locationLabel: "",
+    ownershipMode: "LocationOwned",
+  };
+}
+
+function createPendingApprovalFormFromRequest(
+  request: PendingDeviceEnrollment,
+  fallbackSiteId: string,
+): PendingApprovalFormState {
+  return {
+    siteId: fallbackSiteId,
+    areaId: NO_AREA_VALUE,
+    locationLabel: request.hostname,
+    ownershipMode: "LocationOwned",
   };
 }
 

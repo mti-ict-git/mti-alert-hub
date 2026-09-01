@@ -6,12 +6,15 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { DeviceReadService } from "../service/device-read-service.js";
 import type { DeviceActionService } from "../service/device-action-service.js";
+import type { DeviceEnrollmentService } from "../service/device-enrollment-service.js";
 
 const deviceListQuerySchema = baseListQuerySchema.extend({
   siteId: z.string().optional(),
   areaId: z.string().optional(),
   status: z.enum(["Online", "Offline", "Stale"]).optional(),
 });
+
+const pendingDeviceListQuerySchema = baseListQuerySchema;
 
 const deviceTestNotificationSchema = z.object({
   title: z.string().trim().min(1).optional(),
@@ -34,9 +37,21 @@ const createDeviceRolloutSchema = z.object({
   apply: z.boolean().optional(),
 });
 
+const approvePendingDeviceSchema = z.object({
+  siteId: z.string().uuid(),
+  areaId: z.string().uuid().optional().nullable(),
+  locationLabel: z.string().trim().optional().nullable(),
+  ownershipMode: z.enum(["LocationOwned", "EmployeeAssigned", "Mixed"]).optional().nullable(),
+});
+
+const rejectPendingDeviceSchema = z.object({
+  reason: z.string().trim().optional().nullable(),
+});
+
 type RegisterDeviceRoutesOptions = {
   deviceReadService: DeviceReadService;
   deviceActionService: DeviceActionService;
+  deviceEnrollmentService: DeviceEnrollmentService;
   agentService: AgentService;
 };
 
@@ -51,6 +66,18 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
         return {
           statusCode: 200,
           body: await options.deviceReadService.listDevices(query),
+        };
+      },
+    },
+    {
+      method: "GET",
+      path: "/devices/pending",
+      requiresAuth: true,
+      async handler({ url }) {
+        const query = parseListQuery(pendingDeviceListQuerySchema, url);
+        return {
+          statusCode: 200,
+          body: await options.deviceEnrollmentService.listPendingEnrollments(query),
         };
       },
     },
@@ -83,6 +110,46 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
             fileName,
             fileBytes,
             resolveBackendBaseUrl(request),
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: request.socket.remoteAddress ?? null,
+            },
+          ),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/devices/pending/{requestId}/approve",
+      requiresAuth: true,
+      async handler({ params, auth, request, json }) {
+        const payload = validateWithSchema(approvePendingDeviceSchema, await json());
+        return {
+          statusCode: 201,
+          body: await options.deviceEnrollmentService.approvePendingEnrollment(
+            params.requestId ?? "",
+            payload,
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: request.socket.remoteAddress ?? null,
+            },
+          ),
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/devices/pending/{requestId}/reject",
+      requiresAuth: true,
+      async handler({ params, auth, request, json }) {
+        const payload = validateWithSchema(rejectPendingDeviceSchema, await json());
+        return {
+          statusCode: 200,
+          body: await options.deviceEnrollmentService.rejectPendingEnrollment(
+            params.requestId ?? "",
+            payload,
             {
               userIdentifier: auth?.session.user.id ?? "anonymous",
               username: auth?.session.user.username ?? "anonymous",

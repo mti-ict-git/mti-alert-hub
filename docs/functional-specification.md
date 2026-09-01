@@ -113,6 +113,7 @@ The system uses a unified communication model for:
 - Device records remain operationally flat, but each device stores site, area, and location metadata directly.
 - Device ownership is location-oriented rather than person-oriented for desktop targeting.
 - Device health uses the states `Online`, `Offline`, and `Stale`.
+- Unknown Windows Agent endpoints may surface in a pending admin approval queue, but they must not become trusted delivery devices until an operator approves them into the baseline.
 - Routine reminder policies may be synchronized to Windows Agent for bounded local execution, but the server remains authoritative for policy lifecycle and invalidation.
 - `Wellness Programs` assignment remains device-targeted in MVP. Active user identity on the endpoint may be collected as supporting audit context for activity evidence, but it does not replace the device as the authoritative execution target.
 
@@ -238,6 +239,13 @@ All MVP communication types remain delivery-tracked and read-tracked.
 3. System creates and immediately publishes a one-time Windows Agent communication targeted only to that device.
 4. The test communication includes a separate instruction block so operators can validate the full Windows Agent popup layout without opening the full draft-authoring flow.
 5. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
+
+### Workflow 6: Pending Device Approval
+1. A newly installed Windows Agent calls the session endpoint before it exists in the trusted device baseline.
+2. System records or refreshes a pending device enrollment request instead of creating a trusted session automatically.
+3. Operator opens the `Devices` admin view and reviews the pending queue.
+4. Operator approves the request with at least a site assignment, or rejects it.
+5. After approval, the next agent retry creates a normal trusted session without reinstalling the agent package.
 6. The system records audit evidence so operations can trace who initiated the device test.
 
 ## Functional Requirements
@@ -305,6 +313,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-19` The system shall record audit logs for administrative and communication lifecycle actions.
 - `FR-19E` The device-management experience shall support sending an immediate Windows Agent test notification to an online device without requiring operators to author a manual draft first.
 - `FR-19F` The device-management quick test flow shall preserve or synthesize a separate `instruction` value so the Windows Agent popup can validate the full body-versus-instruction layout during connectivity checks.
+- `FR-19G` The device-management experience shall expose a pending-device approval queue so unknown Windows Agent endpoints can be reviewed and approved without manual database-side pre-registration.
 - `FR-19A` The system shall support imported or synchronized organization data with limited MTI-managed adjustment capability.
 - `FR-19B` The system shall use external HR synchronization as the primary source for MVP basic organization data.
 - `FR-19C` The system shall support versioned templates with template policy snapshots on communications.

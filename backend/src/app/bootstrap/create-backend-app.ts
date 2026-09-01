@@ -27,6 +27,7 @@ import { registerWorkflowRoutes } from "../../modules/workflows/controller/regis
 import { WorkflowDefinitionService } from "../../modules/workflows/service/workflow-definition-service.js";
 import { registerDeviceRoutes } from "../../modules/devices/controller/register-device-routes.js";
 import { DeviceActionService } from "../../modules/devices/service/device-action-service.js";
+import { DeviceEnrollmentService } from "../../modules/devices/service/device-enrollment-service.js";
 import { DeviceReadService } from "../../modules/devices/service/device-read-service.js";
 import { registerHealthRoutes } from "../../modules/health/controller/register-health-routes.js";
 import { registerOrganizationRoutes } from "../../modules/organization/controller/register-organization-routes.js";
@@ -54,6 +55,7 @@ export async function createBackendApp() {
   const deviceReadService = new DeviceReadService(database.client, deviceHealthThresholds);
   const dashboardReadService = new DashboardReadService(database.client);
   const auditLogService = new AuditLogService(database.client);
+  const deviceEnrollmentService = new DeviceEnrollmentService(database.client, auditLogService);
   const workflowDefinitionService = new WorkflowDefinitionService(database.client);
   await workflowDefinitionService.ensureManagedWorkflowDefinitions();
   const responseOverdueService = new ResponseOverdueService(database.client, auditLogService);
@@ -62,6 +64,7 @@ export async function createBackendApp() {
     agentSessionStore,
     auditLogService,
     responseOverdueService,
+    deviceEnrollmentService,
     env,
     logger,
   );
@@ -115,6 +118,7 @@ export async function createBackendApp() {
       ...registerDeviceRoutes({
         deviceReadService,
         deviceActionService,
+        deviceEnrollmentService,
         agentService,
       }),
       ...registerDashboardRoutes({
