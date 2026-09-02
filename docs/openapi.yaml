@@ -938,10 +938,17 @@ paths:
         - Upload belongs to the shared `Settings > Desktop Agent` package-management surface; device rollout
           dialogs only select from the already uploaded package registry.
         - Upload does not sign or mutate the MSI; it only stores and inspects the exact artifact received.
+        - The published file name is stable; operators may keep using a canonical name such as
+          `MTI.Alert.Agent.Setup.msi` while the backend tracks version, `sha256`, and signer thumbprint as
+          metadata instead of encoding those values into the file name.
         - If the uploaded MSI resolves to the same published file name as an existing package, the backend now
           reuses the existing file when the hash matches, or replaces the stored file in place when the hash
           differs. Operators do not need to rename the MSI just to republish a rebuilt package with the same
           version.
+        - Automated build pipelines may send authoritative package metadata through `X-Package-Metadata`
+          (base64-encoded JSON). The backend persists that metadata as the package-registry sidecar manifest
+          so the admin UI can display the correct version and signer thumbprint even when runtime signature
+          inspection is unavailable on the backend host.
       operationId: uploadDeviceRolloutPackage
       x-implementation-phase: Phase 4
       parameters:
@@ -951,6 +958,12 @@ paths:
           schema:
             type: string
           description: Original MSI file name selected by the operator browser.
+        - in: header
+          name: X-Package-Metadata
+          required: false
+          schema:
+            type: string
+          description: Base64-encoded JSON containing authoritative rollout package metadata (`version`, `sha256`, `thumbprint`, `signatureStatus`, `signatureStatusMessage`, `signerSubject`, `signerIssuer`, `rolloutCommand`).
       requestBody:
         required: true
         content:

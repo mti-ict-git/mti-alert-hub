@@ -105,6 +105,14 @@ Current implementation baseline:
 - `ENABLED_DELIVERY_CHANNELS` now controls which backend delivery channels may be used by create, update, and publish flows. The desktop-first live default is `WindowsAgent`.
 - `VITE_ENABLED_DELIVERY_CHANNELS` now controls which delivery channels are shown in the admin compose and edit flows. The desktop-first live default is `DesktopAgent`.
 - Windows Agent package builds keep runtime environment settings and package versioning separate: `ServerBaseUrl` is baked into `appsettings.json`, while build versioning should flow through installer metadata (`Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, and MSI `ProductVersion`) using `build-agent-package.ps1 -PackageVersion`. When code-signing certificate values are available in the repo `.env`, the same build step now also signs and validates the resulting MSI so rollout metadata inspection can recover signer thumbprint automatically.
+- Production package publication should prefer a stable canonical file name such as `MTI.Alert.Agent.Setup.msi`; package version, `sha256`, signer thumbprint, and signature status should be treated as authoritative metadata stored alongside the uploaded package rather than encoded into the published file name.
+- `build-agent-package.ps1 -UploadProduction` is now the preferred production package-publish path. After build and signing, the script can authenticate to the admin API, upload the exact signed MSI to `POST /devices/rollout-packages/upload`, and include authoritative metadata through `X-Package-Metadata` so the backend registry does not depend solely on runtime signature inspection.
+- The build script resolves production upload settings from explicit parameters first, then from repo `.env` keys:
+  - `MTI_ALERT_PRODUCTION_UPLOAD_API_BASE_URL`
+  - `MTI_ALERT_PRODUCTION_UPLOAD_SESSION_TOKEN`
+  - `MTI_ALERT_PRODUCTION_UPLOAD_USERNAME`
+  - `MTI_ALERT_PRODUCTION_UPLOAD_PASSWORD`
+- If `MTI_ALERT_PRODUCTION_UPLOAD_API_BASE_URL` is omitted, `build-agent-package.ps1` derives it as `<ServerBaseUrl>/api`.
 
 ### Database Configuration
 Examples:

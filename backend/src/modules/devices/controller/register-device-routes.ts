@@ -48,6 +48,17 @@ const rejectPendingDeviceSchema = z.object({
   reason: z.string().trim().optional().nullable(),
 });
 
+const rolloutPackageMetadataSchema = z.object({
+  version: z.string().trim().min(1).optional().nullable(),
+  sha256: z.string().trim().min(1).optional().nullable(),
+  thumbprint: z.string().trim().min(1).optional().nullable(),
+  signatureStatus: z.string().trim().min(1).optional().nullable(),
+  signatureStatusMessage: z.string().trim().min(1).optional().nullable(),
+  signerSubject: z.string().trim().min(1).optional().nullable(),
+  signerIssuer: z.string().trim().min(1).optional().nullable(),
+  rolloutCommand: z.string().trim().min(1).optional().nullable(),
+});
+
 type RegisterDeviceRoutesOptions = {
   deviceReadService: DeviceReadService;
   deviceActionService: DeviceActionService;
@@ -102,6 +113,7 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
       requiresAuth: true,
       async handler({ auth, request }) {
         const fileName = resolveUploadFileName(request);
+        const metadata = resolveUploadedPackageMetadata(request);
         const fileBytes = await readBinaryBody(request);
 
         return {
@@ -115,6 +127,7 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
               username: auth?.session.user.username ?? "anonymous",
               ipAddress: request.socket.remoteAddress ?? null,
             },
+            metadata,
           ),
         };
       },
@@ -255,6 +268,25 @@ function resolveUploadFileName(request: AppRouteHandlerContext["request"]) {
     message: "The request payload failed validation.",
     details: [{ field: "fileName", message: "X-File-Name header is required." }],
   });
+}
+
+function resolveUploadedPackageMetadata(request: AppRouteHandlerContext["request"]) {
+  const encodedMetadata = request.headers["x-package-metadata"];
+  if (typeof encodedMetadata !== "string" || encodedMetadata.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const decodedJson = Buffer.from(encodedMetadata.trim(), "base64").toString("utf8");
+    return validateWithSchema(rolloutPackageMetadataSchema, JSON.parse(decodedJson));
+  } catch {
+    throw new AppError({
+      statusCode: 422,
+      code: "VALIDATION_ERROR",
+      message: "The request payload failed validation.",
+      details: [{ field: "metadata", message: "X-Package-Metadata header is not valid base64 JSON." }],
+    });
+  }
 }
 
 async function readBinaryBody(

@@ -67,6 +67,28 @@ type LocalRolloutPackageSummary = {
   rolloutCommand: string | null;
 };
 
+type LocalPackageInspection = {
+  version: string | null;
+  sha256: string | null;
+  thumbprint: string | null;
+  signatureStatus: string | null;
+  signatureStatusMessage: string | null;
+  signerSubject: string | null;
+  signerIssuer: string | null;
+  rolloutCommand: string | null;
+};
+
+type UploadedPackageMetadataInput = {
+  version?: string | null;
+  sha256?: string | null;
+  thumbprint?: string | null;
+  signatureStatus?: string | null;
+  signatureStatusMessage?: string | null;
+  signerSubject?: string | null;
+  signerIssuer?: string | null;
+  rolloutCommand?: string | null;
+};
+
 type UploadLocalPackageResult = {
   package: LocalRolloutPackageSummary;
   alreadyExists: boolean;
@@ -143,6 +165,7 @@ export class DeviceActionService {
     content: Buffer,
     baseUrl: string,
     actor: DeviceActionActor,
+    metadata?: UploadedPackageMetadataInput | null,
   ): Promise<UploadLocalPackageResult> {
     if (content.length === 0) {
       throw validationError("file", "Upload content is empty.");
@@ -169,17 +192,22 @@ export class DeviceActionService {
         buildLocalPackageUrl(sanitizedFileName, baseUrl),
         baseUrl,
       );
-      const publishedFileName = buildPublishedPackageFileName(
-        sanitizedFileName,
-        initialInspection.version,
-      );
+      const normalizedMetadata = normalizeUploadedPackageMetadata(metadata);
+      const publishedFileName = buildPublishedPackageFileName(sanitizedFileName);
       const publishedPath = path.join(localPackagesDirectory, publishedFileName);
+      const uploadedHash = initialInspection.sha256 ?? (await hashFileSha256(tempPath));
+
+      if (normalizedMetadata?.sha256 && normalizedMetadata.sha256 !== uploadedHash) {
+        throw validationError(
+          "metadata.sha256",
+          "Uploaded package metadata sha256 does not match the uploaded MSI content.",
+        );
+      }
 
       let alreadyExists = false;
       let replacedExisting = false;
       try {
         const existingHash = await hashFileSha256(publishedPath);
-        const uploadedHash = initialInspection.sha256 ?? (await hashFileSha256(tempPath));
         if (existingHash !== uploadedHash) {
           await replaceFileIntoPackageStore(tempPath, publishedPath);
           replacedExisting = true;
@@ -194,6 +222,9 @@ export class DeviceActionService {
           throw error;
         }
       }
+
+      const persistedInspection = mergeUploadedPackageMetadata(initialInspection, normalizedMetadata);
+      await writePackageInspectionManifest(publishedPath, persistedInspection);
 
       const summary = await this.buildLocalPackageSummary(publishedFileName, baseUrl);
       const now = new Date().toISOString();
@@ -276,6 +307,7 @@ export class DeviceActionService {
     }
 
     await fs.rm(fullPath, { force: true });
+    await fs.rm(`${fullPath}.rollout.json`, { force: true });
 
     const now = new Date().toISOString();
     await this.auditLogService.recordNow({
@@ -781,22 +813,80 @@ async function hashFileSha256(filePath: string) {
 }
 
 async function buildMinimalPackageInspection(msiPath: string) {
+  const manifestInspection = await tryReadPackageInspectionManifest(msiPath);
+  if (manifestInspection) {
+    return manifestInspection;
+  }
+
   const inferredVersion = inferVersionFromFileName(path.basename(msiPath));
+  const inferredThumbprint = inferThumbprintFromFileName(path.basename(msiPath));
   return {
     version: inferredVersion,
     sha256: await hashFileSha256(msiPath),
-    thumbprint: null,
-    signatureStatus: null,
-    signatureStatusMessage: null,
+    thumbprint: inferredThumbprint,
+    signatureStatus: inferredThumbprint ? "ManifestFallback" : null,
+    signatureStatusMessage: inferredThumbprint
+      ? "Package metadata was recovered from the published file naming convention."
+      : null,
     signerSubject: null,
     signerIssuer: null,
     rolloutCommand: null,
   };
 }
 
+async function tryReadPackageInspectionManifest(msiPath: string): Promise<LocalPackageInspection | null> {
+  const manifestCandidates = [
+    `${msiPath}.rollout.json`,
+    path.join(path.dirname(msiPath), `${path.basename(msiPath, path.extname(msiPath))}.rollout.json`),
+  ];
+
+  for (const manifestPath of manifestCandidates) {
+    try {
+      const rawText = await fs.readFile(manifestPath, "utf8");
+      const parsed = JSON.parse(rawText) as {
+        Version?: string;
+        Sha256?: string;
+        Thumbprint?: string;
+        SignatureStatus?: string;
+        SignatureStatusMessage?: string;
+        SignerSubject?: string;
+        SignerIssuer?: string;
+        RolloutCommand?: string;
+      };
+
+      return {
+        version: parsed.Version ?? null,
+        sha256: parsed.Sha256 ? normalizeHex(parsed.Sha256) : await hashFileSha256(msiPath),
+        thumbprint: parsed.Thumbprint ? normalizeHex(parsed.Thumbprint) : null,
+        signatureStatus: parsed.SignatureStatus ?? null,
+        signatureStatusMessage: parsed.SignatureStatusMessage ?? null,
+        signerSubject: parsed.SignerSubject ?? null,
+        signerIssuer: parsed.SignerIssuer ?? null,
+        rolloutCommand: parsed.RolloutCommand ?? null,
+      };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
 function inferVersionFromFileName(fileName: string) {
   const match = fileName.match(/(\d+\.\d+\.\d+(?:\.\d+)?)/);
   return match?.[1] ?? null;
+}
+
+function inferThumbprintFromFileName(fileName: string) {
+  const matches = fileName.match(/[A-Fa-f0-9]{40}/g);
+  if (!matches || matches.length === 0) {
+    return null;
+  }
+
+  return normalizeHex(matches[matches.length - 1] ?? "");
 }
 
 function createPackageNotFoundError(fileName: string) {
@@ -824,18 +914,65 @@ function sanitizeUploadedMsiFileName(fileName: string) {
   return normalized;
 }
 
-function buildPublishedPackageFileName(fileName: string, version: string | null) {
-  const extension = path.extname(fileName);
-  const basename = path.basename(fileName, extension);
-  if (!version) {
-    return `${basename}${extension}`;
+async function writePackageInspectionManifest(
+  msiPath: string,
+  inspection: LocalPackageInspection,
+) {
+  const manifestPath = `${msiPath}.rollout.json`;
+  const manifest = {
+    MsiPath: msiPath,
+    Version: inspection.version,
+    Sha256: inspection.sha256,
+    Thumbprint: inspection.thumbprint,
+    SignerSubject: inspection.signerSubject,
+    SignerIssuer: inspection.signerIssuer,
+    SignatureStatus: inspection.signatureStatus,
+    SignatureStatusMessage: inspection.signatureStatusMessage,
+    RolloutCommand: inspection.rolloutCommand,
+  };
+
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+}
+
+function normalizeUploadedPackageMetadata(metadata?: UploadedPackageMetadataInput | null) {
+  if (!metadata) {
+    return null;
   }
 
-  if (basename.toLowerCase().endsWith(`.${version.toLowerCase()}`)) {
-    return `${basename}${extension}`;
+  return {
+    version: metadata.version?.trim() || null,
+    sha256: metadata.sha256 ? normalizeHex(metadata.sha256) : null,
+    thumbprint: metadata.thumbprint ? normalizeHex(metadata.thumbprint) : null,
+    signatureStatus: metadata.signatureStatus?.trim() || null,
+    signatureStatusMessage: metadata.signatureStatusMessage?.trim() || null,
+    signerSubject: metadata.signerSubject?.trim() || null,
+    signerIssuer: metadata.signerIssuer?.trim() || null,
+    rolloutCommand: metadata.rolloutCommand?.trim() || null,
+  } satisfies LocalPackageInspection;
+}
+
+function mergeUploadedPackageMetadata(
+  inspection: LocalPackageInspection,
+  metadata?: LocalPackageInspection | null,
+): LocalPackageInspection {
+  if (!metadata) {
+    return inspection;
   }
 
-  return `${basename}.${version}${extension}`;
+  return {
+    version: metadata.version ?? inspection.version,
+    sha256: metadata.sha256 ?? inspection.sha256,
+    thumbprint: metadata.thumbprint ?? inspection.thumbprint,
+    signatureStatus: metadata.signatureStatus ?? inspection.signatureStatus,
+    signatureStatusMessage: metadata.signatureStatusMessage ?? inspection.signatureStatusMessage,
+    signerSubject: metadata.signerSubject ?? inspection.signerSubject,
+    signerIssuer: metadata.signerIssuer ?? inspection.signerIssuer,
+    rolloutCommand: metadata.rolloutCommand ?? inspection.rolloutCommand,
+  };
+}
+
+function buildPublishedPackageFileName(fileName: string) {
+  return fileName;
 }
 
 function decodePossibleUriComponent(value: string) {
