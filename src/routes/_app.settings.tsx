@@ -40,6 +40,8 @@ function SettingsPage() {
       toast.success(
         result.alreadyExists
           ? `Package ${result.package.fileName} already exists and is ready to use.`
+          : result.replacedExisting
+            ? `Replaced ${result.package.fileName} with the latest build successfully.`
           : `Uploaded ${result.package.fileName} successfully.`,
       );
     },

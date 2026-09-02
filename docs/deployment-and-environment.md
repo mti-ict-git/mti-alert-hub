@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-08-26`
+- Last Updated: `2026-09-02`
 - Owner: `Engineering / Operations`
 
 ## Purpose
@@ -34,7 +34,7 @@ The Windows Agent rollout model is hybrid:
 Operational consequences:
 - the preferred package format is `MSI` with silent install, silent uninstall, and upgrade support
 - managed bootstrap may stage the `MSI` onto local disk first and then execute a local silent install during computer startup when direct network-share execution would create too much simultaneous load
-- startup at user logon should be enforced by the installer, preferably through a `Scheduled Task`
+- startup at user logon should be enforced by the updater-owned startup registration, currently a `Scheduled Task` targeted at the built-in `Users` group
 - remote update commands should be treated as approved rollout metadata, not arbitrary shell execution
 - backend and client telemetry should eventually expose deployed version, desired version, updater state, and last rollout result for support visibility
 - when the admin UI is allowed to upload rollout packages, the browser remains the file source and the backend host must persist uploaded `MSI` artifacts on durable storage rather than ephemeral container filesystem layers
@@ -104,7 +104,7 @@ Examples:
 Current implementation baseline:
 - `ENABLED_DELIVERY_CHANNELS` now controls which backend delivery channels may be used by create, update, and publish flows. The desktop-first live default is `WindowsAgent`.
 - `VITE_ENABLED_DELIVERY_CHANNELS` now controls which delivery channels are shown in the admin compose and edit flows. The desktop-first live default is `DesktopAgent`.
-- Windows Agent package builds keep runtime environment settings and package versioning separate: `ServerBaseUrl` is baked into `appsettings.json`, while build versioning should flow through installer metadata (`Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, and MSI `ProductVersion`) using `build-agent-package.ps1 -PackageVersion`.
+- Windows Agent package builds keep runtime environment settings and package versioning separate: `ServerBaseUrl` is baked into `appsettings.json`, while build versioning should flow through installer metadata (`Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, and MSI `ProductVersion`) using `build-agent-package.ps1 -PackageVersion`. When code-signing certificate values are available in the repo `.env`, the same build step now also signs and validates the resulting MSI so rollout metadata inspection can recover signer thumbprint automatically.
 
 ### Database Configuration
 Examples:

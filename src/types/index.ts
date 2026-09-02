@@ -211,6 +211,7 @@ export interface DeviceRolloutPackage {
 export interface DeviceRolloutUploadResponse {
   package: DeviceRolloutPackage;
   alreadyExists: boolean;
+  replacedExisting: boolean;
 }
 
 export interface DeviceRolloutRequest {

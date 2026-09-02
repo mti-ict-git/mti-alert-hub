@@ -909,6 +909,10 @@ paths:
         - Upload belongs to the shared `Settings > Desktop Agent` package-management surface; device rollout
           dialogs only select from the already uploaded package registry.
         - Upload does not sign or mutate the MSI; it only stores and inspects the exact artifact received.
+        - If the uploaded MSI resolves to the same published file name as an existing package, the backend now
+          reuses the existing file when the hash matches, or replaces the stored file in place when the hash
+          differs. Operators do not need to rename the MSI just to republish a rebuilt package with the same
+          version.
       operationId: uploadDeviceRolloutPackage
       x-implementation-phase: Phase 4
       parameters:
@@ -940,12 +944,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "409":
-          description: A different package already exists with the same published file name.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /devices/{deviceId}/rollouts:
     post:
@@ -3008,11 +3006,13 @@ components:
 
     DeviceRolloutUploadResponse:
       type: object
-      required: [package, alreadyExists]
+      required: [package, alreadyExists, replacedExisting]
       properties:
         package:
           $ref: "#/components/schemas/DeviceRolloutPackage"
         alreadyExists:
+          type: boolean
+        replacedExisting:
           type: boolean
 
     DeviceRolloutRequest:

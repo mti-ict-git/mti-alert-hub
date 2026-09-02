@@ -67,6 +67,7 @@ type LocalRolloutPackageSummary = {
 type UploadLocalPackageResult = {
   package: LocalRolloutPackageSummary;
   alreadyExists: boolean;
+  replacedExisting: boolean;
 };
 
 type DeviceLookupRow = {
@@ -167,19 +168,16 @@ export class DeviceActionService {
       const publishedPath = path.join(localPackagesDirectory, publishedFileName);
 
       let alreadyExists = false;
+      let replacedExisting = false;
       try {
         const existingHash = await hashFileSha256(publishedPath);
         const uploadedHash = initialInspection.sha256 ?? (await hashFileSha256(tempPath));
         if (existingHash !== uploadedHash) {
-          throw new AppError({
-            statusCode: 409,
-            code: "PACKAGE_UPLOAD_CONFLICT",
-            message:
-              "A different package already exists with the same published file name. Upload a uniquely versioned MSI instead.",
-          });
+          await replaceFileIntoPackageStore(tempPath, publishedPath);
+          replacedExisting = true;
+        } else {
+          alreadyExists = true;
         }
-
-        alreadyExists = true;
       } catch (error) {
         const code = (error as NodeJS.ErrnoException | undefined)?.code;
         if (code === "ENOENT") {
@@ -200,7 +198,7 @@ export class DeviceActionService {
         entityType: "Device",
         entityId: "local-package-store",
         description: `${
-          alreadyExists ? "Reused" : "Uploaded"
+          alreadyExists ? "Reused" : replacedExisting ? "Replaced" : "Uploaded"
         } rollout package ${publishedFileName} for admin device rollout.`,
         ipAddress: actor.ipAddress ?? null,
         metadata: {
@@ -210,6 +208,7 @@ export class DeviceActionService {
           sha256: summary.sha256,
           signature: summary.signature,
           alreadyExists,
+          replacedExisting,
         },
         createdAt: now,
       });
@@ -217,6 +216,7 @@ export class DeviceActionService {
       return {
         package: summary,
         alreadyExists,
+        replacedExisting,
       };
     } finally {
       await fs.rm(tempDirectory, { recursive: true, force: true });
@@ -718,6 +718,11 @@ async function moveFileIntoPackageStore(sourcePath: string, destinationPath: str
     await fs.copyFile(sourcePath, destinationPath);
     await fs.rm(sourcePath, { force: true });
   }
+}
+
+async function replaceFileIntoPackageStore(sourcePath: string, destinationPath: string) {
+  await fs.copyFile(sourcePath, destinationPath);
+  await fs.rm(sourcePath, { force: true });
 }
 
 async function hashFileSha256(filePath: string) {
