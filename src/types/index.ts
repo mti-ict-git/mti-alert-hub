@@ -214,6 +214,11 @@ export interface DeviceRolloutUploadResponse {
   replacedExisting: boolean;
 }
 
+export interface DeviceRolloutDeleteResponse {
+  ok: true;
+  fileName: string;
+}
+
 export interface DeviceRolloutRequest {
   version: string;
   packageUrl: string;

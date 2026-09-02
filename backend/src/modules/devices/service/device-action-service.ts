@@ -70,6 +70,11 @@ type UploadLocalPackageResult = {
   replacedExisting: boolean;
 };
 
+type DeleteLocalPackageResult = {
+  ok: true;
+  fileName: string;
+};
+
 type DeviceLookupRow = {
   id: string;
   deviceIdentifier: string | null;
@@ -247,6 +252,48 @@ export class DeviceActionService {
 
       throw error;
     }
+  }
+
+  async deleteLocalPackage(fileName: string, actor: DeviceActionActor): Promise<DeleteLocalPackageResult> {
+    const sanitizedFileName = sanitizeUploadedMsiFileName(fileName);
+    const fullPath = path.join(localPackagesDirectory, sanitizedFileName);
+
+    try {
+      const stats = await fs.stat(fullPath);
+      if (!stats.isFile()) {
+        throw createPackageNotFoundError(sanitizedFileName);
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        throw createPackageNotFoundError(sanitizedFileName);
+      }
+
+      throw error;
+    }
+
+    await fs.rm(fullPath, { force: true });
+
+    const now = new Date().toISOString();
+    await this.auditLogService.recordNow({
+      actorUserId: actor.userIdentifier,
+      actorUsername: actor.username,
+      actionType: "DeleteDeviceRolloutPackage",
+      moduleName: "Devices",
+      entityType: "Device",
+      entityId: "local-package-store",
+      description: `Removed rollout package ${sanitizedFileName} from the admin package registry.`,
+      ipAddress: actor.ipAddress ?? null,
+      metadata: {
+        fileName: sanitizedFileName,
+      },
+      createdAt: now,
+    });
+
+    return {
+      ok: true,
+      fileName: sanitizedFileName,
+    };
   }
 
   async createRollout(

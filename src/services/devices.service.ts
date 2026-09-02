@@ -4,6 +4,7 @@ import type {
   ApprovePendingDeviceRequest,
   ApprovePendingDeviceResponse,
   Device,
+  DeviceRolloutDeleteResponse,
   PendingDeviceEnrollment,
   DeviceRolloutApplyResponse,
   DeviceRolloutPackage,
@@ -156,6 +157,11 @@ export const devicesService = {
         "Content-Type": file.type || "application/octet-stream",
         "X-File-Name": file.name,
       },
+    );
+  },
+  async deleteRolloutPackage(fileName: string): Promise<DeviceRolloutDeleteResponse> {
+    return apiClient.del<DeviceRolloutDeleteResponse>(
+      `/devices/rollout-packages/local/${encodeURIComponent(fileName)}`,
     );
   },
   async previewRollout(

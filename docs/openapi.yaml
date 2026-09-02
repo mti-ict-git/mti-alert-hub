@@ -798,6 +798,35 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /devices/rollout-packages/local/{fileName}:
+    delete:
+      tags: [Devices]
+      summary: Remove a published local MSI package from the Desktop Agent registry
+      description: |
+        Deletes a previously uploaded MSI from the shared `Settings > Desktop Agent` package registry so
+        operators can republish a rebuilt package with the same file name or version.
+      operationId: deleteDeviceRolloutPackage
+      x-implementation-phase: Phase 4
+      parameters:
+        - in: path
+          name: fileName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Local rollout package removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRolloutDeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /devices/pending/{requestId}/approve:
     post:
       tags: [Devices]
@@ -3014,6 +3043,14 @@ components:
           type: boolean
         replacedExisting:
           type: boolean
+    DeviceRolloutDeleteResponse:
+      type: object
+      required: [ok, fileName]
+      properties:
+        ok:
+          type: boolean
+        fileName:
+          type: string
 
     DeviceRolloutRequest:
       type: object

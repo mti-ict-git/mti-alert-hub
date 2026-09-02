@@ -120,6 +120,24 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
       },
     },
     {
+      method: "DELETE",
+      path: "/devices/rollout-packages/local/{fileName}",
+      requiresAuth: true,
+      async handler({ params, auth, request }) {
+        return {
+          statusCode: 200,
+          body: await options.deviceActionService.deleteLocalPackage(
+            params.fileName ?? "",
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: request.socket.remoteAddress ?? null,
+            },
+          ),
+        };
+      },
+    },
+    {
       method: "POST",
       path: "/devices/pending/{requestId}/approve",
       requiresAuth: true,

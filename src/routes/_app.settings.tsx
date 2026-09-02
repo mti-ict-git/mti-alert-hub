@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { settingsService, type AppSettings } from "@/services/settings.service";
 import { devicesService } from "@/services/devices.service";
-import { Download, Loader2, Package, RefreshCw, Upload } from "lucide-react";
+import { Download, Loader2, Package, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -47,6 +47,17 @@ function SettingsPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to upload MSI package.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (fileName: string) => devicesService.deleteRolloutPackage(fileName),
+    onSuccess: async (result) => {
+      await qc.invalidateQueries({ queryKey: ["device-rollout-packages"] });
+      toast.success(`Removed ${result.fileName} from the package registry.`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to remove MSI package.");
     },
   });
 
@@ -197,11 +208,12 @@ function SettingsPage() {
                 )}
 
                 <div className="rounded-md border">
-                  <div className="grid grid-cols-[minmax(0,2fr)_110px_120px_160px] gap-3 border-b bg-muted/40 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="grid grid-cols-[minmax(0,2fr)_110px_120px_160px_110px] gap-3 border-b bg-muted/40 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     <div>Package</div>
                     <div>Version</div>
                     <div>Signature</div>
                     <div>Updated</div>
+                    <div className="text-right">Action</div>
                   </div>
                   {packagesLoading ? (
                     <div className="px-4 py-6 text-sm text-muted-foreground">Loading published MSI packages...</div>
@@ -213,7 +225,7 @@ function SettingsPage() {
                     rolloutPackages.map((pkg) => (
                       <div
                         key={pkg.packageUrl}
-                        className="grid grid-cols-[minmax(0,2fr)_110px_120px_160px] gap-3 border-b px-4 py-3 text-sm last:border-b-0"
+                        className="grid grid-cols-[minmax(0,2fr)_110px_120px_160px_110px] gap-3 border-b px-4 py-3 text-sm last:border-b-0"
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium">{pkg.fileName}</div>
@@ -223,6 +235,22 @@ function SettingsPage() {
                         <div>{pkg.signatureStatus ?? "-"}</div>
                         <div className="text-xs text-muted-foreground">
                           {new Date(pkg.lastModifiedAt).toLocaleString()}
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                              disabled={deleteMutation.isPending}
+                            onClick={() => deleteMutation.mutate(pkg.fileName)}
+                          >
+                              {deleteMutation.isPending && deleteMutation.variables === pkg.fileName ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="mr-2 h-4 w-4" />
+                            )}
+                            Remove
+                          </Button>
                         </div>
                       </div>
                     ))
