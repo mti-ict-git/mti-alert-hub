@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promises as fs, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
@@ -13,10 +14,12 @@ import { CommunicationDraftService } from "../../communications/service/communic
 import { buildDeviceHealthStatusSql } from "./device-health-sql.js";
 
 const execFileAsync = promisify(execFile);
-const localPackagesDirectory = path.resolve(process.cwd(), "backend", "local-packages");
+const deviceActionServiceDirectory = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRootDirectory = path.resolve(deviceActionServiceDirectory, "..", "..", "..", "..", "..");
+const localPackagesDirectory = path.join(repositoryRootDirectory, "backend", "local-packages");
 const maxUploadedPackageBytes = 1024 * 1024 * 512;
-const prepareRolloutScriptPath = path.resolve(
-  process.cwd(),
+const prepareRolloutScriptPath = path.join(
+  repositoryRootDirectory,
   "MTI.Alert.Agent",
   "Installer",
   "prepare-agent-rollout-package.ps1",
