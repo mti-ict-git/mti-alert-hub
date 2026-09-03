@@ -526,7 +526,7 @@ export class AgentService {
           last_heartbeat_at = $3::timestamptz,
           status = coalesce($4, status),
           agent_version = coalesce($5, agent_version),
-          last_active_user_identifier = case when $6 then $7 else last_active_user_identifier end,
+          last_active_user_identifier = coalesce($7, last_active_user_identifier),
           last_directory_user_type = case when $6 then $8 else last_directory_user_type end,
           last_directory_username = case when $6 then $9 else last_directory_username end,
           last_directory_display_name = case when $6 then $10 else last_directory_display_name end,
