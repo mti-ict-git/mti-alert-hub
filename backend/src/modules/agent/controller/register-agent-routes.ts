@@ -49,6 +49,7 @@ const agentHeartbeatRequestSchema = z.object({
   deviceIdentifier: z.string().trim().min(1),
   heartbeatAt: z.string().trim().min(1),
   status: deviceStatusSchema.optional().nullable(),
+  agentVersion: z.string().trim().optional().nullable(),
   activeUserIdentifier: z.string().trim().optional().nullable(),
 });
 

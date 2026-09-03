@@ -205,6 +205,7 @@ type HeartbeatInput = {
   deviceIdentifier: string;
   heartbeatAt: string;
   status?: "Online" | "Offline" | "Stale" | null;
+  agentVersion?: string | null;
   activeUserIdentifier?: string | null;
 };
 
@@ -524,16 +525,17 @@ export class AgentService {
           device_identifier = coalesce($2, device_identifier),
           last_heartbeat_at = $3::timestamptz,
           status = coalesce($4, status),
-          last_active_user_identifier = case when $5 then $6 else last_active_user_identifier end,
-          last_directory_user_type = case when $5 then $7 else last_directory_user_type end,
-          last_directory_username = case when $5 then $8 else last_directory_username end,
-          last_directory_display_name = case when $5 then $9 else last_directory_display_name end,
-          last_directory_employee_number = case when $5 then $10 else last_directory_employee_number end,
-          last_directory_department = case when $5 then $11 else last_directory_department end,
-          last_directory_title = case when $5 then $12 else last_directory_title end,
-          last_directory_mobile = case when $5 then $13 else last_directory_mobile end,
-          last_directory_email = case when $5 then $14 else last_directory_email end,
-          last_directory_lookup_at = case when $5 then $15::timestamptz else last_directory_lookup_at end,
+          agent_version = coalesce($5, agent_version),
+          last_active_user_identifier = case when $6 then $7 else last_active_user_identifier end,
+          last_directory_user_type = case when $6 then $8 else last_directory_user_type end,
+          last_directory_username = case when $6 then $9 else last_directory_username end,
+          last_directory_display_name = case when $6 then $10 else last_directory_display_name end,
+          last_directory_employee_number = case when $6 then $11 else last_directory_employee_number end,
+          last_directory_department = case when $6 then $12 else last_directory_department end,
+          last_directory_title = case when $6 then $13 else last_directory_title end,
+          last_directory_mobile = case when $6 then $14 else last_directory_mobile end,
+          last_directory_email = case when $6 then $15 else last_directory_email end,
+          last_directory_lookup_at = case when $6 then $16::timestamptz else last_directory_lookup_at end,
           updated_at = now()
         where id::text = $1
       `,
@@ -542,6 +544,7 @@ export class AgentService {
         input.deviceIdentifier,
         input.heartbeatAt,
         input.status ?? null,
+        normalizeOptionalText(input.agentVersion),
         shouldRefreshDirectorySnapshot,
         directorySnapshot?.activeUserIdentifier ?? null,
         directorySnapshot?.userType ?? null,
