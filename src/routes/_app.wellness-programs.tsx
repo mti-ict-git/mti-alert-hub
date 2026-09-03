@@ -43,6 +43,11 @@ function WellnessProgramsPage() {
     return <Outlet />;
   }
 
+  return <WellnessProgramsIndexPage />;
+}
+
+function WellnessProgramsIndexPage() {
+
   const qc = useQueryClient();
   const nav = useNavigate();
   const {

@@ -1,23 +1,46 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import { PageHeader } from "@/components/common/PageHeader";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
+import { WellnessDeviceAudiencePicker } from "@/components/wellness/WellnessDeviceAudiencePicker";
+import { WellnessScheduleFields } from "@/components/wellness/WellnessScheduleFields";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { devicesService } from "@/services/devices.service";
-import { notificationsService } from "@/services/notifications.service";
 import {
-  getWellnessTemplate,
-  inferWellnessTemplateKey,
-  listWellnessTemplates,
+  buildWellnessRecurrenceRule,
+  formatWellnessRecurrenceSummary,
+  parseWellnessRecurrenceRule,
+  type WellnessRecurrenceUnit,
+  type WellnessRotationMode,
+} from "@/lib/wellness-authoring";
+import {
+  buildWellnessProgramFromSelection,
+  getWellnessFamily,
+  inferWellnessFamily,
+  inferWellnessVariantKeys,
+  listWellnessFamilies,
+  listWellnessTemplatesByFamily,
+  type WellnessFamily,
   type WellnessTemplateKey,
 } from "@/lib/wellness-template-catalog";
+import { devicesService } from "@/services/devices.service";
+import { notificationsService } from "@/services/notifications.service";
+import type { WellnessDistributionMode } from "@/types";
 
 export const Route = createFileRoute("/_app/wellness-programs/new")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -30,7 +53,7 @@ function CreateWellnessProgramPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/_app/wellness-programs/new" });
   const queryClient = useQueryClient();
-  const templates = listWellnessTemplates();
+  const families = listWellnessFamilies();
   const editingDraftId = search.draftId?.trim() || undefined;
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -42,17 +65,37 @@ function CreateWellnessProgramPage() {
     enabled: Boolean(editingDraftId),
   });
 
-  const [templateKey, setTemplateKey] = useState<WellnessTemplateKey | "">("");
-  const [deviceId, setDeviceId] = useState("");
+  const [family, setFamily] = useState<WellnessFamily | "">("");
+  const [selectedVariantKeys, setSelectedVariantKeys] = useState<WellnessTemplateKey[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  const [neverExpires, setNeverExpires] = useState(true);
   const [timezone, setTimezone] = useState(getLocalTimeZone());
-  const [recurrenceRule, setRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
+  const [recurrenceInterval, setRecurrenceInterval] = useState("1");
+  const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
+  const [rotationMode, setRotationMode] = useState<WellnessRotationMode>("Fixed");
+  const [distributionMode, setDistributionMode] = useState<WellnessDistributionMode>("Staggered");
+  const [staggerWindowMinutes, setStaggerWindowMinutes] = useState("30");
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [initializedDraftId, setInitializedDraftId] = useState<string | null>(null);
+
   const isEditMode = Boolean(editingDraftId);
   const hasValidEditableDraft = !editingDraftId || Boolean(editingDraft?.wellnessProgram);
-  const selectedTemplate = templateKey ? getWellnessTemplate(templateKey) : null;
+  const selectedFamily = family ? getWellnessFamily(family) : null;
+  const familyTemplates = family ? listWellnessTemplatesByFamily(family) : [];
+  const previewVariantTemplate = familyTemplates.find((template) => selectedVariantKeys.includes(template.key)) ?? familyTemplates[0] ?? null;
+  const previewWellnessProgram = selectedFamily
+    ? buildWellnessProgramFromSelection({
+        family,
+        variantKeys: selectedVariantKeys,
+        rotationMode,
+      })
+    : null;
+  const selectedDevices = useMemo(
+    () => devices.filter((device) => selectedDeviceIds.includes(device.deviceId)),
+    [devices, selectedDeviceIds],
+  );
 
   useEffect(() => {
     if (!editingDraftId || !editingDraft || !editingDraft.wellnessProgram) {
@@ -63,12 +106,31 @@ function CreateWellnessProgramPage() {
       return;
     }
 
-    setTemplateKey(inferWellnessTemplateKey(editingDraft) ?? "");
-    setDeviceId(editingDraft.targetDeviceId ?? "");
+    const inferredFamily = inferWellnessFamily(editingDraft);
+    const inferredVariantKeys = inferWellnessVariantKeys(editingDraft);
+    setFamily(inferredFamily ?? "");
+    setSelectedVariantKeys(inferredVariantKeys);
+    setSelectedDeviceIds(
+      editingDraft.targetDeviceIds?.length
+        ? editingDraft.targetDeviceIds
+        : editingDraft.targetDeviceId
+          ? [editingDraft.targetDeviceId]
+          : [],
+    );
     setScheduledAt(editingDraft.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(editingDraft.reminderSchedule.scheduledAt) : "");
-    setValidUntil(editingDraft.reminderSchedule?.validUntil ? toDateTimeLocalInput(editingDraft.reminderSchedule.validUntil) : "");
+    setValidUntil(
+      editingDraft.reminderSchedule?.validUntil
+        ? toDateTimeLocalInput(editingDraft.reminderSchedule.validUntil)
+        : "",
+    );
+    setNeverExpires(!editingDraft.reminderSchedule?.validUntil);
     setTimezone(editingDraft.reminderSchedule?.timezone ?? getLocalTimeZone());
-    setRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
+    const recurrence = parseWellnessRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule);
+    setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
+    setRecurrenceUnit(recurrence?.unit ?? "Day");
+    setRotationMode(editingDraft.wellnessProgram.rotationMode ?? "Fixed");
+    setDistributionMode(editingDraft.reminderSchedule?.distributionMode ?? "Staggered");
+    setStaggerWindowMinutes((editingDraft.reminderSchedule?.staggerWindowMinutes ?? 30).toString());
     setInitializedDraftId(editingDraftId);
   }, [editingDraft, editingDraftId, initializedDraftId]);
 
@@ -96,29 +158,53 @@ function CreateWellnessProgramPage() {
   const hasValidSchedule = isValidWellnessSchedule({
     scheduledAt,
     validUntil,
+    neverExpires,
     timezone,
-    recurrenceRule,
+    recurrenceInterval,
+    distributionMode,
+    staggerWindowMinutes,
   });
   const canSubmit =
     hasValidEditableDraft &&
-    Boolean(selectedTemplate) &&
-    Boolean(deviceId) &&
+    Boolean(selectedFamily) &&
+    selectedVariantKeys.length > 0 &&
+    selectedDeviceIds.length > 0 &&
     hasValidSchedule;
 
+  function handleFamilyChange(nextFamily: WellnessFamily) {
+    const next = getWellnessFamily(nextFamily);
+    setFamily(nextFamily);
+    setSelectedVariantKeys([next.variantKeys[0]]);
+    setRecurrenceInterval(next.recommendedInterval.toString());
+    setRecurrenceUnit(next.recommendedUnit);
+    setRotationMode("Fixed");
+  }
+
+  function toggleVariant(variantKey: WellnessTemplateKey, checked: boolean) {
+    if (checked) {
+      setSelectedVariantKeys((current) => [...new Set([...current, variantKey])]);
+      return;
+    }
+
+    setSelectedVariantKeys((current) => current.filter((item) => item !== variantKey));
+    setRotationMode("Fixed");
+  }
+
   function submit() {
-    if (!selectedTemplate) {
+    if (!selectedFamily || !previewWellnessProgram) {
       return;
     }
 
     createMutation.mutate({
-      title: selectedTemplate.title,
-      message: selectedTemplate.message,
-      instruction: selectedTemplate.instruction,
+      title: selectedFamily.title,
+      message: selectedFamily.message,
+      instruction: selectedFamily.instruction,
       communicationType: "Reminder",
       priority: "Info",
       category: "OHSE",
       targetType: "Device",
-      targetDeviceId: deviceId,
+      targetDeviceId: selectedDeviceIds[0],
+      targetDeviceIds: selectedDeviceIds,
       channels: ["DesktopAgent"],
       windowsAgentPresentation: "Toast",
       toastAutoDismissSeconds: null,
@@ -127,10 +213,14 @@ function CreateWellnessProgramPage() {
       reminderSchedule: buildWellnessReminderSchedule({
         scheduledAt,
         validUntil,
+        neverExpires,
         timezone,
-        recurrenceRule,
+        recurrenceInterval,
+        recurrenceUnit,
+        distributionMode,
+        staggerWindowMinutes,
       }),
-      wellnessProgram: selectedTemplate.wellnessProgram,
+      wellnessProgram: previewWellnessProgram,
     });
   }
 
@@ -151,13 +241,12 @@ function CreateWellnessProgramPage() {
     );
   }
 
-  if (isEditMode && editingDraft && !templateKey) {
+  if (isEditMode && editingDraft && !family) {
     return (
       <div className="space-y-4 p-6">
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          This draft uses a legacy custom wellness shape that does not map cleanly to the locked
-          template catalog. Create or duplicate a new template-driven draft to continue testing the
-          stable agent path.
+          This draft uses a legacy custom wellness shape that does not map cleanly to the new
+          family-driven catalog. Create or duplicate a new draft to continue with the safer authoring flow.
         </div>
         <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
           Back To Wellness Programs
@@ -172,8 +261,8 @@ function CreateWellnessProgramPage() {
         title={isEditMode ? "Edit Wellness Program" : "Create Wellness Program"}
         description={
           isEditMode
-            ? "Update the dedicated wellness draft using the locked template catalog so the agent surface stays predictable."
-            : "Pick one locked wellness template so the agent surface stays predictable during testing."
+            ? "Update the dedicated wellness draft using family-first authoring, clearer variant control, and staggered device distribution."
+            : "Choose the wellness family first, select one or more visual variants, and assign the cadence to approved devices."
         }
       />
 
@@ -181,146 +270,159 @@ function CreateWellnessProgramPage() {
         <Card className="lg:col-span-2">
           <CardContent className="space-y-5 p-6">
             <div className="rounded-md border border-sky-200 bg-sky-50/70 p-4">
-              <div className="text-sm font-medium">Template-Driven Wellness Authoring</div>
+              <div className="text-sm font-medium">Family-Driven Wellness Authoring</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Wellness Programs now use a locked template catalog so layout, CTA placement, and
-                copy length remain safe for the Windows Agent popup. Operators choose the template,
-                target, and schedule here instead of editing freeform card content.
+                Operators choose the wellness family first, then decide which approved visual variants
+                are eligible. Rotation only matters when more than one variant is selected.
               </p>
             </div>
 
             <div className="space-y-4 rounded-md border p-4">
               <div>
-                <div className="text-sm font-medium">Wellness Template</div>
+                <div className="text-sm font-medium">Program Family</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Choose the approved template family first. Copy, layout, actions, and step
-                  structure are locked to keep the WPF popup stable.
+                  Separate micro-break eye care from office stretching so cadence, visuals, and rollout
+                  behavior stay intentional.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label>Template</Label>
-                <Select value={templateKey} onValueChange={(value) => setTemplateKey(value as WellnessTemplateKey)}>
+                <Label>Family</Label>
+                <Select value={family} onValueChange={(value) => handleFamilyChange(value as WellnessFamily)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select wellness template" />
+                    <SelectValue placeholder="Select wellness family" />
                   </SelectTrigger>
                   <SelectContent>
-                    {templates.map((template) => (
-                      <SelectItem key={template.key} value={template.key}>
-                        {template.label}
+                    {families.map((item) => (
+                      <SelectItem key={item.key} value={item.key}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {selectedTemplate && (
+              {selectedFamily && (
                 <div className="rounded-md border bg-muted/20 p-4">
-                  <div className="text-sm font-medium">{selectedTemplate.label}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">{selectedTemplate.description}</p>
+                  <div className="text-sm font-medium">{selectedFamily.label}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedFamily.description}</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-3">
-                    <TemplateReadOnlyField label="Title" value={selectedTemplate.title} />
-                    <TemplateReadOnlyField label="Summary" value={selectedTemplate.message} />
-                    <TemplateReadOnlyField label="Instruction" value={selectedTemplate.instruction} />
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <TemplateMetaRow
-                      label="Layout"
-                      value={`${selectedTemplate.wellnessProgram.programType} · ${selectedTemplate.wellnessProgram.layoutVariant}`}
-                    />
-                    <TemplateMetaRow
-                      label="Actions"
-                      value={selectedTemplate.wellnessProgram.actions.map((action) => action.label).join(" · ")}
-                    />
-                    <TemplateMetaRow
-                      label="Theme"
-                      value={`${selectedTemplate.family} · ${selectedTemplate.wellnessProgram.theme}`}
-                    />
-                    <TemplateMetaRow
-                      label="Step Count"
-                      value={`${selectedTemplate.wellnessProgram.steps?.length ?? 0} step(s)`}
-                    />
+                    <TemplateReadOnlyField label="Title" value={selectedFamily.title} />
+                    <TemplateReadOnlyField label="Summary" value={selectedFamily.message} />
+                    <TemplateReadOnlyField label="Instruction" value={selectedFamily.instruction} />
                   </div>
                 </div>
               )}
             </div>
 
+            {selectedFamily && (
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <div className="text-sm font-medium">Visual Variants</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pick one or more approved shells for this family. One variant means fixed delivery.
+                    Multiple variants unlock sequential or shuffled rotation.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {familyTemplates.map((template) => {
+                    const checked = selectedVariantKeys.includes(template.key);
+                    return (
+                      <label
+                        key={template.key}
+                        className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${
+                          checked ? "border-sky-300 bg-sky-50/60" : "hover:bg-muted/20"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) => toggleVariant(template.key, value === true)}
+                          className="mt-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{template.key}</span>
+                            <Badge variant="outline">{template.label.replace(`${template.key} - `, "")}</Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">{template.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div>
+                    <div className="text-sm font-medium">Variant Rotation</div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Rotation decides how the selected variants are used over time.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rotation Mode</Label>
+                    <Select
+                      value={selectedVariantKeys.length > 1 ? rotationMode : "Fixed"}
+                      onValueChange={(value) => setRotationMode(value as WellnessRotationMode)}
+                      disabled={selectedVariantKeys.length < 2}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Fixed">Fixed</SelectItem>
+                        <SelectItem value="Sequential">Sequential</SelectItem>
+                        <SelectItem value="Random">Shuffle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedVariantKeys.length < 2
+                        ? "Select at least two variants to enable rotation."
+                        : rotationMode === "Sequential"
+                          ? "Occurrences rotate through the selected variants in order."
+                          : rotationMode === "Random"
+                            ? "Occurrences shuffle the selected variants deterministically."
+                            : "Use the first selected variant every time."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4 rounded-md border p-4">
               <div>
                 <div className="text-sm font-medium">Schedule And Assignment</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  MVP wellness programs stay on the local Windows Agent routine path, so execution mode
-                  remains `AgentLocalRoutine` and the first controlled assignment is device-bound.
+                  Wellness programs still publish through the local Windows Agent routine path, with
+                  per-device reminder policies materialized from this schedule.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>First Occurrence</Label>
-                  <Input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(event) => setScheduledAt(event.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Optional. Leave empty to let the routine start as soon as it is published.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Valid Until</Label>
-                  <Input
-                    type="datetime-local"
-                    value={validUntil}
-                    onChange={(event) => setValidUntil(event.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Required so the synchronized local policy remains bounded.
-                  </p>
-                </div>
-              </div>
+              <WellnessScheduleFields
+                scheduledAt={scheduledAt}
+                onScheduledAtChange={setScheduledAt}
+                validUntil={validUntil}
+                onValidUntilChange={setValidUntil}
+                timezone={timezone}
+                onTimezoneChange={setTimezone}
+                recurrenceInterval={recurrenceInterval}
+                onRecurrenceIntervalChange={setRecurrenceInterval}
+                recurrenceUnit={recurrenceUnit}
+                onRecurrenceUnitChange={setRecurrenceUnit}
+                neverExpires={neverExpires}
+                onNeverExpiresChange={setNeverExpires}
+                distributionMode={distributionMode}
+                onDistributionModeChange={setDistributionMode}
+                staggerWindowMinutes={staggerWindowMinutes}
+                onStaggerWindowMinutesChange={setStaggerWindowMinutes}
+                showExecutionMode
+              />
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Timezone</Label>
-                  <Input
-                    value={timezone}
-                    onChange={(event) => setTimezone(event.target.value)}
-                    placeholder="e.g. Asia/Jakarta"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Execution Mode</Label>
-                  <Input value="AgentLocalRoutine" disabled />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Recurrence Rule</Label>
-                <Input
-                  value={recurrenceRule}
-                  onChange={(event) => setRecurrenceRule(event.target.value)}
-                  placeholder="e.g. FREQ=DAILY;INTERVAL=1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use an RFC5545-style recurrence rule. Example: `FREQ=DAILY;INTERVAL=1`.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Target Device</Label>
-                <Select value={deviceId} onValueChange={setDeviceId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select device" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {devices.map((device) => (
-                      <SelectItem key={device.id} value={device.deviceId}>
-                        {device.deviceId} - {device.hostname}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <WellnessDeviceAudiencePicker
+                devices={devices}
+                selectedDeviceIds={selectedDeviceIds}
+                onChange={setSelectedDeviceIds}
+              />
             </div>
 
             <div className="flex justify-end gap-2">
@@ -341,17 +443,22 @@ function CreateWellnessProgramPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <DesktopPreview
-                title={selectedTemplate?.title ?? ""}
-                message={selectedTemplate?.message ?? ""}
+                title={selectedFamily?.title ?? ""}
+                message={selectedFamily?.message ?? ""}
                 priority="Info"
-                instruction={selectedTemplate?.instruction ?? ""}
+                instruction={selectedFamily?.instruction ?? ""}
                 presentation="Toast"
-                wellnessProgram={selectedTemplate?.wellnessProgram ?? null}
+                wellnessProgram={previewWellnessProgram}
               />
               <p className="text-xs text-muted-foreground">
-                Desktop Agent preview now follows the selected locked template. Operators only set
-                schedule and assignment in this MVP slice.
+                Preview shows the currently selected family copy. Runtime layout may rotate across the
+                checked variants according to the selected rotation mode.
               </p>
+              {previewVariantTemplate && (
+                <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  Current preview anchor: <span className="font-medium text-foreground">{previewVariantTemplate.label}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -363,16 +470,31 @@ function CreateWellnessProgramPage() {
             <DialogTitle>{isEditMode ? "Confirm Wellness Update" : "Confirm Wellness Draft"}</DialogTitle>
             <DialogDescription>
               {isEditMode
-                ? "This updates the dedicated wellness draft under the separate `Wellness Programs` module while still using the existing reminder policy backend contract."
-                : "This creates a dedicated wellness program draft under the separate `Wellness Programs` module while still using the existing reminder policy backend contract."}
+                ? "This updates the dedicated wellness draft under the separate `Wellness Programs` module."
+                : "This creates a dedicated wellness program draft under the separate `Wellness Programs` module."}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
-            <div className="font-medium">{selectedTemplate?.title ?? "No template selected"}</div>
-            <p className="mt-1 text-muted-foreground">{selectedTemplate?.message ?? "Select a template first."}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Template: {selectedTemplate?.label ?? "Not selected"} · Device: {deviceId || "Not selected"}
+            <div className="font-medium">{selectedFamily?.label ?? "No family selected"}</div>
+            <p className="mt-1 text-muted-foreground">
+              {selectedFamily?.message ?? "Select a wellness family first."}
             </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Variants: {selectedVariantKeys.join(", ") || "Not selected"} · Cadence:{" "}
+              {formatWellnessRecurrenceSummary(
+                buildWellnessRecurrenceRule({
+                  interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
+                  unit: recurrenceUnit,
+                }),
+              )}{" "}
+              · Distribution: {distributionMode}
+            </p>
+            {selectedDevices.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {selectedDevices.slice(0, 4).map((device) => `${device.deviceId} (${device.hostname})`).join(", ")}
+                {selectedDevices.length > 4 ? ` + ${selectedDevices.length - 4} more` : ""}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>
@@ -397,18 +519,33 @@ function CreateWellnessProgramPage() {
 function buildWellnessReminderSchedule(input: {
   scheduledAt: string;
   validUntil: string;
+  neverExpires: boolean;
   timezone: string;
-  recurrenceRule: string;
+  recurrenceInterval: string;
+  recurrenceUnit: WellnessRecurrenceUnit;
+  distributionMode: WellnessDistributionMode;
+  staggerWindowMinutes: string;
 }) {
   return {
     scheduleType: "Recurring" as const,
     scheduledAt: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
-    recurrenceRule: input.recurrenceRule.trim(),
+    recurrenceRule: buildWellnessRecurrenceRule({
+      interval: Number.parseInt(input.recurrenceInterval || "1", 10) || 1,
+      unit: input.recurrenceUnit,
+    }),
     timezone: input.timezone.trim(),
     executionMode: "AgentLocalRoutine" as const,
+    distributionMode: input.distributionMode,
+    staggerWindowMinutes:
+      input.distributionMode === "Staggered"
+        ? Number.parseInt(input.staggerWindowMinutes || "30", 10) || 30
+        : null,
     scheduleVersion: 0,
     validFrom: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
-    validUntil: input.validUntil ? new Date(input.validUntil).toISOString() : null,
+    validUntil:
+      input.neverExpires || !input.validUntil
+        ? null
+        : new Date(input.validUntil).toISOString(),
     isActive: false,
   };
 }
@@ -416,18 +553,37 @@ function buildWellnessReminderSchedule(input: {
 function isValidWellnessSchedule(input: {
   scheduledAt: string;
   validUntil: string;
+  neverExpires: boolean;
   timezone: string;
-  recurrenceRule: string;
+  recurrenceInterval: string;
+  distributionMode: WellnessDistributionMode;
+  staggerWindowMinutes: string;
 }) {
-  if (!input.timezone.trim() || !input.recurrenceRule.trim() || !input.validUntil.trim()) {
+  if (!input.timezone.trim()) {
     return false;
+  }
+
+  const recurrenceInterval = Number.parseInt(input.recurrenceInterval || "", 10);
+  if (!Number.isFinite(recurrenceInterval) || recurrenceInterval < 1) {
+    return false;
+  }
+
+  if (input.distributionMode === "Staggered") {
+    const staggerWindow = Number.parseInt(input.staggerWindowMinutes || "", 10);
+    if (!Number.isFinite(staggerWindow) || staggerWindow < 5 || staggerWindow > 720) {
+      return false;
+    }
   }
 
   if (input.scheduledAt && Number.isNaN(new Date(input.scheduledAt).getTime())) {
     return false;
   }
 
-  if (Number.isNaN(new Date(input.validUntil).getTime())) {
+  if (input.neverExpires) {
+    return true;
+  }
+
+  if (!input.validUntil.trim() || Number.isNaN(new Date(input.validUntil).getTime())) {
     return false;
   }
 
@@ -451,21 +607,13 @@ function TemplateReadOnlyField({ label, value }: { label: string; value: string 
   );
 }
 
-function TemplateMetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-background px-3 py-2">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm">{value}</div>
-    </div>
-  );
-}
-
 function toDateTimeLocalInput(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
     return "";
   }
 
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  const offset = parsed.getTimezoneOffset();
+  const local = new Date(parsed.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
 }

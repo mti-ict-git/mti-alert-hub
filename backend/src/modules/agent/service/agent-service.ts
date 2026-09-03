@@ -134,6 +134,7 @@ type WellnessProgramPayload = {
     | "GuidedRoutine"
     | "CompletionCard"
     | "OverviewCard";
+  variantKeys: string[];
   heroAssetUrl: string | null;
   countdownSeconds: number | null;
   rotationMode: "Fixed" | "Sequential" | "Random" | null;
@@ -2227,6 +2228,9 @@ function parseWellnessProgramPayload(value: unknown): WellnessProgramPayload | n
     programType: parsed.programType,
     theme: parsed.theme,
     layoutVariant: parsed.layoutVariant,
+    variantKeys: Array.isArray(parsed.variantKeys)
+      ? parsed.variantKeys.filter((value): value is string => typeof value === "string" && value.length > 0)
+      : [],
     heroAssetUrl: typeof parsed.heroAssetUrl === "string" ? parsed.heroAssetUrl : null,
     countdownSeconds: typeof parsed.countdownSeconds === "number" ? parsed.countdownSeconds : null,
     rotationMode:

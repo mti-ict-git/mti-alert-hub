@@ -43,6 +43,8 @@ const reminderDraftScheduleSchema = z.object({
   recurrenceRule: z.string().trim().min(1),
   timezone: z.string().trim().min(1),
   executionMode: scheduleExecutionModeSchema,
+  distributionMode: z.enum(["Synchronized", "Staggered"]).optional().nullable(),
+  staggerWindowMinutes: z.number().int().min(5).max(720).optional().nullable(),
   validUntil: z.string().datetime({ offset: true }).optional().nullable(),
 });
 const toastAutoDismissSecondsSchema = z.number().int().min(1).max(60);
@@ -85,6 +87,7 @@ const wellnessProgramSchema = z.object({
     "GuidedRoutine",
     "CompletionCard",
   ]),
+  variantKeys: z.array(z.string().trim().min(1)).optional().default([]),
   heroAssetUrl: z.string().trim().url().optional().nullable(),
   countdownSeconds: z.number().int().min(1).max(3600).optional().nullable(),
   rotationMode: z.enum(["Fixed", "Sequential", "Random"]).optional().nullable(),
@@ -158,6 +161,8 @@ const publishCommunicationSchema = z.object({
   recurrenceRule: z.string().trim().optional().nullable(),
   timezone: z.string().trim().optional().nullable(),
   executionMode: scheduleExecutionModeSchema.optional().nullable(),
+  distributionMode: z.enum(["Synchronized", "Staggered"]).optional().nullable(),
+  staggerWindowMinutes: z.number().int().min(5).max(720).optional().nullable(),
   validUntil: z.string().datetime({ offset: true }).optional().nullable(),
   confirmedPreview: z.boolean(),
 });

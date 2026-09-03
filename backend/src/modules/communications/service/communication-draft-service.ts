@@ -97,6 +97,8 @@ type PublishCommunicationInput = {
   recurrenceRule?: string | null;
   timezone?: string | null;
   executionMode?: ScheduleExecutionMode | null;
+  distributionMode?: "Synchronized" | "Staggered" | null;
+  staggerWindowMinutes?: number | null;
   validUntil?: string | null;
   confirmedPreview: boolean;
 };
@@ -106,6 +108,8 @@ type ReminderDraftScheduleInput = {
   recurrenceRule: string;
   timezone: string;
   executionMode: ScheduleExecutionMode;
+  distributionMode?: "Synchronized" | "Staggered" | null;
+  staggerWindowMinutes?: number | null;
   validUntil?: string | null;
 };
 
@@ -147,6 +151,7 @@ type WellnessProgramInput = {
   programType: WellnessProgramType;
   theme: WellnessTheme;
   layoutVariant: WellnessLayoutVariant;
+  variantKeys?: string[];
   heroAssetUrl?: string | null;
   countdownSeconds?: number | null;
   rotationMode?: "Fixed" | "Sequential" | "Random" | null;
@@ -214,10 +219,13 @@ type CommunicationScheduleDetailRow = {
   recurrenceRule: string | null;
   timezone: string | null;
   executionMode: ScheduleExecutionMode | null;
+  distributionMode: "Synchronized" | "Staggered" | null;
+  staggerWindowMinutes: number | null;
   scheduleVersion: number;
   validFrom: string | null;
   validUntil: string | null;
   isActive: boolean;
+  publishRequestJson?: unknown | null;
 };
 
 type ReminderDraftSchedule = CommunicationScheduleDetailRow;
@@ -1461,6 +1469,8 @@ export class CommunicationDraftService {
         timezone: effectivePublishInput.timezone ?? null,
         validFrom: effectivePublishInput.scheduledAt ?? acceptedAt,
         validUntil: effectivePublishInput.validUntil ?? null,
+        distributionMode: effectivePublishInput.distributionMode ?? "Synchronized",
+        staggerWindowMinutes: effectivePublishInput.staggerWindowMinutes ?? null,
       });
       await this.auditLogService.record(transaction, {
         actorUserId: actor.userIdentifier,
@@ -1664,7 +1674,8 @@ export class CommunicationDraftService {
           schedule_version as "scheduleVersion",
           valid_from::text as "validFrom",
           valid_until::text as "validUntil",
-          is_active as "isActive"
+          is_active as "isActive",
+          publish_request_json as "publishRequestJson"
         from public.communication_schedules
         where communication_id::text = $1
         order by requested_at desc, created_at desc
@@ -1673,7 +1684,17 @@ export class CommunicationDraftService {
       [communicationId],
     );
 
-    return rows[0] ?? null;
+    const schedule = rows[0];
+    if (!schedule) {
+      return null;
+    }
+
+    const distribution = parseScheduleDistributionMetadata(schedule.publishRequestJson);
+    return {
+      ...schedule,
+      distributionMode: distribution.distributionMode,
+      staggerWindowMinutes: distribution.staggerWindowMinutes,
+    };
   }
 
   private async getCompatibleChannelResponseTarget(
@@ -2186,6 +2207,11 @@ function normalizeReminderDraftScheduleInput(
     recurrenceRule,
     timezone,
     executionMode: reminderSchedule.executionMode,
+    distributionMode: reminderSchedule.distributionMode ?? "Synchronized",
+    staggerWindowMinutes:
+      reminderSchedule.distributionMode === "Staggered"
+        ? reminderSchedule.staggerWindowMinutes ?? 30
+        : null,
     scheduleVersion: 0,
     validFrom: scheduledAt?.toISOString() ?? null,
     validUntil: validUntil?.toISOString() ?? null,
@@ -2222,6 +2248,7 @@ function normalizeWellnessProgramInput(
 
   return {
     ...wellnessProgram,
+    variantKeys: normalizeWellnessVariantKeys(wellnessProgram),
     heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
     countdownSeconds: wellnessProgram.countdownSeconds ?? null,
     rotationMode: wellnessProgram.rotationMode ?? null,
@@ -2246,6 +2273,19 @@ function normalizeWellnessProgramInput(
 }
 
 function validateWellnessProgram(wellnessProgram: WellnessProgramInput) {
+  const variantKeys = normalizeWellnessVariantKeys(wellnessProgram);
+  if (
+    wellnessProgram.rotationMode &&
+    wellnessProgram.rotationMode !== "Fixed" &&
+    variantKeys.length < 2
+  ) {
+    throw new AppError({
+      statusCode: 422,
+      code: "WELLNESS_VARIANT_ROTATION_REQUIRES_MULTIPLE_VARIANTS",
+      message: "Sequential or Random rotation requires at least two selected wellness variants.",
+    });
+  }
+
   const actionKeys = new Set<string>();
   for (const action of wellnessProgram.actions) {
     const normalizedActionKey = action.actionKey.trim();
@@ -2361,6 +2401,50 @@ function validateWellnessProgram(wellnessProgram: WellnessProgramInput) {
   }
 }
 
+function normalizeWellnessVariantKeys(wellnessProgram: WellnessProgramInput) {
+  const normalized = [
+    ...(Array.isArray(wellnessProgram.variantKeys) ? wellnessProgram.variantKeys : []),
+    inferWellnessVariantKey(wellnessProgram),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+
+  const unique = [...new Set(normalized)];
+  const allowedKeys =
+    wellnessProgram.programType === "GuidedRoutine"
+      ? new Set(["B1", "B2"])
+      : new Set(["A1", "A2", "A3", "A4"]);
+
+  return unique.filter((value) => allowedKeys.has(value));
+}
+
+function inferWellnessVariantKey(wellnessProgram: WellnessProgramInput) {
+  if (wellnessProgram.programType === "SimpleReminder" && wellnessProgram.theme === "Blue") {
+    switch (wellnessProgram.layoutVariant) {
+      case "ReminderCard":
+        return "A1";
+      case "CountdownCard":
+        return "A2";
+      case "CompletionCard":
+        return "A3";
+      case "OverviewCard":
+        return "A4";
+      default:
+        return null;
+    }
+  }
+
+  if (
+    wellnessProgram.programType === "GuidedRoutine" &&
+    wellnessProgram.theme === "Green" &&
+    wellnessProgram.layoutVariant === "OverviewCard"
+  ) {
+    return wellnessProgram.actions[0]?.actionKey === "start-stretching-overview" ? "B2" : "B1";
+  }
+
+  return null;
+}
+
 function parseWellnessProgramRecord(value: unknown): WellnessProgramInput | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -2384,6 +2468,9 @@ function parseWellnessProgramRecord(value: unknown): WellnessProgramInput | null
     programType: record.programType,
     theme: record.theme,
     layoutVariant: record.layoutVariant,
+    variantKeys: Array.isArray(record.variantKeys)
+      ? record.variantKeys.filter((value): value is string => typeof value === "string" && value.length > 0)
+      : [],
     heroAssetUrl: typeof record.heroAssetUrl === "string" ? record.heroAssetUrl : null,
     countdownSeconds: typeof record.countdownSeconds === "number" ? record.countdownSeconds : null,
     rotationMode:
@@ -2469,6 +2556,12 @@ function parseReminderDraftScheduleRecord(value: unknown): ReminderDraftSchedule
       record.executionMode === "ServerGenerated" || record.executionMode === "AgentLocalRoutine"
         ? record.executionMode
         : null,
+    distributionMode:
+      record.distributionMode === "Staggered" || record.distributionMode === "Synchronized"
+        ? record.distributionMode
+        : "Synchronized",
+    staggerWindowMinutes:
+      typeof record.staggerWindowMinutes === "number" ? record.staggerWindowMinutes : null,
     scheduleVersion: typeof record.scheduleVersion === "number" ? record.scheduleVersion : 0,
     validFrom: typeof record.validFrom === "string" ? record.validFrom : null,
     validUntil: typeof record.validUntil === "string" ? record.validUntil : null,
@@ -2490,7 +2583,28 @@ function mergePublishInputWithDraftReminderSchedule(
     recurrenceRule: input.recurrenceRule ?? draftSchedule.recurrenceRule ?? null,
     timezone: input.timezone ?? draftSchedule.timezone ?? null,
     executionMode: input.executionMode ?? draftSchedule.executionMode ?? null,
+    distributionMode: input.distributionMode ?? draftSchedule.distributionMode ?? "Synchronized",
+    staggerWindowMinutes: input.staggerWindowMinutes ?? draftSchedule.staggerWindowMinutes ?? null,
     validUntil: input.validUntil ?? draftSchedule.validUntil ?? null,
+  };
+}
+
+function parseScheduleDistributionMetadata(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      distributionMode: "Synchronized" as const,
+      staggerWindowMinutes: null,
+    };
+  }
+
+  const record = value as Partial<PublishCommunicationInput>;
+  return {
+    distributionMode:
+      record.distributionMode === "Staggered" || record.distributionMode === "Synchronized"
+        ? record.distributionMode
+        : "Synchronized",
+    staggerWindowMinutes:
+      typeof record.staggerWindowMinutes === "number" ? record.staggerWindowMinutes : null,
   };
 }
 
@@ -2644,6 +2758,8 @@ function validatePublishRequest(
   const validUntil = parseOptionalIsoDate(input.validUntil, "validUntil");
   const recurrenceRule = normalizeNullableText(input.recurrenceRule ?? null);
   const timezone = normalizeNullableText(input.timezone ?? null);
+  const distributionMode = input.distributionMode ?? "Synchronized";
+  const staggerWindowMinutes = input.staggerWindowMinutes ?? null;
   const now = new Date();
 
   switch (input.publishMode) {
@@ -2652,6 +2768,8 @@ function validatePublishRequest(
       assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
       assertPublishFieldAbsent(timezone, "timezone", input.publishMode);
       assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
+      assertPublishFieldAbsent(input.distributionMode ?? null, "distributionMode", input.publishMode);
+      assertPublishFieldAbsent(staggerWindowMinutes, "staggerWindowMinutes", input.publishMode);
       assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
       return;
     }
@@ -2680,6 +2798,8 @@ function validatePublishRequest(
       assertValidTimeZone(timezone);
       assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
       assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
+      assertPublishFieldAbsent(input.distributionMode ?? null, "distributionMode", input.publishMode);
+      assertPublishFieldAbsent(staggerWindowMinutes, "staggerWindowMinutes", input.publishMode);
       assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
       return;
     }
@@ -2711,6 +2831,15 @@ function validatePublishRequest(
           code: "EXECUTION_MODE_REQUIRED",
           message: "Recurring publish mode requires an executionMode value.",
         });
+      }
+      if (distributionMode === "Staggered") {
+        if (staggerWindowMinutes === null || staggerWindowMinutes < 5 || staggerWindowMinutes > 720) {
+          throw new AppError({
+            statusCode: 422,
+            code: "STAGGER_WINDOW_INVALID",
+            message: "Staggered distribution requires staggerWindowMinutes between 5 and 720.",
+          });
+        }
       }
       assertValidTimeZone(timezone);
       if (scheduledAt && scheduledAt <= now) {
@@ -3365,6 +3494,8 @@ async function materializeAgentReminderPolicies(
     timezone: string | null;
     validFrom: string | null;
     validUntil: string | null;
+    distributionMode?: "Synchronized" | "Staggered" | null;
+    staggerWindowMinutes?: number | null;
   },
 ) {
   if (
@@ -3376,7 +3507,29 @@ async function materializeAgentReminderPolicies(
   }
 
   const deviceRecipients = dedupeAgentReminderDevices(options.recipients.recipients);
-  for (const recipient of deviceRecipients) {
+  const baseValidFrom = new Date(options.validFrom ?? new Date().toISOString());
+  const baseValidUntil = options.validUntil ? new Date(options.validUntil) : null;
+  const effectiveDistributionMode = options.distributionMode ?? "Synchronized";
+  const effectiveStaggerWindowMinutes =
+    effectiveDistributionMode === "Staggered"
+      ? Math.max(5, Math.min(720, options.staggerWindowMinutes ?? 30))
+      : 0;
+
+  for (const [index, recipient] of deviceRecipients.entries()) {
+    const staggerOffsetMinutes =
+      effectiveDistributionMode === "Staggered"
+        ? resolveDeterministicStaggerMinutes(
+            options.communicationId,
+            recipient.deviceId,
+            effectiveStaggerWindowMinutes,
+            index,
+          )
+        : 0;
+    const effectiveValidFrom = addMinutes(baseValidFrom, staggerOffsetMinutes);
+    const effectiveValidUntil = baseValidUntil
+      ? addMinutes(baseValidUntil, staggerOffsetMinutes)
+      : FAR_FUTURE_REMINDER_VALID_UNTIL;
+
     await transaction.query(
       `
         insert into public.agent_reminder_policies (
@@ -3429,11 +3582,36 @@ async function materializeAgentReminderPolicies(
         options.communication.wellnessProgram
           ? JSON.stringify(parseWellnessProgramRecord(options.communication.wellnessProgram))
           : null,
-        options.validFrom,
-        options.validUntil,
+        effectiveValidFrom.toISOString(),
+        effectiveValidUntil.toISOString(),
       ],
     );
   }
+}
+
+const FAR_FUTURE_REMINDER_VALID_UNTIL = new Date("9999-12-31T23:59:59.000Z");
+
+function resolveDeterministicStaggerMinutes(
+  communicationId: string,
+  deviceId: string,
+  staggerWindowMinutes: number,
+  fallbackIndex: number,
+) {
+  if (staggerWindowMinutes <= 0) {
+    return 0;
+  }
+
+  const seed = `${communicationId}:${deviceId}:${fallbackIndex}`;
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+
+  return hash % (staggerWindowMinutes + 1);
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60_000);
 }
 
 function dedupeAgentReminderDevices(

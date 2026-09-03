@@ -1,0 +1,28 @@
+title=MTI Alert — Emergency Notification System
+url=http://127.0.0.1:8080/login
+
+MTI Alert
+EMERGENCY NOTIFICATION SYSTEM
+Reach every officer,
+every site, in seconds.
+
+Coordinate emergency and operational notifications across desktop agents, WhatsApp, email, and digital signage from a single control room.
+
+Acid Plant
+Pyrite
+Chloride
+CCP
+Makarti
+Labota
+© 2026 PT MTI. Internal use only.
+Sign in
+
+Use your MTI corporate account to continue.
+
+Username
+Password
+Sign in
+OR
+Login with AD Account
+
+Use your LDAP or Active Directory credentials to continue.

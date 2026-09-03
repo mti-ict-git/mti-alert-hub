@@ -197,7 +197,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 
 ### Workflow 2: Recurring Reminder
 1. User creates a reminder communication.
-2. User defines the recurrence rule, timezone, and validity window.
+2. User defines the cadence through an operator-friendly schedule builder, selects the timezone, and chooses whether the reminder expires at a specific time or stays active until manually stopped.
 3. User explicitly chooses the execution mode as either `ServerGenerated` or `AgentLocalRoutine`.
 4. System shows a publish summary describing whether each occurrence will be server-triggered or executed locally by Windows Agent from a synchronized reminder policy.
 5. System stores the recurring schedule and its execution mode as the authoritative server record.
@@ -209,9 +209,9 @@ All MVP communication types remain delivery-tracked and read-tracked.
 ### Workflow 2A: Wellness Program
 1. User opens `Wellness Programs` from the `Notifications` cluster.
 2. User creates or edits a wellness program such as `Eye Break` or `Office Stretching`.
-3. User selects a specialized visual template and configurable CTA actions such as `Got it`, `Remind me in 10 min`, `Start`, or `Done`.
-4. User configures recurrence, execution mode, validity window, and device-bound audience assignment.
-5. Server publishes a versioned reminder policy for eligible Windows Agent devices.
+3. User selects the wellness family first, then chooses one or more approved visual variants plus the variant delivery strategy (`Fixed`, `Sequential`, or `Shuffle`) when multiple variants are enabled.
+4. User configures recurrence through an operator-friendly cadence UI, confirms the local execution mode, chooses either a bounded validity window or `never expires until stopped`, assigns one or more device targets while staying inside the device-centric targeting model, and selects whether device rollout is synchronized or staggered across a bounded offset window.
+5. Server publishes a versioned reminder policy for eligible Windows Agent devices, materializing one policy per device and optionally offsetting the policy anchor when staggered delivery is selected.
 6. Windows Agent executes the reminder locally using the specialized wellness presentation template.
 7. For guided routines, the agent may continue into a multi-step local flow after the initial reminder card is acknowledged.
 8. Agent reconciles activity such as `Triggered`, `Displayed`, `RemindMeLater`-driven defer or snooze, `Started`, `Completed`, or `GotIt`-confirmed completion back to the server, together with active user context when the endpoint can report it safely.
@@ -264,12 +264,13 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
 - `FR-4D` The system shall allow approved routine Windows Agent reminders to execute locally from a synchronized reminder policy with bounded validity.
 - `FR-4E` The system shall invalidate or replace locally stored reminder policies when the server updates, expires, or cancels the schedule.
-- `FR-4F` The admin authoring experience shall expose the recurrence rule, timezone, execution mode, first occurrence, and validity window explicitly when operators create or edit recurring reminders, and the draft shall persist that reminder definition before publish.
+- `FR-4F` The admin authoring experience shall expose cadence, timezone, execution mode, first occurrence, and expiry policy explicitly when operators create or edit recurring reminders, and the draft shall persist that reminder definition before publish.
 - `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
 - `FR-4H` The admin monitoring experience shall expose reminder schedule metadata, reminder policy activity, and reconciled reminder evidence so hybrid reminder behavior remains auditable and understandable for operators.
 - `FR-4I` The admin experience shall keep wellness authoring and wellness monitoring outside `Notification Center`, even when the backend reuses reminder-oriented contracts and persistence.
 - `FR-4J` Wellness CTA semantics shall remain explicit in MVP: `GotIt` and `Done` confirm the routine was performed, while `RemindMeLater` records a defer or snooze decision rather than a completion.
 - `FR-4K` Wellness operational reporting shall remain device-centric in MVP, with active-user identity treated only as optional audit metadata captured at event time when available.
+- `FR-4M` Wellness authoring shall support batch selection of multiple device targets within the same draft or publish flow without changing the underlying device-centric execution model.
 - `FR-4L` A dedicated post-routine feedback prompt for rating wellness-program usefulness or need is deferred beyond the current MVP until the survey contract, trigger timing, and reporting expectations are separately approved.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.

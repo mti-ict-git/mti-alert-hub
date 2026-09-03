@@ -56,6 +56,7 @@ export type WellnessLayoutVariant =
   | "GuidedRoutine"
   | "CompletionCard";
 export type WellnessRotationMode = "Fixed" | "Sequential" | "Random";
+export type WellnessDistributionMode = "Synchronized" | "Staggered";
 export type WellnessActionKind = "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
 export type WellnessActionStyle = "Primary" | "Secondary" | "Ghost";
 
@@ -87,6 +88,7 @@ export interface WellnessProgram {
   programType: WellnessProgramType;
   theme: WellnessTheme;
   layoutVariant: WellnessLayoutVariant;
+  variantKeys?: string[];
   heroAssetUrl?: string | null;
   countdownSeconds?: number | null;
   rotationMode?: WellnessRotationMode | null;
@@ -310,6 +312,7 @@ export interface Notification {
   targetSection?: string;
   targetEmployeeId?: string;
   targetDeviceId?: string;
+  targetDeviceIds?: string[];
   templateId?: string | null;
   workflowId?: string | null;
   channels: Channel[];
@@ -334,6 +337,8 @@ export interface ReminderSchedule {
   recurrenceRule?: string | null;
   timezone?: string | null;
   executionMode?: ScheduleExecutionMode | null;
+  distributionMode?: WellnessDistributionMode | null;
+  staggerWindowMinutes?: number | null;
   scheduleVersion: number;
   validFrom?: string | null;
   validUntil?: string | null;

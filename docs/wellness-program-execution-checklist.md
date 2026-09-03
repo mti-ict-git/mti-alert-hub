@@ -335,14 +335,21 @@ Deliver one specialized recurring wellness flow that proves:
 ### Already Aligned With The Locked Direction
 - wellness assignment is already device-bound and server-managed through the reminder-policy foundation
 - the admin monitoring slice already exposes device-level activity, reminder timelines, and compliance summaries
-- the dedicated `Wellness Programs` create flow is now narrowing toward a locked template catalog (`A1`, `A2`, `A4`, `B1`, `B2`) instead of unconstrained freeform copy, which better matches the fixed WPF agent surface
-- the office-stretching catalog is now realigned so the publishable admin entry point is `B2` (start/overview card), while the guided exercise step shell is treated as the internal post-start `B1` state rather than a directly authored first surface
+- the dedicated `Wellness Programs` create flow now uses a locked template catalog (`A1`, `A2`, `A3`, `A4`, `B1`, `B2`) instead of unconstrained freeform copy, which better matches the fixed WPF agent surface
+- the office-stretching catalog now exposes both visible start-card variants (`B1` hero start card and `B2` collage start card) while the guided exercise step shell remains the post-`Start` runtime flow instead of a directly authored first surface
 - the agent already supports `GotIt`, `Done`, `Start`, `Next`, and `RemindMeLater` CTA vocabulary in the dedicated wellness path
 - the current runtime already distinguishes completion-oriented actions from snooze-oriented actions in the event vocabulary and UX flow
 - the agent sync contract now has an explicit change cursor input through policy `updatedAt`, instead of re-saving the stale local cursor during reminder-policy sync
 - the agent sync path now accepts inactive reminder-policy rows so replacement or cancellation can deactivate local wellness policies without waiting for expiry
 - the backend agent-sync parser now accepts `OverviewCard`, matching the admin authoring vocabulary and the Windows Agent wellness renderer support
 - the backend draft validator now accepts `GuidedRoutine + OverviewCard`, which opens the `B2` office-stretching overview path to admin authoring instead of leaving it only in debug preview code
+- the admin authoring and publish flows now expose recurrence through an interval-plus-unit builder instead of raw RRULE entry, while detail and monitoring surfaces summarize cadence in operator language
+- the admin authoring flow now supports batch-selecting multiple device targets in one wellness draft while remaining device-centric at execution time
+- wellness validity can now be bounded with `Valid Until` or set to `never expires until stopped from the server`
+- wellness authoring now exposes `rotationMode` as `Fixed`, `Sequential`, or `Random` (`Shuffle`) so template sequencing can be controlled without editing payload JSON
+- wellness authoring now starts from `Program Family` (`20-20-20 Rule` vs `Office Stretching`) and only enables rotation when multiple approved variants are selected for that family
+- recurring wellness rollout can now be published as either `Synchronized` or `Staggered`, with staggered delivery materialized as deterministic per-device policy offsets to avoid simultaneous prompts across a bulk audience
+- the Windows Agent reminder renderer now resolves the effective wellness variant at occurrence time from the synced variant set plus `rotationMode`, instead of treating rotation as admin-only metadata
 - local runtime verification on `2026-08-31` now proves the publishable `B2` path on the real target device: device `MTI-NB-373` at `agentVersion = 1.0.7` synced reminder policy `fba67fe7-3755-4556-87ae-b2841bc43714` from backend `http://127.0.0.1:4019`, and reminder activity later recorded real `Triggered` plus `Displayed` events for communication `6e07c523-887a-4a3f-bd39-929905611a55`
 - the latest runtime evidence still shows no automatic `Started` event immediately after `B2` render, which is aligned with the intended behavior that the guided stretching countdown only begins after the user explicitly chooses `Start`
 

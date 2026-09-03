@@ -8,6 +8,7 @@ import { MarkdownText } from "@/components/common/MarkdownText";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { WellnessScheduleFields } from "@/components/wellness/WellnessScheduleFields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -30,6 +29,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  buildWellnessRecurrenceRule,
+  formatWellnessRecurrenceSummary,
+  parseWellnessRecurrenceRule,
+  type WellnessRecurrenceUnit,
+} from "@/lib/wellness-authoring";
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 import { notificationsService } from "@/services/notifications.service";
 import type {
@@ -37,6 +42,7 @@ import type {
   Notification,
   NotificationStatus,
   Recipient,
+  WellnessDistributionMode,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -105,8 +111,12 @@ function WellnessProgramDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  const [neverExpires, setNeverExpires] = useState(true);
   const [timezone, setTimezone] = useState(getLocalTimeZone());
-  const [recurrenceRule, setRecurrenceRule] = useState("FREQ=DAILY;INTERVAL=1");
+  const [recurrenceInterval, setRecurrenceInterval] = useState("1");
+  const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
+  const [distributionMode, setDistributionMode] = useState<WellnessDistributionMode>("Staggered");
+  const [staggerWindowMinutes, setStaggerWindowMinutes] = useState("30");
   const isRefreshing =
     isNotificationFetching ||
     isAudienceFetching ||
@@ -118,10 +128,18 @@ function WellnessProgramDetailPage() {
       notificationsService.publish(id, {
         publishMode: "Recurring",
         scheduledAt: scheduledAt.trim() ? normalizeScheduledDateTime(scheduledAt) : null,
-        recurrenceRule: recurrenceRule.trim(),
+        recurrenceRule: buildWellnessRecurrenceRule({
+          interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
+          unit: recurrenceUnit,
+        }),
         timezone: timezone.trim(),
         executionMode: "AgentLocalRoutine",
-        validUntil: normalizeScheduledDateTime(validUntil),
+        distributionMode,
+        staggerWindowMinutes:
+          distributionMode === "Staggered"
+            ? Number.parseInt(staggerWindowMinutes || "30", 10) || 30
+            : null,
+        validUntil: neverExpires ? null : normalizeScheduledDateTime(validUntil),
         confirmedPreview: true,
       }),
     onSuccess: async () => {
@@ -217,12 +235,26 @@ function WellnessProgramDetailPage() {
   const isRoutinePriority = notification.priority !== "Emergency" && notification.priority !== "Critical";
   const canPublish = notification.status === "Draft";
   const canCancel = CANCELLABLE_STATUSES.includes(notification.status);
+  const recurrenceSummary = formatWellnessRecurrenceSummary(
+    buildWellnessRecurrenceRule({
+      interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
+      unit: recurrenceUnit,
+    }),
+  );
   const publishInvalid =
-    !recurrenceRule.trim() ||
     !timezone.trim() ||
-    !validUntil.trim() ||
-    !isValidDateTimeInput(validUntil) ||
+    !Number.isFinite(Number.parseInt(recurrenceInterval || "", 10)) ||
+    Number.parseInt(recurrenceInterval || "", 10) < 1 ||
+    (distributionMode === "Staggered" &&
+      (!Number.isFinite(Number.parseInt(staggerWindowMinutes || "", 10)) ||
+        Number.parseInt(staggerWindowMinutes || "", 10) < 5 ||
+        Number.parseInt(staggerWindowMinutes || "", 10) > 720)) ||
+    (!neverExpires && (!validUntil.trim() || !isValidDateTimeInput(validUntil))) ||
     (scheduledAt.trim() && !isValidDateTimeInput(scheduledAt)) ||
+    (!neverExpires &&
+      scheduledAt.trim() &&
+      isValidDateTimeInput(validUntil) &&
+      new Date(validUntil).getTime() <= new Date(scheduledAt).getTime()) ||
     !hasDesktopAgentChannel ||
     notification.targetType !== "Device" ||
     !isRoutinePriority ||
@@ -318,7 +350,7 @@ function WellnessProgramDetailPage() {
           value={notification.reminderSchedule?.executionMode ?? "Draft"}
           description={notification.reminderSchedule?.validUntil
             ? `Valid until ${formatOptionalDate(notification.reminderSchedule.validUntil)}`
-            : "Bounded validity window must be confirmed before publish."}
+            : "No expiry is set. The routine stays active until an operator deactivates it."}
         />
       </div>
 
@@ -357,7 +389,10 @@ function WellnessProgramDetailPage() {
               <Info label="Channels" value={notification.channels.join(", ")} />
               <Info label="Windows Agent Presentation" value={notification.windowsAgentPresentation || "—"} />
               <Info label="Target Type" value={notification.targetType} />
-              <Info label="Target Device" value={notification.targetDeviceId || "—"} />
+              <Info
+                label="Target Devices"
+                value={formatTargetDeviceSummary(notification)}
+              />
               <Info label="Created By" value={notification.createdBy} />
               <Info label="Created At" value={format(new Date(notification.createdAt), "dd MMM yyyy HH:mm")} />
             </CardContent>
@@ -370,10 +405,22 @@ function WellnessProgramDetailPage() {
             <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
               <Info label="Schedule Type" value={notification.reminderSchedule?.scheduleType ?? "Recurring"} />
               <Info label="First Occurrence" value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)} />
-              <Info label="Recurrence Rule" value={notification.reminderSchedule?.recurrenceRule || "—"} />
+              <Info
+                label="Recurrence"
+                value={formatWellnessRecurrenceSummary(notification.reminderSchedule?.recurrenceRule)}
+              />
               <Info label="Timezone" value={notification.reminderSchedule?.timezone || "—"} />
               <Info label="Execution Mode" value={notification.reminderSchedule?.executionMode || "—"} />
-              <Info label="Valid Until" value={formatOptionalDate(notification.reminderSchedule?.validUntil)} />
+              <Info
+                label="Expires"
+                value={notification.reminderSchedule?.validUntil
+                  ? formatOptionalDate(notification.reminderSchedule.validUntil)
+                  : "Never expires unless stopped from the server"}
+              />
+              <Info
+                label="Distribution"
+                value={notification.reminderSchedule?.distributionMode ?? "Synchronized"}
+              />
             </CardContent>
           </Card>
 
@@ -466,7 +513,9 @@ function WellnessProgramDetailPage() {
                       <TableRow key={policy.policyId}>
                         <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
                         <TableCell>{policy.scheduleVersion}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{policy.recurrenceRule}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatWellnessRecurrenceSummary(policy.recurrenceRule)}
+                        </TableCell>
                         <TableCell>{policy.timezone}</TableCell>
                         <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
                         <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
@@ -637,49 +686,24 @@ function WellnessProgramDetailPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>First Occurrence</Label>
-                <Input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(event) => setScheduledAt(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Optional. Leave empty to allow the backend to activate the recurring policy immediately.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Valid Until</Label>
-                <Input
-                  type="datetime-local"
-                  value={validUntil}
-                  onChange={(event) => setValidUntil(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Required so the local policy remains bounded on the device.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Timezone</Label>
-                <Input
-                  value={timezone}
-                  onChange={(event) => setTimezone(event.target.value)}
-                  placeholder="e.g. Asia/Jakarta"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Recurrence Rule</Label>
-                <Input
-                  value={recurrenceRule}
-                  onChange={(event) => setRecurrenceRule(event.target.value)}
-                  placeholder="e.g. FREQ=DAILY;INTERVAL=1"
-                />
-              </div>
-            </div>
+            <WellnessScheduleFields
+              scheduledAt={scheduledAt}
+              onScheduledAtChange={setScheduledAt}
+              validUntil={validUntil}
+              onValidUntilChange={setValidUntil}
+              timezone={timezone}
+              onTimezoneChange={setTimezone}
+              recurrenceInterval={recurrenceInterval}
+              onRecurrenceIntervalChange={setRecurrenceInterval}
+              recurrenceUnit={recurrenceUnit}
+              onRecurrenceUnitChange={setRecurrenceUnit}
+              neverExpires={neverExpires}
+              onNeverExpiresChange={setNeverExpires}
+              distributionMode={distributionMode}
+              onDistributionModeChange={setDistributionMode}
+              staggerWindowMinutes={staggerWindowMinutes}
+              onStaggerWindowMinutesChange={setStaggerWindowMinutes}
+            />
 
             <div className="rounded-md border p-3 text-sm">
               <div className="font-medium">Guardrails</div>
@@ -688,7 +712,13 @@ function WellnessProgramDetailPage() {
                 <li>{notification.targetType === "Device" ? "OK" : "Missing"}: targeting stays device-bound.</li>
                 <li>{eligibleDeviceRecipientCount > 0 ? "OK" : "Missing"}: latest preview resolves at least one Windows Agent device.</li>
                 <li>{isRoutinePriority ? "OK" : "Missing"}: priority is not Emergency or Critical.</li>
-                <li>{validUntil.trim() ? "OK" : "Missing"}: validity window is present.</li>
+                <li>{neverExpires || validUntil.trim() ? "OK" : "Missing"}: expiry policy is defined.</li>
+                <li>{recurrenceSummary}: operator-friendly cadence will be converted to RRULE on publish.</li>
+                <li>
+                  {distributionMode === "Staggered"
+                    ? `Staggered within ${staggerWindowMinutes || "30"} minutes to avoid simultaneous prompts.`
+                    : "Synchronized schedule across the selected devices."}
+                </li>
               </ul>
             </div>
           </div>
@@ -735,8 +765,13 @@ function WellnessProgramDetailPage() {
   function openPublishDialog(item: Notification) {
     setScheduledAt(item.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(item.reminderSchedule.scheduledAt) : "");
     setValidUntil(item.reminderSchedule?.validUntil ? toDateTimeLocalInput(item.reminderSchedule.validUntil) : "");
+    setNeverExpires(!item.reminderSchedule?.validUntil);
     setTimezone(item.reminderSchedule?.timezone ?? getLocalTimeZone());
-    setRecurrenceRule(item.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
+    const recurrence = parseWellnessRecurrenceRule(item.reminderSchedule?.recurrenceRule);
+    setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
+    setRecurrenceUnit(recurrence?.unit ?? "Day");
+    setDistributionMode(item.reminderSchedule?.distributionMode ?? "Staggered");
+    setStaggerWindowMinutes((item.reminderSchedule?.staggerWindowMinutes ?? 30).toString());
     setPublishOpen(true);
   }
 }
@@ -829,13 +864,26 @@ function buildRecipientReference(recipient: Recipient) {
 }
 
 function buildWellnessDescription(notification: Notification) {
-  const target = notification.targetDeviceId || notification.targetType;
+  const target = formatTargetDeviceSummary(notification);
   return [
     "Dedicated wellness detail",
     notification.wellnessProgram?.programType,
     notification.wellnessProgram?.theme,
     target,
   ].filter(Boolean).join(" · ");
+}
+
+function formatTargetDeviceSummary(notification: Notification) {
+  if (notification.targetDeviceIds?.length) {
+    if (notification.targetDeviceIds.length === 1) {
+      return notification.targetDeviceIds[0];
+    }
+
+    const preview = notification.targetDeviceIds.slice(0, 3).join(", ");
+    return `${preview}${notification.targetDeviceIds.length > 3 ? ` + ${notification.targetDeviceIds.length - 3} more` : ""}`;
+  }
+
+  return notification.targetDeviceId || "—";
 }
 
 function normalizeScheduledDateTime(value: string) {

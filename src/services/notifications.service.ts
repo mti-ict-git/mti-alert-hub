@@ -42,6 +42,8 @@ type ApiCommunicationDetail = ApiCommunicationSummary & {
     recurrenceRule?: string | null;
     timezone?: string | null;
     executionMode?: "ServerGenerated" | "AgentLocalRoutine" | null;
+    distributionMode?: "Synchronized" | "Staggered" | null;
+    staggerWindowMinutes?: number | null;
     scheduleVersion: number;
     validFrom?: string | null;
     validUntil?: string | null;
@@ -227,6 +229,8 @@ type PublishNotificationInput =
       recurrenceRule: string;
       timezone: string;
       executionMode: "ServerGenerated" | "AgentLocalRoutine";
+      distributionMode?: "Synchronized" | "Staggered";
+      staggerWindowMinutes?: number | null;
       validUntil?: string | null;
       confirmedPreview: boolean;
     };
@@ -378,6 +382,10 @@ function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
 
 function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
   const primaryTarget = item.targets[0];
+  const deviceTargets = item.targets
+    .filter((target) => target.targetType === "Device")
+    .map((target) => target.targetValue);
+
   return {
     id: item.id,
     communicationType: item.communicationType as Notification["communicationType"],
@@ -396,6 +404,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     channels: item.channelSelections.map(mapChannelFromApi),
     targetDeviceId:
       primaryTarget?.targetType === "Device" ? primaryTarget.targetValue : undefined,
+    targetDeviceIds: deviceTargets,
     workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
     windowsAgentPresentation: item.windowsAgentPresentation ?? null,
@@ -697,6 +706,13 @@ function buildTargetsFromNotification(input: UpdateNotificationInput) {
     case "Individual":
       return [{ targetType: "Employee", targetValue: input.targetEmployeeId ?? "*" }];
     case "Device":
+      if (input.targetDeviceIds?.length) {
+        return input.targetDeviceIds.map((deviceId) => ({
+          targetType: "Device" as const,
+          targetValue: deviceId,
+        }));
+      }
+
       return [{ targetType: "Device", targetValue: input.targetDeviceId ?? "*" }];
     default:
       return [{ targetType: "Group", targetValue: "custom-selection" }];
@@ -713,6 +729,8 @@ function mapReminderScheduleInputToApi(reminderSchedule: Notification["reminderS
     recurrenceRule: reminderSchedule.recurrenceRule ?? "",
     timezone: reminderSchedule.timezone ?? "",
     executionMode: reminderSchedule.executionMode ?? "ServerGenerated",
+    distributionMode: reminderSchedule.distributionMode ?? "Synchronized",
+    staggerWindowMinutes: reminderSchedule.staggerWindowMinutes ?? null,
     validUntil: reminderSchedule.validUntil ?? null,
   };
 }
@@ -724,6 +742,7 @@ function mapWellnessProgramToApi(wellnessProgram: Notification["wellnessProgram"
 
   return {
     ...wellnessProgram,
+    variantKeys: (wellnessProgram.variantKeys ?? []).filter((value): value is string => typeof value === "string" && value.length > 0),
     heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
     countdownSeconds: wellnessProgram.countdownSeconds ?? null,
     rotationMode: wellnessProgram.rotationMode ?? null,
