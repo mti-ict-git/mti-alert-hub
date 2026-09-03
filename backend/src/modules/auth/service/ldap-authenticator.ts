@@ -18,10 +18,25 @@ type LdapSearchEntry = {
   dn: string;
   cn?: string;
   displayName?: string;
+  department?: string | string[];
+  title?: string | string[];
   mail?: string | string[];
   memberOf?: string | string[];
+  mobile?: string | string[];
   sAMAccountName?: string;
   userPrincipalName?: string;
+  employeeID?: string | string[];
+};
+
+export type DirectoryUserProfile = {
+  username: string;
+  distinguishedName: string;
+  fullName: string;
+  email: string | null;
+  employeeNumber: string | null;
+  department: string | null;
+  title: string | null;
+  mobile: string | null;
 };
 
 export class LdapAuthenticator {
@@ -32,15 +47,7 @@ export class LdapAuthenticator {
 
   async authenticate(username: string, password: string): Promise<AuthenticatedDirectoryUser> {
     const config = ldapConfigSchema.parse(this.env);
-    const client = new Client({
-      url: config.LDAP_URL,
-      timeout: 5000,
-      connectTimeout: 5000,
-      tlsOptions: {
-        rejectUnauthorized:
-          this.env.NODE_ENV === "production" ? !this.env.LDAP_SKIP_TLS_VERIFY : false,
-      },
-    });
+    const client = createLdapClient(config.LDAP_URL, this.env);
 
     try {
       await client.bind(config.LDAP_BIND_DN, config.LDAP_BIND_PASSWORD);
@@ -103,6 +110,93 @@ export class LdapAuthenticator {
       await client.unbind().catch(() => undefined);
     }
   }
+
+  async lookupUserProfile(username: string): Promise<DirectoryUserProfile | null> {
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      return null;
+    }
+
+    const config = ldapConfigSchema.parse(this.env);
+    const client = createLdapClient(config.LDAP_URL, this.env);
+
+    try {
+      await client.bind(config.LDAP_BIND_DN, config.LDAP_BIND_PASSWORD);
+      const firstEntry = await findFirstDirectoryEntry(client, config.LDAP_SEARCH_BASE, trimmedUsername);
+      if (!firstEntry) {
+        return null;
+      }
+
+      const resolvedUsername =
+        firstEntry.sAMAccountName ?? firstEntry.userPrincipalName ?? trimmedUsername;
+
+      return {
+        username: resolvedUsername,
+        distinguishedName: firstEntry.dn,
+        fullName: firstEntry.displayName ?? firstEntry.cn ?? resolvedUsername,
+        email: normalizeOptionalScalar(firstEntry.mail),
+        employeeNumber: normalizeOptionalScalar(firstEntry.employeeID),
+        department: normalizeOptionalScalar(firstEntry.department),
+        title: normalizeOptionalScalar(firstEntry.title),
+        mobile: normalizeOptionalScalar(firstEntry.mobile),
+      };
+    } catch (error) {
+      this.logger.warn("auth.ldap.lookup_failed", {
+        username: trimmedUsername,
+        error: error instanceof Error ? error.message : "Unknown LDAP lookup error",
+      });
+      throw error;
+    } finally {
+      await client.unbind().catch(() => undefined);
+    }
+  }
+}
+
+function createLdapClient(url: string, env: BackendEnv) {
+  return new Client({
+    url,
+    timeout: 5000,
+    connectTimeout: 5000,
+    tlsOptions: {
+      rejectUnauthorized: env.NODE_ENV === "production" ? !env.LDAP_SKIP_TLS_VERIFY : false,
+    },
+  });
+}
+
+async function findFirstDirectoryEntry(
+  client: Client,
+  searchBase: string,
+  username: string,
+) {
+  const searchResult = await client.search(searchBase, {
+    scope: "sub",
+    filter: buildDirectoryUserSearchFilter(username),
+    attributes: [
+      "cn",
+      "displayName",
+      "department",
+      "title",
+      "mail",
+      "mobile",
+      "memberOf",
+      "sAMAccountName",
+      "userPrincipalName",
+      "employeeID",
+    ],
+  });
+
+  return searchResult.searchEntries.at(0) as LdapSearchEntry | undefined;
+}
+
+function buildDirectoryUserSearchFilter(username: string) {
+  return [
+    "(|",
+    `(sAMAccountName=${escapeLdapFilter(username)})`,
+    `(userPrincipalName=${escapeLdapFilter(username)})`,
+    `(mail=${escapeLdapFilter(username)})`,
+    `(cn=${escapeLdapFilter(username)})`,
+    ")",
+  ].join("");
 }
 
 function normalizeGroupValues(value: string | string[] | undefined): string[] {

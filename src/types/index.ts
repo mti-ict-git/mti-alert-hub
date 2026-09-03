@@ -133,6 +133,16 @@ export interface Device {
   ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
   primaryEmployeeId?: string | null;
   primaryEmployeeName?: string | null;
+  lastActiveUserIdentifier?: string | null;
+  currentUserType?: "Employee" | "NonEmployee" | "Unknown";
+  currentUsername?: string | null;
+  currentDisplayName?: string | null;
+  currentEmployeeNumber?: string | null;
+  currentDepartment?: string | null;
+  currentTitle?: string | null;
+  currentMobile?: string | null;
+  currentEmail?: string | null;
+  lastDirectoryLookupAt?: string | null;
   agentVersion?: string | null;
   status: DeviceStatus;
   lastSeen?: string | null;

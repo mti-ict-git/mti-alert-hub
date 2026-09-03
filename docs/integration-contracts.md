@@ -63,7 +63,7 @@ The current baseline ingestion contract does not yet support:
 Current safe ownership model:
 - organization hierarchy and employee baseline come from an external HR batch or operator-provided export
 - device baseline comes from inventory export or controlled operator-provided baseline
-- LDAP remains an authentication source for admin login, not the source of truth for org or device master data
+- LDAP remains an authentication source for admin login and a best-effort lookup source for active Windows desktop user enrichment, but not the source of truth for org or device master data
 
 ### File Format
 The Phase 1 ingestion payload is JSON.

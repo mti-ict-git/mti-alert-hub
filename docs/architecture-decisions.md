@@ -101,9 +101,10 @@ Each decision should include:
 - Status: `Accepted`
 - Date: `2026-07-07`
 - Context: Enterprise identity should be externally trusted, but MTI Alert still needs local control over scopes and roles.
-- Decision: Use LDAP or Active Directory for administrative authentication only, while MTI Alert owns role and scope mapping locally.
+- Decision: Use LDAP or Active Directory for administrative authentication and for best-effort runtime enrichment of the active Windows desktop user, while MTI Alert owns role and scope mapping locally and keeps device trust plus employee master data under its own contracts.
 - Consequences:
   - Identity verification and authorization remain intentionally separated.
+  - Directory lookups may enrich device read models with `current active user` context such as department or title, but they do not replace the device-centric trust model or the employee baseline import contract.
   - Role scope enforcement must be implemented in backend command and query paths, not only in the UI.
   - Exact production integration details remain open until implementation phase.
 - Related documents:

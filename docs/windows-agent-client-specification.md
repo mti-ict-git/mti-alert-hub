@@ -249,6 +249,10 @@ The current API contract indicates the agent may send:
 - `agentVersion`
 - `activeUserIdentifier` nullable
 
+Current Phase 4 note:
+- `activeUserIdentifier` is now also used for best-effort directory enrichment on the backend so the admin device view can show the latest active AD user context such as department, title, mobile number, and employee ID when available.
+- If the identifier is not found in the directory, the device may be shown as `NonEmployee` without changing device trust semantics.
+
 ### Implementation Guidance
 The client should:
 - persist a stable `deviceIdentifier`
@@ -256,7 +260,7 @@ The client should:
 - treat the device session as the authoritative agent credential
 - treat `hostname` as useful metadata but not as the canonical device identity
 - avoid assuming employee binding is mandatory for desktop delivery
-- send active user context only when available and trustworthy
+- send active user context only when available and trustworthy, because backend directory enrichment is only as good as the current signed-in user signal
 
 ## Connection And Startup Flow
 Recommended client startup sequence:

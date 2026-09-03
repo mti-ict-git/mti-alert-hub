@@ -41,6 +41,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 ## Suggested Modules
 ### 1. Auth And Access Module
 - LDAP or Active Directory login and session/token issuance
+- LDAP or Active Directory lookup support for best-effort Windows Agent active-user enrichment
 - Local role and scope mapping
 - Permission checks
 - Phase 1 baseline may use opaque bearer session tokens backed by an in-memory session store until persistent session infrastructure is introduced

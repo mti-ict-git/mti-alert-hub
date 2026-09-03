@@ -8,6 +8,7 @@ import type { BackendEnv } from "../../../app/config/env.js";
 import { resolveDeviceHealthThresholds } from "../../../app/config/env.js";
 import { resolveWindowsAgentPendingMessageTtlMinutes } from "../../../app/config/env.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
+import type { LdapAuthenticator, DirectoryUserProfile } from "../../auth/service/ldap-authenticator.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
@@ -33,6 +34,29 @@ type DeviceRecord = {
   departmentName: string | null;
   sectionId: string | null;
   sectionName: string | null;
+  lastActiveUserIdentifier: string | null;
+  lastDirectoryUserType: "Employee" | "NonEmployee" | "Unknown";
+  lastDirectoryUsername: string | null;
+  lastDirectoryDisplayName: string | null;
+  lastDirectoryEmployeeNumber: string | null;
+  lastDirectoryDepartment: string | null;
+  lastDirectoryTitle: string | null;
+  lastDirectoryMobile: string | null;
+  lastDirectoryEmail: string | null;
+  lastDirectoryLookupAt: string | null;
+};
+
+type DeviceDirectorySnapshot = {
+  activeUserIdentifier: string | null;
+  userType: "Employee" | "NonEmployee" | "Unknown";
+  username: string | null;
+  displayName: string | null;
+  employeeNumber: string | null;
+  department: string | null;
+  title: string | null;
+  mobile: string | null;
+  email: string | null;
+  lookupAt: string | null;
 };
 
 type WorkflowSnapshot = {
@@ -282,6 +306,7 @@ export class AgentService {
     private readonly auditLogService: AuditLogService,
     private readonly responseOverdueService: ResponseOverdueService,
     private readonly deviceEnrollmentService: DeviceEnrollmentService,
+    private readonly ldapAuthenticator: LdapAuthenticator,
     private readonly env: BackendEnv,
     private readonly logger: Logger,
   ) {
@@ -332,8 +357,13 @@ export class AgentService {
         deviceIdentifier: device.deviceIdentifier,
         hostname: device.hostname,
       },
-      activeUserIdentifier: input.activeUserIdentifier ?? null,
+      activeUserIdentifier: normalizeOptionalText(input.activeUserIdentifier),
     });
+
+    const directorySnapshot = await this.resolveDirectorySnapshot(
+      input.activeUserIdentifier ?? null,
+      input.employeeNumber ?? null,
+    );
 
     await this.database.query(
       `
@@ -343,10 +373,35 @@ export class AgentService {
           agent_version = coalesce($3, agent_version),
           hostname = coalesce($4, hostname),
           last_connection_at = now(),
-          status = 'Online'
+          status = 'Online',
+          last_active_user_identifier = $5,
+          last_directory_user_type = $6,
+          last_directory_username = $7,
+          last_directory_display_name = $8,
+          last_directory_employee_number = $9,
+          last_directory_department = $10,
+          last_directory_title = $11,
+          last_directory_mobile = $12,
+          last_directory_email = $13,
+          last_directory_lookup_at = $14::timestamptz
         where id::text = $1
       `,
-      [device.id, input.deviceIdentifier, input.agentVersion ?? null, input.hostname ?? null],
+      [
+        device.id,
+        input.deviceIdentifier,
+        input.agentVersion ?? null,
+        input.hostname ?? null,
+        directorySnapshot.activeUserIdentifier,
+        directorySnapshot.userType,
+        directorySnapshot.username,
+        directorySnapshot.displayName,
+        directorySnapshot.employeeNumber,
+        directorySnapshot.department,
+        directorySnapshot.title,
+        directorySnapshot.mobile,
+        directorySnapshot.email,
+        directorySnapshot.lookupAt,
+      ],
     );
 
     this.logger.info("agent.session.created", {
@@ -453,7 +508,14 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     await this.ensureSessionOwnsDevice(session, input.deviceIdentifier);
     this.ensureIsoDate(input.heartbeatAt, "heartbeatAt");
-    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
+    const normalizedActiveUserIdentifier = normalizeOptionalText(input.activeUserIdentifier);
+    const shouldRefreshDirectorySnapshot =
+      normalizedActiveUserIdentifier !== normalizeOptionalText(session.activeUserIdentifier);
+    const directorySnapshot = shouldRefreshDirectorySnapshot
+      ? await this.resolveDirectorySnapshot(normalizedActiveUserIdentifier, null)
+      : null;
+
+    await this.sessionStore.updateSessionActiveUser(sessionToken, normalizedActiveUserIdentifier);
 
     await this.database.query(
       `
@@ -462,10 +524,36 @@ export class AgentService {
           device_identifier = coalesce($2, device_identifier),
           last_heartbeat_at = $3::timestamptz,
           status = coalesce($4, status),
+          last_active_user_identifier = case when $5 then $6 else last_active_user_identifier end,
+          last_directory_user_type = case when $5 then $7 else last_directory_user_type end,
+          last_directory_username = case when $5 then $8 else last_directory_username end,
+          last_directory_display_name = case when $5 then $9 else last_directory_display_name end,
+          last_directory_employee_number = case when $5 then $10 else last_directory_employee_number end,
+          last_directory_department = case when $5 then $11 else last_directory_department end,
+          last_directory_title = case when $5 then $12 else last_directory_title end,
+          last_directory_mobile = case when $5 then $13 else last_directory_mobile end,
+          last_directory_email = case when $5 then $14 else last_directory_email end,
+          last_directory_lookup_at = case when $5 then $15::timestamptz else last_directory_lookup_at end,
           updated_at = now()
         where id::text = $1
       `,
-      [session.device.id, input.deviceIdentifier, input.heartbeatAt, input.status ?? null],
+      [
+        session.device.id,
+        input.deviceIdentifier,
+        input.heartbeatAt,
+        input.status ?? null,
+        shouldRefreshDirectorySnapshot,
+        directorySnapshot?.activeUserIdentifier ?? null,
+        directorySnapshot?.userType ?? null,
+        directorySnapshot?.username ?? null,
+        directorySnapshot?.displayName ?? null,
+        directorySnapshot?.employeeNumber ?? null,
+        directorySnapshot?.department ?? null,
+        directorySnapshot?.title ?? null,
+        directorySnapshot?.mobile ?? null,
+        directorySnapshot?.email ?? null,
+        directorySnapshot?.lookupAt ?? null,
+      ],
     );
 
     this.logger.info("agent.heartbeat.recorded", {
@@ -1536,6 +1624,94 @@ export class AgentService {
     }
   }
 
+  private async resolveDirectorySnapshot(
+    activeUserIdentifier?: string | null,
+    fallbackEmployeeNumber?: string | null,
+  ): Promise<DeviceDirectorySnapshot> {
+    const normalizedActiveUserIdentifier = normalizeOptionalText(activeUserIdentifier);
+    const normalizedFallbackEmployeeNumber = normalizeOptionalText(fallbackEmployeeNumber);
+
+    if (!normalizedActiveUserIdentifier) {
+      return {
+        activeUserIdentifier: null,
+        userType: "Unknown",
+        username: null,
+        displayName: null,
+        employeeNumber: null,
+        department: null,
+        title: null,
+        mobile: null,
+        email: null,
+        lookupAt: null,
+      };
+    }
+
+    const lookupAt = new Date().toISOString();
+
+    try {
+      const directoryUser = await this.ldapAuthenticator.lookupUserProfile(normalizedActiveUserIdentifier);
+      if (!directoryUser) {
+        return {
+          activeUserIdentifier: normalizedActiveUserIdentifier,
+          userType: "NonEmployee",
+          username: normalizedActiveUserIdentifier,
+          displayName: null,
+          employeeNumber: null,
+          department: null,
+          title: null,
+          mobile: null,
+          email: null,
+          lookupAt,
+        };
+      }
+
+      return this.mapDirectoryUserSnapshot(
+        normalizedActiveUserIdentifier,
+        directoryUser,
+        normalizedFallbackEmployeeNumber,
+        lookupAt,
+      );
+    } catch (error) {
+      this.logger.warn("agent.directory_lookup.unavailable", {
+        activeUserIdentifier: normalizedActiveUserIdentifier,
+        error: error instanceof Error ? error.message : "Unknown directory lookup error",
+      });
+
+      return {
+        activeUserIdentifier: normalizedActiveUserIdentifier,
+        userType: "Unknown",
+        username: normalizedActiveUserIdentifier,
+        displayName: null,
+        employeeNumber: normalizedFallbackEmployeeNumber,
+        department: null,
+        title: null,
+        mobile: null,
+        email: null,
+        lookupAt,
+      };
+    }
+  }
+
+  private mapDirectoryUserSnapshot(
+    activeUserIdentifier: string,
+    directoryUser: DirectoryUserProfile,
+    fallbackEmployeeNumber: string | null,
+    lookupAt: string,
+  ): DeviceDirectorySnapshot {
+    return {
+      activeUserIdentifier,
+      userType: "Employee",
+      username: directoryUser.username,
+      displayName: directoryUser.fullName,
+      employeeNumber: directoryUser.employeeNumber ?? fallbackEmployeeNumber,
+      department: directoryUser.department,
+      title: directoryUser.title,
+      mobile: directoryUser.mobile,
+      email: directoryUser.email,
+      lookupAt,
+    };
+  }
+
   private async requireKnownDevice(options: {
     deviceIdentifier: string;
     hostname: string | null;
@@ -1580,7 +1756,17 @@ export class AgentService {
           dept.id::text as "departmentId",
           dept.name::text as "departmentName",
           sec.id::text as "sectionId",
-          sec.name::text as "sectionName"
+          sec.name::text as "sectionName",
+          d.last_active_user_identifier::text as "lastActiveUserIdentifier",
+          d.last_directory_user_type::text as "lastDirectoryUserType",
+          d.last_directory_username::text as "lastDirectoryUsername",
+          d.last_directory_display_name::text as "lastDirectoryDisplayName",
+          d.last_directory_employee_number::text as "lastDirectoryEmployeeNumber",
+          d.last_directory_department::text as "lastDirectoryDepartment",
+          d.last_directory_title::text as "lastDirectoryTitle",
+          d.last_directory_mobile::text as "lastDirectoryMobile",
+          d.last_directory_email::text as "lastDirectoryEmail",
+          d.last_directory_lookup_at::text as "lastDirectoryLookupAt"
         from public.devices d
         inner join public.sites s on s.id = d.site_id
         left join public.areas a on a.id = d.area_id
@@ -1636,7 +1822,17 @@ export class AgentService {
           dept.id::text as "departmentId",
           dept.name::text as "departmentName",
           sec.id::text as "sectionId",
-          sec.name::text as "sectionName"
+          sec.name::text as "sectionName",
+          d.last_active_user_identifier::text as "lastActiveUserIdentifier",
+          d.last_directory_user_type::text as "lastDirectoryUserType",
+          d.last_directory_username::text as "lastDirectoryUsername",
+          d.last_directory_display_name::text as "lastDirectoryDisplayName",
+          d.last_directory_employee_number::text as "lastDirectoryEmployeeNumber",
+          d.last_directory_department::text as "lastDirectoryDepartment",
+          d.last_directory_title::text as "lastDirectoryTitle",
+          d.last_directory_mobile::text as "lastDirectoryMobile",
+          d.last_directory_email::text as "lastDirectoryEmail",
+          d.last_directory_lookup_at::text as "lastDirectoryLookupAt"
         from public.devices d
         inner join public.sites s on s.id = d.site_id
         left join public.areas a on a.id = d.area_id
@@ -1682,7 +1878,17 @@ export class AgentService {
           dept.id::text as "departmentId",
           dept.name::text as "departmentName",
           sec.id::text as "sectionId",
-          sec.name::text as "sectionName"
+          sec.name::text as "sectionName",
+          d.last_active_user_identifier::text as "lastActiveUserIdentifier",
+          d.last_directory_user_type::text as "lastDirectoryUserType",
+          d.last_directory_username::text as "lastDirectoryUsername",
+          d.last_directory_display_name::text as "lastDirectoryDisplayName",
+          d.last_directory_employee_number::text as "lastDirectoryEmployeeNumber",
+          d.last_directory_department::text as "lastDirectoryDepartment",
+          d.last_directory_title::text as "lastDirectoryTitle",
+          d.last_directory_mobile::text as "lastDirectoryMobile",
+          d.last_directory_email::text as "lastDirectoryEmail",
+          d.last_directory_lookup_at::text as "lastDirectoryLookupAt"
         from public.devices d
         inner join public.sites s on s.id = d.site_id
         left join public.areas a on a.id = d.area_id
@@ -1795,6 +2001,11 @@ function selectRealtimeBaseUrl(options: {
   }
 
   return options.requestBaseUrl ?? fallbackBaseUrl;
+}
+
+function normalizeOptionalText(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function normalizeBaseUrl(value?: string) {

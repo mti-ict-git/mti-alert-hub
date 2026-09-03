@@ -745,7 +745,12 @@ paths:
     get:
       tags: [Devices]
       summary: List registered Windows Agent devices
-      description: Returns device-centric read models used for targeting, operational visibility, and monitoring.
+      description: |
+        Returns device-centric read models used for targeting, operational visibility, and monitoring.
+
+        Current Phase 4 note:
+        - Devices may now include best-effort directory enrichment for the latest active desktop user reported by the agent.
+        - That enrichment is informational only and does not replace device trust or authoritative employee master-data contracts.
       operationId: listDevices
       x-implementation-phase: Phase 1
       parameters:
@@ -1108,6 +1113,7 @@ paths:
         - Session trust is device-centric and stored in `device_sessions`.
         - Refreshing a session rotates the opaque token and invalidates the previous device token.
         - `employeeNumber` and `activeUserIdentifier` are optional metadata and do not replace device trust.
+        - `activeUserIdentifier` may be used for best-effort directory enrichment of the device read model.
         - The latest `activeUserIdentifier` is retained on the active device session for audit context and shared-device pending-message replay suppression.
         - When the endpoint is still unknown, the server records or refreshes a pending enrollment request and returns a conflict response instead of creating a trusted session automatically.
       operationId: createAgentSession
@@ -2845,6 +2851,38 @@ components:
           format: date-time
           nullable: true
         lastConnectionAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastActiveUserIdentifier:
+          type: string
+          nullable: true
+        lastDirectoryUserType:
+          type: string
+          enum: [Employee, NonEmployee, Unknown]
+          nullable: true
+        lastDirectoryUsername:
+          type: string
+          nullable: true
+        lastDirectoryDisplayName:
+          type: string
+          nullable: true
+        lastDirectoryEmployeeNumber:
+          type: string
+          nullable: true
+        lastDirectoryDepartment:
+          type: string
+          nullable: true
+        lastDirectoryTitle:
+          type: string
+          nullable: true
+        lastDirectoryMobile:
+          type: string
+          nullable: true
+        lastDirectoryEmail:
+          type: string
+          nullable: true
+        lastDirectoryLookupAt:
           type: string
           format: date-time
           nullable: true

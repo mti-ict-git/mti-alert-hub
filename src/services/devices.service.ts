@@ -28,6 +28,16 @@ type ApiDevice = {
   lastHeartbeatAt?: string | null;
   lastConnectionAt?: string | null;
   status: "Online" | "Offline" | "Stale";
+  lastActiveUserIdentifier?: string | null;
+  lastDirectoryUserType?: "Employee" | "NonEmployee" | "Unknown";
+  lastDirectoryUsername?: string | null;
+  lastDirectoryDisplayName?: string | null;
+  lastDirectoryEmployeeNumber?: string | null;
+  lastDirectoryDepartment?: string | null;
+  lastDirectoryTitle?: string | null;
+  lastDirectoryMobile?: string | null;
+  lastDirectoryEmail?: string | null;
+  lastDirectoryLookupAt?: string | null;
 };
 
 type DeviceListResponse = {
@@ -96,6 +106,16 @@ export const devicesService = {
       primaryEmployeeName: item.primaryEmployeeId
         ? employeesById.get(item.primaryEmployeeId) ?? item.primaryEmployeeId
         : null,
+      lastActiveUserIdentifier: item.lastActiveUserIdentifier ?? null,
+      currentUserType: item.lastDirectoryUserType ?? "Unknown",
+      currentUsername: item.lastDirectoryUsername ?? null,
+      currentDisplayName: item.lastDirectoryDisplayName ?? null,
+      currentEmployeeNumber: item.lastDirectoryEmployeeNumber ?? null,
+      currentDepartment: item.lastDirectoryDepartment ?? null,
+      currentTitle: item.lastDirectoryTitle ?? null,
+      currentMobile: item.lastDirectoryMobile ?? null,
+      currentEmail: item.lastDirectoryEmail ?? null,
+      lastDirectoryLookupAt: item.lastDirectoryLookupAt ?? null,
       agentVersion: item.agentVersion ?? null,
       status: item.status,
       lastSeen: item.lastHeartbeatAt ?? item.lastConnectionAt ?? null,

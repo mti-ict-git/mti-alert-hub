@@ -65,6 +65,7 @@ export async function createBackendApp() {
     auditLogService,
     responseOverdueService,
     deviceEnrollmentService,
+    ldapAuthenticator,
     env,
     logger,
   );

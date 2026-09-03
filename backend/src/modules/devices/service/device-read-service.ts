@@ -25,6 +25,16 @@ type DeviceRow = {
   lastHeartbeatAt: string | null;
   lastConnectionAt: string | null;
   status: "Online" | "Offline" | "Stale";
+  lastActiveUserIdentifier: string | null;
+  lastDirectoryUserType: "Employee" | "NonEmployee" | "Unknown";
+  lastDirectoryUsername: string | null;
+  lastDirectoryDisplayName: string | null;
+  lastDirectoryEmployeeNumber: string | null;
+  lastDirectoryDepartment: string | null;
+  lastDirectoryTitle: string | null;
+  lastDirectoryMobile: string | null;
+  lastDirectoryEmail: string | null;
+  lastDirectoryLookupAt: string | null;
 };
 
 export class DeviceReadService {
@@ -57,6 +67,16 @@ export class DeviceReadService {
             d.agent_version::text as "agentVersion",
             d.last_heartbeat_at::text as "lastHeartbeatAt",
             d.last_connection_at::text as "lastConnectionAt",
+            d.last_active_user_identifier::text as "lastActiveUserIdentifier",
+            d.last_directory_user_type::text as "lastDirectoryUserType",
+            d.last_directory_username::text as "lastDirectoryUsername",
+            d.last_directory_display_name::text as "lastDirectoryDisplayName",
+            d.last_directory_employee_number::text as "lastDirectoryEmployeeNumber",
+            d.last_directory_department::text as "lastDirectoryDepartment",
+            d.last_directory_title::text as "lastDirectoryTitle",
+            d.last_directory_mobile::text as "lastDirectoryMobile",
+            d.last_directory_email::text as "lastDirectoryEmail",
+            d.last_directory_lookup_at::text as "lastDirectoryLookupAt",
             ${this.statusSql}::text as status
           from public.devices d
           ${where.clause.replace("status::text", `${this.statusSql}::text`)}
@@ -109,9 +129,16 @@ function buildDeviceWhereClause(options: DeviceReadOptions) {
 
   if (options.search) {
     const term = `%${options.search}%`;
-    values.push(term, term, term);
+    values.push(term, term, term, term, term, term);
     conditions.push(
-      `(d.hostname::text ilike $${values.length - 2} or d.device_identifier::text ilike $${values.length - 1} or d.location_label::text ilike $${values.length})`,
+      `(
+        d.hostname::text ilike $${values.length - 5}
+        or d.device_identifier::text ilike $${values.length - 4}
+        or d.location_label::text ilike $${values.length - 3}
+        or d.last_directory_username::text ilike $${values.length - 2}
+        or d.last_directory_display_name::text ilike $${values.length - 1}
+        or d.last_directory_department::text ilike $${values.length}
+      )`,
     );
   }
 

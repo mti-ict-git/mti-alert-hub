@@ -134,6 +134,16 @@ Key columns:
 - `os_version`
 - `last_heartbeat_at`
 - `last_connection_at`
+- `last_active_user_identifier` nullable raw runtime identity last reported by the agent
+- `last_directory_user_type` such as `Employee`, `NonEmployee`, or `Unknown`
+- `last_directory_username`
+- `last_directory_display_name`
+- `last_directory_employee_number`
+- `last_directory_department`
+- `last_directory_title`
+- `last_directory_mobile`
+- `last_directory_email`
+- `last_directory_lookup_at`
 - `status`
 - `created_at`
 - `updated_at`

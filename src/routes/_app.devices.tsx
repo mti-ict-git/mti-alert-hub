@@ -234,6 +234,8 @@ function DevicesPage() {
                       <TableHead>Location</TableHead>
                       <TableHead>Ownership</TableHead>
                       <TableHead>Assigned Employee</TableHead>
+                      <TableHead>Current User</TableHead>
+                      <TableHead>Department</TableHead>
                       <TableHead>Version</TableHead>
                       <TableHead>Last Seen</TableHead>
                       <TableHead className="w-[220px] text-right">Actions</TableHead>
@@ -258,7 +260,37 @@ function DevicesPage() {
                         <TableCell className="text-sm">{device.areaName ?? "-"}</TableCell>
                         <TableCell className="text-sm">{device.locationLabel ?? "-"}</TableCell>
                         <TableCell className="text-sm">{device.ownershipMode}</TableCell>
-                        <TableCell className="text-sm">{device.primaryEmployeeName ?? "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="space-y-1">
+                            <div>{device.primaryEmployeeName ?? "-"}</div>
+                            {device.primaryEmployeeName && (
+                              <div className="text-xs text-muted-foreground">Assigned owner</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="space-y-1">
+                            <div>
+                              {device.currentDisplayName ??
+                                device.currentUsername ??
+                                device.lastActiveUserIdentifier ??
+                                "-"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {device.currentEmployeeNumber
+                                ? `${device.currentUserType ?? "Unknown"} • ${device.currentEmployeeNumber}`
+                                : (device.currentUserType ?? "Unknown")}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="space-y-1">
+                            <div>{device.currentDepartment ?? "-"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {device.currentTitle ?? device.currentMobile ?? "-"}
+                            </div>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-xs">{device.agentVersion ?? "-"}</TableCell>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                           {device.lastSeen
