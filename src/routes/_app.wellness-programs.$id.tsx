@@ -52,6 +52,7 @@ import {
   type WellnessRecurrenceUnit,
 } from "@/lib/wellness-authoring";
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
+import { isCancellableNotificationStatus } from "@/lib/notification-status";
 import {
   buildWellnessDeviceOutcomeCsv,
   buildWellnessEventTimelineCsv,
@@ -302,7 +303,7 @@ function WellnessProgramDetailPage() {
     notification.priority !== "Emergency" && notification.priority !== "Critical";
   const nextRunWindowSummary = summarizeNextRunWindow(policyScheduleInsights);
   const canPublish = notification.status === "Draft";
-  const canCancel = CANCELLABLE_STATUSES.includes(notification.status);
+  const canCancel = isCancellableNotificationStatus(notification.status);
   const recurrenceSummary = formatWellnessRecurrenceSummary(
     buildWellnessRecurrenceRule({
       interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
@@ -1148,15 +1149,15 @@ function SummaryCard({
   description: string;
 }) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardContent className="flex items-start gap-4 p-5">
         <div className="rounded-xl bg-sky-100 p-3 text-sky-700">
           <Icon className="h-5 w-5" />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <div className="text-sm font-medium">{title}</div>
-          <div className="text-2xl font-semibold tracking-tight">{value}</div>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <div className="break-words text-2xl font-semibold tracking-tight">{value}</div>
+          <p className="break-words text-sm text-muted-foreground">{description}</p>
         </div>
       </CardContent>
     </Card>

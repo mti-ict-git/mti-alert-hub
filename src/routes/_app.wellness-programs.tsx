@@ -1,7 +1,19 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Activity, Copy, Eye, HeartPulse, Leaf, Pencil, Plus, RefreshCw, Rocket, ShieldCheck, XCircle } from "lucide-react";
+import {
+  Activity,
+  Copy,
+  Eye,
+  HeartPulse,
+  Leaf,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Rocket,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -11,7 +23,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -23,6 +41,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { notificationsService } from "@/services/notifications.service";
 import type { NotificationStatus, WellnessProgramListItem, WellnessTheme } from "@/types";
+import { isCancellableNotificationStatus } from "@/lib/notification-status";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/wellness-programs")({
@@ -47,7 +66,6 @@ function WellnessProgramsPage() {
 }
 
 function WellnessProgramsIndexPage() {
-
   const qc = useQueryClient();
   const nav = useNavigate();
   const {
@@ -68,7 +86,9 @@ function WellnessProgramsIndexPage() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<WellnessView>("all");
   const [theme, setTheme] = useState<"all" | WellnessTheme>("all");
-  const [programType, setProgramType] = useState<"all" | WellnessProgramListItem["notification"]["wellnessProgram"]["programType"]>("all");
+  const [programType, setProgramType] = useState<
+    "all" | WellnessProgramListItem["notification"]["wellnessProgram"]["programType"]
+  >("all");
   const [status, setStatus] = useState<"all" | NotificationStatus>("all");
 
   const filtered = useMemo(
@@ -130,13 +150,24 @@ function WellnessProgramsIndexPage() {
   const guidedCount = data.filter(
     (item) => item.notification.wellnessProgram?.programType === "GuidedRoutine",
   ).length;
-  const totalTriggered = data.reduce((sum, item) => sum + (item.monitoring?.counts.triggered ?? 0), 0);
-  const totalCompleted = data.reduce((sum, item) => sum + (item.monitoring?.counts.completed ?? 0), 0);
-  const totalTimedOut = data.reduce((sum, item) => sum + (item.monitoring?.counts.timedOut ?? 0), 0);
-  const totalActivePolicies = data.reduce((sum, item) => sum + (item.monitoring?.activePolicies ?? 0), 0);
-  const completionRate = totalTriggered > 0
-    ? Math.round((totalCompleted / totalTriggered) * 100)
-    : null;
+  const totalTriggered = data.reduce(
+    (sum, item) => sum + (item.monitoring?.counts.triggered ?? 0),
+    0,
+  );
+  const totalCompleted = data.reduce(
+    (sum, item) => sum + (item.monitoring?.counts.completed ?? 0),
+    0,
+  );
+  const totalTimedOut = data.reduce(
+    (sum, item) => sum + (item.monitoring?.counts.timedOut ?? 0),
+    0,
+  );
+  const totalActivePolicies = data.reduce(
+    (sum, item) => sum + (item.monitoring?.activePolicies ?? 0),
+    0,
+  );
+  const completionRate =
+    totalTriggered > 0 ? Math.round((totalCompleted / totalTriggered) * 100) : null;
 
   return (
     <div>
@@ -214,14 +245,16 @@ function WellnessProgramsIndexPage() {
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>
-              Last synced {formatOptionalDateTime(dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : null)}
+              Last synced{" "}
+              {formatOptionalDateTime(dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : null)}
             </span>
             <span>Auto refresh every 15 seconds</span>
           </div>
 
           {isError && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Failed to load wellness programs: {error instanceof Error ? error.message : "Unknown error"}.
+              Failed to load wellness programs:{" "}
+              {error instanceof Error ? error.message : "Unknown error"}.
             </div>
           )}
 
@@ -233,7 +266,9 @@ function WellnessProgramsIndexPage() {
               className="max-w-xs"
             />
             <Select value={theme} onValueChange={(value) => setTheme(value as typeof theme)}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Theme" /></SelectTrigger>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Theme" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All themes</SelectItem>
                 <SelectItem value="Blue">Blue</SelectItem>
@@ -244,7 +279,9 @@ function WellnessProgramsIndexPage() {
               value={programType}
               onValueChange={(value) => setProgramType(value as typeof programType)}
             >
-              <SelectTrigger className="w-44"><SelectValue placeholder="Program Type" /></SelectTrigger>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Program Type" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="SimpleReminder">SimpleReminder</SelectItem>
@@ -252,7 +289,9 @@ function WellnessProgramsIndexPage() {
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {ALL_STATUSES.map((itemStatus) => (
@@ -281,7 +320,10 @@ function WellnessProgramsIndexPage() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="py-10 text-center text-sm text-muted-foreground"
+                    >
                       Loading wellness programs...
                     </TableCell>
                   </TableRow>
@@ -289,7 +331,10 @@ function WellnessProgramsIndexPage() {
 
                 {!isLoading && !isError && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="py-10 text-center text-sm text-muted-foreground"
+                    >
                       No wellness programs found for the current filters.
                     </TableCell>
                   </TableRow>
@@ -297,8 +342,12 @@ function WellnessProgramsIndexPage() {
 
                 {!isLoading && isError && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
-                      Wellness programs could not be loaded. Use Refresh after the backend is reachable.
+                    <TableCell
+                      colSpan={8}
+                      className="py-10 text-center text-sm text-muted-foreground"
+                    >
+                      Wellness programs could not be loaded. Use Refresh after the backend is
+                      reachable.
                     </TableCell>
                   </TableRow>
                 )}
@@ -307,14 +356,16 @@ function WellnessProgramsIndexPage() {
                   const notification = item.notification;
                   const wellnessProgram = notification.wellnessProgram!;
                   const isDraft = notification.status === "Draft";
-                  const canDeactivate = CANCELLABLE_STATUSES.includes(notification.status);
+                  const canDeactivate = isCancellableNotificationStatus(notification.status);
                   const monitoring = item.monitoring;
 
                   return (
                     <TableRow
                       key={notification.id}
                       className="cursor-pointer"
-                      onClick={() => nav({ to: "/wellness-programs/$id", params: { id: notification.id } })}
+                      onClick={() =>
+                        nav({ to: "/wellness-programs/$id", params: { id: notification.id } })
+                      }
                     >
                       <TableCell>
                         <div className="space-y-1">
@@ -323,14 +374,18 @@ function WellnessProgramsIndexPage() {
                             <Badge variant="outline">{wellnessProgram.programType}</Badge>
                             <Badge variant="outline">{wellnessProgram.layoutVariant}</Badge>
                             <span>{notification.targetType}</span>
-                            {notification.targetDeviceId && <span>· {notification.targetDeviceId}</span>}
+                            {notification.targetDeviceId && (
+                              <span>· {notification.targetDeviceId}</span>
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <PriorityBadge priority={notification.priority} />
                             {wellnessProgram.steps && wellnessProgram.steps.length > 0 && (
                               <Badge variant="outline">{wellnessProgram.steps.length} steps</Badge>
                             )}
-                            <Badge variant="outline">{wellnessProgram.actions.length} actions</Badge>
+                            <Badge variant="outline">
+                              {wellnessProgram.actions.length} actions
+                            </Badge>
                           </div>
                         </div>
                       </TableCell>
@@ -357,20 +412,32 @@ function WellnessProgramsIndexPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         <div className="flex flex-wrap gap-1">
-                          <Badge variant="outline">Triggered {monitoring?.counts.triggered ?? 0}</Badge>
+                          <Badge variant="outline">
+                            Triggered {monitoring?.counts.triggered ?? 0}
+                          </Badge>
                           <Badge variant="outline">Started {monitoring?.counts.started ?? 0}</Badge>
                           <Badge variant="outline">Snoozed {monitoring?.counts.snoozed ?? 0}</Badge>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          <Badge variant="outline">Completed {monitoring?.counts.completed ?? 0}</Badge>
-                          <Badge variant="outline">Timed Out {monitoring?.counts.timedOut ?? 0}</Badge>
+                          <Badge variant="outline">
+                            Completed {monitoring?.counts.completed ?? 0}
+                          </Badge>
+                          <Badge variant="outline">
+                            Timed Out {monitoring?.counts.timedOut ?? 0}
+                          </Badge>
                         </div>
                         <div className="mt-2 text-xs">
-                          Compliance {monitoring?.completionRate != null ? `${monitoring.completionRate}%` : "—"}
+                          Compliance{" "}
+                          {monitoring?.completionRate != null
+                            ? `${monitoring.completionRate}%`
+                            : "—"}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        <div>Policies {monitoring?.activePolicies ?? 0}/{monitoring?.totalPolicies ?? 0}</div>
+                        <div>
+                          Policies {monitoring?.activePolicies ?? 0}/
+                          {monitoring?.totalPolicies ?? 0}
+                        </div>
                         <div className="mt-1 text-xs">
                           Last sync {formatOptionalDateTime(monitoring?.lastSyncedAt)}
                         </div>
@@ -490,7 +557,6 @@ type WellnessView = "all" | "drafts" | "live" | "history";
 
 const LIVE_STATUSES: NotificationStatus[] = ["Scheduled", "Queued", "Sending", "Active"];
 const HISTORY_STATUSES: NotificationStatus[] = ["Completed", "Cancelled", "Failed", "Sent"];
-const CANCELLABLE_STATUSES: NotificationStatus[] = ["Scheduled", "Queued", "Sending", "Active"];
 const ALL_STATUSES: NotificationStatus[] = [
   "Draft",
   "Scheduled",

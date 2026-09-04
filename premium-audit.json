@@ -57,7 +57,7 @@
     {
       "category": "unresolved",
       "file": "src/components/reports/WellnessAdvancedAnalytics.tsx",
-      "line": 139,
+      "line": 141,
       "message": "Native select is used without an explicit ownership decision.",
       "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
       "ruleId": "ownership.native-select-undecided",
@@ -111,7 +111,7 @@
     {
       "category": "unresolved",
       "file": "src/routes/_app.notifications.index.tsx",
-      "line": 165,
+      "line": 193,
       "message": "Native select is used without an explicit ownership decision.",
       "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
       "ruleId": "ownership.native-select-undecided",
@@ -147,7 +147,7 @@
     {
       "category": "unresolved",
       "file": "src/routes/_app.wellness-programs.tsx",
-      "line": 235,
+      "line": 268,
       "message": "Native select is used without an explicit ownership decision.",
       "remediation": "Record Select/Listbox as native or reuse the authored canonical owner.",
       "ruleId": "ownership.native-select-undecided",
@@ -210,7 +210,7 @@
     {
       "category": "violation",
       "file": "src/routes/_app.notifications.index.tsx",
-      "line": 300,
+      "line": 365,
       "message": "Enabled literal button has no detectable action or submit behavior.",
       "remediation": "Connect the button to a real action, make it a submit button, or disable/remove it.",
       "ruleId": "affordance.actionless-button",
