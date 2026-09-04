@@ -271,6 +271,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4J` Wellness CTA semantics shall remain explicit in MVP: `GotIt` and `Done` confirm the routine was performed, while `RemindMeLater` records a defer or snooze decision rather than a completion.
 - `FR-4K` Wellness operational reporting shall remain device-centric in MVP, with active-user identity treated only as optional audit metadata captured at event time when available.
 - `FR-4M` Wellness authoring shall support batch selection of multiple device targets within the same draft or publish flow without changing the underlying device-centric execution model.
+- `FR-4N` Wellness monitoring shall expose a per-device `Next Run` view together with schedule state so operators can understand effective execution timing for synchronized, staggered, or snoozed local routines without database access.
 - `FR-4L` A dedicated post-routine feedback prompt for rating wellness-program usefulness or need is deferred beyond the current MVP until the survey contract, trigger timing, and reporting expectations are separately approved.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.

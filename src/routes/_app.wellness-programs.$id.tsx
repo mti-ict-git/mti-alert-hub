@@ -41,6 +41,9 @@ import type {
   AudiencePreview,
   Notification,
   NotificationStatus,
+  ReminderActivity,
+  ReminderEventRecord,
+  ReminderPolicySummary,
   Recipient,
   WellnessDistributionMode,
 } from "@/types";
@@ -229,10 +232,19 @@ function WellnessProgramDetailPage() {
 
   const wellness = notification.wellnessProgram;
   const monitoring = buildWellnessMonitoringSummary(reminderActivity);
+  const policyScheduleInsights = useMemo(
+    () => buildPolicyScheduleInsights(reminderActivity),
+    [reminderActivity],
+  );
+  const policyScheduleInsightByPolicyId = useMemo(
+    () => new Map(policyScheduleInsights.map((item) => [item.policyId, item])),
+    [policyScheduleInsights],
+  );
   const recipientCount = recipients.length;
   const eligibleDeviceRecipientCount = audiencePreview?.deviceRecipients ?? 0;
   const hasDesktopAgentChannel = notification.channels.includes("DesktopAgent");
   const isRoutinePriority = notification.priority !== "Emergency" && notification.priority !== "Critical";
+  const nextRunWindowSummary = summarizeNextRunWindow(policyScheduleInsights);
   const canPublish = notification.status === "Draft";
   const canCancel = CANCELLABLE_STATUSES.includes(notification.status);
   const recurrenceSummary = formatWellnessRecurrenceSummary(
@@ -421,6 +433,7 @@ function WellnessProgramDetailPage() {
                 label="Distribution"
                 value={notification.reminderSchedule?.distributionMode ?? "Synchronized"}
               />
+              <Info label="Next Run Window" value={nextRunWindowSummary} />
             </CardContent>
           </Card>
 
@@ -496,8 +509,11 @@ function WellnessProgramDetailPage() {
                   <TableRow>
                     <TableHead>Device</TableHead>
                     <TableHead>Schedule Version</TableHead>
+                      <TableHead>Valid From</TableHead>
                     <TableHead>Recurrence</TableHead>
                     <TableHead>Timezone</TableHead>
+                      <TableHead>Next Run</TableHead>
+                      <TableHead>Schedule State</TableHead>
                     <TableHead>Valid Until</TableHead>
                     <TableHead>Last Synced</TableHead>
                     <TableHead>Last Activity</TableHead>
@@ -508,15 +524,19 @@ function WellnessProgramDetailPage() {
                 <TableBody>
                   {reminderActivity?.policies.map((policy) => {
                     const deviceMonitoring = monitoring.deviceItems.find((item) => item.policyId === policy.policyId);
+                    const scheduleInsight = policyScheduleInsightByPolicyId.get(policy.policyId);
 
                     return (
                       <TableRow key={policy.policyId}>
                         <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
                         <TableCell>{policy.scheduleVersion}</TableCell>
+                        <TableCell>{formatOptionalDate(policy.validFrom)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {formatWellnessRecurrenceSummary(policy.recurrenceRule)}
                         </TableCell>
                         <TableCell>{policy.timezone}</TableCell>
+                        <TableCell>{formatScheduleInsightDate(scheduleInsight?.nextRunAt)}</TableCell>
+                        <TableCell>{renderScheduleStateLabel(scheduleInsight?.scheduleState ?? "Unknown")}</TableCell>
                         <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
                         <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
                         <TableCell>{formatOptionalDate(deviceMonitoring?.lastActivityAt)}</TableCell>
@@ -529,7 +549,7 @@ function WellnessProgramDetailPage() {
                   })}
                   {(reminderActivity?.policies.length ?? 0) === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
                         No reminder policies have been materialized for this wellness program yet.
                       </TableCell>
                     </TableRow>
@@ -590,30 +610,42 @@ function WellnessProgramDetailPage() {
                       <TableHead>Site</TableHead>
                       <TableHead>Area</TableHead>
                       <TableHead>Channels</TableHead>
+                      <TableHead>Last Activity</TableHead>
+                      <TableHead>Next Run</TableHead>
+                      <TableHead>Schedule State</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Ack</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recipients.map((recipient) => (
-                      <TableRow key={recipient.id}>
-                        <TableCell>{recipient.recipientType ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{buildRecipientReference(recipient)}</TableCell>
-                        <TableCell>{recipient.name || "—"}</TableCell>
-                        <TableCell>{recipient.department || "—"}</TableCell>
-                        <TableCell>{recipient.section || "—"}</TableCell>
-                        <TableCell>{recipient.site || "—"}</TableCell>
-                        <TableCell>{recipient.area || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
-                        </TableCell>
-                        <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
-                        <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
-                      </TableRow>
-                    ))}
+                    {recipients.map((recipient) => {
+                      const scheduleInsight = findRecipientScheduleInsight(recipient, policyScheduleInsights);
+
+                      return (
+                        <TableRow key={recipient.id}>
+                          <TableCell>{recipient.recipientType ?? "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{buildRecipientReference(recipient)}</TableCell>
+                          <TableCell>{recipient.name || "—"}</TableCell>
+                          <TableCell>{recipient.department || "—"}</TableCell>
+                          <TableCell>{recipient.section || "—"}</TableCell>
+                          <TableCell>{recipient.site || "—"}</TableCell>
+                          <TableCell>{recipient.area || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
+                          </TableCell>
+                          <TableCell>{formatOptionalDate(scheduleInsight?.lastActivityAt)}</TableCell>
+                          <TableCell>{formatScheduleInsightDate(scheduleInsight?.nextRunAt)}</TableCell>
+                          <TableCell>
+                            {renderScheduleStateLabel(resolveRecipientScheduleState(notification.status, scheduleInsight))}
+                          </TableCell>
+                          <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
+                          <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {recipients.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={13} className="py-8 text-center text-sm text-muted-foreground">
                           No recipient snapshots are available yet for this wellness program.
                         </TableCell>
                       </TableRow>
@@ -922,8 +954,439 @@ function formatOptionalDate(value?: string | null) {
   return format(date, "dd MMM yyyy HH:mm");
 }
 
+type PolicyScheduleState =
+  | "Inactive"
+  | "Expired"
+  | "Waiting for first run"
+  | "Scheduled"
+  | "Snoozed"
+  | "Due now"
+  | "No schedule"
+  | "Not materialized"
+  | "Pending publish"
+  | "Unknown";
+
+type PolicyScheduleInsight = {
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  lastActivityAt?: string | null;
+  lastEventType?: ReminderEventRecord["eventType"] | null;
+  nextRunAt?: string | null;
+  scheduleState: PolicyScheduleState;
+};
+
+function buildPolicyScheduleInsights(reminderActivity?: ReminderActivity | null): PolicyScheduleInsight[] {
+  const policies = reminderActivity?.policies ?? [];
+  const events = reminderActivity?.events ?? [];
+  const eventsByPolicyId = new Map<string, ReminderEventRecord[]>();
+
+  for (const event of events) {
+    const bucket = eventsByPolicyId.get(event.policyId);
+    if (bucket) {
+      bucket.push(event);
+      continue;
+    }
+
+    eventsByPolicyId.set(event.policyId, [event]);
+  }
+
+  const now = new Date();
+
+  return policies.map((policy) => {
+    const policyEvents = [...(eventsByPolicyId.get(policy.policyId) ?? [])].sort(
+      (left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+    );
+    const lastTriggeredOccurrenceUtc = getLastTriggeredOccurrenceUtc(policyEvents);
+    const snoozedUntilUtc = getPendingSnoozedUntilUtc(policy, policyEvents, lastTriggeredOccurrenceUtc);
+    const nextRun = getNextPolicyOccurrenceUtc(policy, now, lastTriggeredOccurrenceUtc, snoozedUntilUtc);
+    const validFrom = parseIsoDate(policy.validFrom);
+    const validUntil = parseIsoDate(policy.validUntil);
+
+    let scheduleState: PolicyScheduleState;
+    if (!policy.isActive) {
+      scheduleState = "Inactive";
+    } else if (snoozedUntilUtc && nextRun && sameInstant(nextRun, snoozedUntilUtc)) {
+      scheduleState = "Snoozed";
+    } else if (!nextRun) {
+      scheduleState = validUntil && validUntil.getTime() < now.getTime() ? "Expired" : "No schedule";
+    } else if (nextRun.getTime() <= now.getTime()) {
+      scheduleState = "Due now";
+    } else if (!lastTriggeredOccurrenceUtc && validFrom && sameInstant(nextRun, validFrom)) {
+      scheduleState = "Waiting for first run";
+    } else {
+      scheduleState = "Scheduled";
+    }
+
+    return {
+      policyId: policy.policyId,
+      deviceId: policy.deviceId,
+      deviceIdentifier: policy.deviceIdentifier ?? null,
+      hostname: policy.hostname ?? null,
+      validFrom: policy.validFrom ?? null,
+      validUntil: policy.validUntil ?? null,
+      lastActivityAt: policyEvents[0]?.occurredAt ?? null,
+      lastEventType: policyEvents[0]?.eventType ?? null,
+      nextRunAt: nextRun?.toISOString() ?? null,
+      scheduleState,
+    };
+  });
+}
+
+function getNextPolicyOccurrenceUtc(
+  policy: ReminderPolicySummary,
+  now: Date,
+  lastTriggeredOccurrenceUtc: Date | null,
+  snoozedUntilUtc: Date | null,
+) {
+  const validFrom = parseIsoDate(policy.validFrom);
+  if (!validFrom) {
+    return null;
+  }
+
+  const validUntil = parseIsoDate(policy.validUntil) ?? new Date(MAX_VALID_UNTIL_ISO);
+  if (validUntil.getTime() < validFrom.getTime()) {
+    return null;
+  }
+
+  if (
+    snoozedUntilUtc &&
+    snoozedUntilUtc.getTime() >= validFrom.getTime() &&
+    snoozedUntilUtc.getTime() <= validUntil.getTime() &&
+    (!lastTriggeredOccurrenceUtc || snoozedUntilUtc.getTime() > lastTriggeredOccurrenceUtc.getTime())
+  ) {
+    return snoozedUntilUtc;
+  }
+
+  let baseline = new Date(now.getTime() - 60_000);
+  if (lastTriggeredOccurrenceUtc && lastTriggeredOccurrenceUtc.getTime() > baseline.getTime()) {
+    baseline = lastTriggeredOccurrenceUtc;
+  }
+
+  const anchorFloor = new Date(validFrom.getTime() - 60_000);
+  if (baseline.getTime() < anchorFloor.getTime()) {
+    baseline = anchorFloor;
+  }
+
+  const recurrence = parseWellnessRecurrenceRule(policy.recurrenceRule);
+  if (!recurrence) {
+    return null;
+  }
+
+  switch (recurrence.unit) {
+    case "Minute":
+      return getIntervalOccurrenceUtc(validFrom, baseline, validUntil, recurrence.interval, 60_000);
+    case "Hour":
+      return getIntervalOccurrenceUtc(validFrom, baseline, validUntil, recurrence.interval, 3_600_000);
+    case "Day":
+      return getDailyOccurrenceUtc(policy, validFrom, baseline, validUntil, recurrence.interval);
+    default:
+      return null;
+  }
+}
+
+function getIntervalOccurrenceUtc(
+  anchorUtc: Date,
+  baselineUtc: Date,
+  validUntilUtc: Date,
+  interval: number,
+  unitMs: number,
+) {
+  const stepMs = Math.max(1, interval) * unitMs;
+  const steps = Math.max(
+    0,
+    Math.floor((baselineUtc.getTime() - anchorUtc.getTime()) / stepMs) + 1,
+  );
+  const candidate = new Date(anchorUtc.getTime() + steps * stepMs);
+  return candidate.getTime() <= validUntilUtc.getTime() ? candidate : null;
+}
+
+function getDailyOccurrenceUtc(
+  policy: ReminderPolicySummary,
+  validFromUtc: Date,
+  baselineUtc: Date,
+  validUntilUtc: Date,
+  interval: number,
+) {
+  const timeZone = resolveTimeZone(policy.timezone);
+  const parts = parseRecurrenceRuleParts(policy.recurrenceRule);
+  const validFromLocal = getZonedDateParts(validFromUtc, timeZone);
+  const baselineLocal = getZonedDateParts(baselineUtc, timeZone);
+  const hour = parseInteger(parts.get("BYHOUR")) ?? validFromLocal.hour;
+  const minute = parseInteger(parts.get("BYMINUTE")) ?? validFromLocal.minute;
+
+  let candidate = {
+    year: baselineLocal.year,
+    month: baselineLocal.month,
+    day: baselineLocal.day,
+    hour,
+    minute,
+    second: 0,
+  };
+
+  if (compareLocalDateTime(candidate, baselineLocal) <= 0) {
+    candidate = addDaysToLocalDateTime(candidate, interval);
+  }
+
+  const validFromDate = {
+    year: validFromLocal.year,
+    month: validFromLocal.month,
+    day: validFromLocal.day,
+  };
+  while (compareLocalDate(candidate, validFromDate) < 0) {
+    candidate = addDaysToLocalDateTime(candidate, interval);
+  }
+
+  const candidateUtc = zonedDateTimeToUtc(candidate, timeZone);
+  return candidateUtc.getTime() <= validUntilUtc.getTime() ? candidateUtc : null;
+}
+
+function getLastTriggeredOccurrenceUtc(events: ReminderEventRecord[]) {
+  const triggeredEvent = events.find((event) => event.eventType === "Triggered");
+  return parseIsoDate(readEventMetadataString(triggeredEvent, "occurrenceUtc") ?? triggeredEvent?.occurredAt);
+}
+
+function getPendingSnoozedUntilUtc(
+  policy: ReminderPolicySummary,
+  events: ReminderEventRecord[],
+  lastTriggeredOccurrenceUtc: Date | null,
+) {
+  const validFrom = parseIsoDate(policy.validFrom);
+  const validUntil = parseIsoDate(policy.validUntil) ?? new Date(MAX_VALID_UNTIL_ISO);
+  if (!validFrom) {
+    return null;
+  }
+
+  const snoozedEvent = events.find((event) => event.eventType === "Snoozed");
+  const snoozedUntilUtc = parseIsoDate(readEventMetadataString(snoozedEvent, "snoozedUntilUtc"));
+  if (!snoozedUntilUtc) {
+    return null;
+  }
+
+  if (snoozedUntilUtc.getTime() < validFrom.getTime() || snoozedUntilUtc.getTime() > validUntil.getTime()) {
+    return null;
+  }
+
+  if (lastTriggeredOccurrenceUtc && snoozedUntilUtc.getTime() <= lastTriggeredOccurrenceUtc.getTime()) {
+    return null;
+  }
+
+  return snoozedUntilUtc;
+}
+
+function findRecipientScheduleInsight(
+  recipient: Recipient,
+  insights: PolicyScheduleInsight[],
+) {
+  if (recipient.recipientType !== "Device") {
+    return null;
+  }
+
+  return insights.find((item) =>
+    (recipient.deviceId && item.deviceId === recipient.deviceId) ||
+    (recipient.deviceIdentifier && item.deviceIdentifier === recipient.deviceIdentifier) ||
+    (recipient.hostname && item.hostname === recipient.hostname),
+  ) ?? null;
+}
+
+function resolveRecipientScheduleState(
+  notificationStatus: NotificationStatus,
+  insight: PolicyScheduleInsight | null,
+): PolicyScheduleState {
+  if (insight) {
+    return insight.scheduleState;
+  }
+
+  return notificationStatus === "Draft" ? "Pending publish" : "Not materialized";
+}
+
+function summarizeNextRunWindow(insights: PolicyScheduleInsight[]) {
+  const runs = insights
+    .map((item) => parseIsoDate(item.nextRunAt))
+    .filter((value): value is Date => Boolean(value))
+    .sort((left, right) => left.getTime() - right.getTime());
+
+  if (runs.length === 0) {
+    return "—";
+  }
+
+  if (runs.length === 1 || sameInstant(runs[0], runs[runs.length - 1])) {
+    return formatOptionalDate(runs[0].toISOString());
+  }
+
+  return `${formatOptionalDate(runs[0].toISOString())} - ${formatOptionalDate(runs[runs.length - 1].toISOString())}`;
+}
+
+function formatScheduleInsightDate(value?: string | null) {
+  return value ? formatOptionalDate(value) : "—";
+}
+
+function renderScheduleStateLabel(state: PolicyScheduleState) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
+        state === "Scheduled" && "border-sky-200 bg-sky-50 text-sky-700",
+        state === "Waiting for first run" && "border-slate-200 bg-slate-50 text-slate-700",
+        state === "Snoozed" && "border-amber-200 bg-amber-50 text-amber-700",
+        state === "Due now" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        (state === "Inactive" || state === "Expired") && "border-rose-200 bg-rose-50 text-rose-700",
+        (state === "No schedule" || state === "Not materialized" || state === "Pending publish" || state === "Unknown") &&
+          "border-slate-200 bg-slate-50 text-slate-700",
+      )}
+    >
+      {state}
+    </span>
+  );
+}
+
+function readEventMetadataString(
+  event: ReminderEventRecord | undefined,
+  key: string,
+) {
+  const value = event?.metadata?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function parseIsoDate(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function sameInstant(left: Date, right: Date) {
+  return left.getTime() === right.getTime();
+}
+
+function parseRecurrenceRuleParts(recurrenceRule: string) {
+  return new Map(
+    recurrenceRule
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [key, value] = part.split("=");
+        return [key?.toUpperCase() ?? "", value ?? ""];
+      }),
+  );
+}
+
+function parseInteger(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function resolveTimeZone(timeZone: string) {
+  if (!timeZone.trim()) {
+    return "UTC";
+  }
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
+function getZonedDateParts(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const values = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string) {
+  const parts = getZonedDateParts(date, timeZone);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+
+  return asUtc - date.getTime();
+}
+
+function zonedDateTimeToUtc(
+  value: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+  timeZone: string,
+) {
+  const localGuess = Date.UTC(value.year, value.month - 1, value.day, value.hour, value.minute, value.second);
+  let candidate = new Date(localGuess - getTimeZoneOffsetMs(new Date(localGuess), timeZone));
+  const correctedOffset = getTimeZoneOffsetMs(candidate, timeZone);
+  candidate = new Date(localGuess - correctedOffset);
+  return candidate;
+}
+
+function addDaysToLocalDateTime(
+  value: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+  days: number,
+) {
+  const shifted = new Date(Date.UTC(value.year, value.month - 1, value.day + days));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+    hour: value.hour,
+    minute: value.minute,
+    second: value.second,
+  };
+}
+
+function compareLocalDateTime(
+  left: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+  right: { year: number; month: number; day: number; hour: number; minute: number; second: number },
+) {
+  return (
+    Date.UTC(left.year, left.month - 1, left.day, left.hour, left.minute, left.second) -
+    Date.UTC(right.year, right.month - 1, right.day, right.hour, right.minute, right.second)
+  );
+}
+
+function compareLocalDate(
+  left: { year: number; month: number; day: number },
+  right: { year: number; month: number; day: number },
+) {
+  return Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day);
+}
+
+
 function getLocalTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
-const CANCELLABLE_STATUSES: NotificationStatus[] = ["Scheduled", "Queued", "Sending", "Active"];
+const MAX_VALID_UNTIL_ISO = "9999-12-31T23:59:59.999Z";
