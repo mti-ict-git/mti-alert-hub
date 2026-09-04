@@ -74,6 +74,9 @@ This reference does not yet define:
 
 Today the system already has:
 
+- a dedicated global `Reports > Wellness Program Outcomes` section with family, status, site, area, and date filters plus a complete-versus-defer trend
+- per-program `Outcome Funnel` and `Action Breakdown` views backed by normalized server-side outcomes
+- program-summary, program-by-device, and event-timeline CSV exports
 - per-program monitoring cards for `Triggered`, `Displayed`, `Started`, `Snoozed`, `Completed`, `Timed Out`, `Step Advanced`, and a simple `Compliance` percentage
 - per-device policy visibility including `Last Synced`, `Last Activity`, `Latest Event`, `Next Run`, and schedule state
 - recent event timeline visibility
@@ -95,14 +98,12 @@ Today the system already has:
   - `snoozedUntilUtc`
   - `activeUserIdentifier`
 
-Current gaps:
+Current state:
 
-- no dedicated wellness outcome report in the global `Reports` menu
-- no normalized action breakdown for `GotIt`, `Done`, `RemindMeLater`, `Close`, or `Dismissed`
-- no explicit conversion funnel from `Displayed` to `Engaged` to `Completed`
-- one semantic ambiguity remains in the current agent contract:
-  - closing the window through the window close path reports `Dismissed`
-  - `AgentWellnessAction.Kind = Close` currently maps to `Completed`
+- the approved Phase B agent contract reports both window close and `AgentWellnessAction.Kind = Close` as `Dismissed`; historical `Completed + Close` payloads remain isolated as `AmbiguousCloseCompletion`
+- Phase C comparison analytics are available for family, cadence, distribution mode, site, and area, together with device-local hourly and calendar trend analysis
+- guided routine reporting keeps step advances as progress evidence and reports started-but-not-completed occurrences as abandonment rather than claiming partial completion
+- active-user audit rollups remain disabled pending explicit privacy approval
 
 ## Reporting Contract
 
@@ -203,12 +204,15 @@ The normalized reporting contract should map CTA actions like this:
 - `RemindMeLater` -> `Deferred`
 - `Start` -> `InProgress`
 - `Next` -> `InProgress`
+- `Close` CTA -> `Dismissed`
 - window close button -> `Dismissed`
+- no separate `Skipped` bucket is used
 
-Temporary compatibility rule for the current runtime:
+Legacy compatibility rule:
 
-- if the agent reports `eventType = Completed` with `actionKind = Close`, reporting must treat it as `AmbiguousCloseCompletion` until the agent contract is corrected
+- if an older agent reports `eventType = Completed` with `actionKind = Close`, reporting must continue to treat it as `AmbiguousCloseCompletion`
 - `AmbiguousCloseCompletion` must not be silently merged into confirmed completion KPI
+- new agents must report a `Close` CTA as `eventType = Dismissed` and may include `terminalOutcome = Dismissed` metadata
 
 ## KPI Definitions
 
@@ -336,6 +340,8 @@ Recommended fields:
 - `displayedCount`
 - `engagedCount`
 - `startedCount`
+- `stepAdvancedCount`
+- `startedButNotCompletedCount`
 - `completedCount`
 - `deferredCount`
 - `dismissedCount`
@@ -349,6 +355,8 @@ Recommended fields:
 - `dismissRate`
 - `timeoutRate`
 - `lastActivityAt`
+
+The Phase C occurrence read model also exposes one row per normalized reminder occurrence with device-local `localDate` and `localHour`, device-centric site and area context, start and step-advance evidence, and the resolved final outcome. This is the denominator source for comparisons and time-window analytics.
 
 ### 2. Program Device Outcome Read Model
 
@@ -442,5 +450,5 @@ The wellness reporting slice should not be considered complete until:
 
 - Should `Read` count as engagement for all wellness variants, or only for variants that require an explicit CTA?
 - Should `Started` without `Completed` count as partial success for stretching, or only as engagement?
-- Once the agent contract is corrected, should `Close` be fully mapped to `Dismissed`, or should there be a separate `Skipped` outcome bucket?
+- `Close` semantics are resolved by `OQ-16`: both close-only paths map to `Dismissed`, with no separate `Skipped` bucket.
 - Should global wellness reporting stay under the current `Reports` menu or get a dedicated `Wellness Analytics` page later?

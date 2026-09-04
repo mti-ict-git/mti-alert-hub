@@ -113,7 +113,8 @@ This document records unresolved product and technical questions. No implementat
 
 - Question: Should every user-initiated close path on a wellness popup count as `Dismissed`, or are there any close-style CTA paths that product still wants to count as successful completion?
 - Why it matters: OHIH effectiveness reporting depends on a stable distinction between `Completed`, `Deferred`, `Dismissed`, and `TimedOut`. If close behavior is ambiguous, completion rate and defer-vs-ignore analytics become misleading.
-- Current safe assumption: explicit confirmation actions such as `GotIt` and `Done` count as `Completed`, `RemindMeLater` counts as defer or snooze, and passive or close-only exits should eventually map to dismissal rather than completion. Until the agent contract is cleaned up, any `actionKind = Close` reported through a `Completed` event should be treated as ambiguous in analytics rather than merged silently into confirmed completion.
+- Decision (`2026-09-04`): `GotIt` and `Done` count as `Completed`; `RemindMeLater` counts as defer or snooze; `Start` and `Next` remain non-terminal progress events; both the window close button and any CTA with `actionKind = Close` count as `Dismissed`. No separate `Skipped` outcome is added.
+- Compatibility boundary: historical `eventType = Completed` plus `actionKind = Close` evidence from older agents remains `AmbiguousCloseCompletion` and must not be rewritten or included in confirmed completion KPI. New agents must emit `Dismissed` for that CTA path.
 
 ## Challenges
 

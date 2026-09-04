@@ -507,6 +507,8 @@ export interface WellnessReportingSummary {
   displayedCount: number;
   engagedCount: number;
   startedCount: number;
+  stepAdvancedCount: number;
+  startedButNotCompletedCount: number;
   completionCount: number;
   deferredCount: number;
   dismissedCount: number;
@@ -587,7 +589,24 @@ export interface WellnessReporting {
   }>;
   actionBreakdown: WellnessActionBreakdownItem[];
   deviceOutcomes: WellnessReportingDeviceOutcome[];
+  occurrences: WellnessReportingOccurrence[];
   timeline: WellnessReportingTimelineItem[];
+}
+
+export interface WellnessReportingOccurrence {
+  policyId: string;
+  deviceId: string;
+  siteName?: string | null;
+  areaName?: string | null;
+  occurrenceUtc?: string | null;
+  localDate?: string | null;
+  localHour?: number | null;
+  timezone?: string | null;
+  displayed: boolean;
+  engaged: boolean;
+  started: boolean;
+  stepAdvancedCount: number;
+  finalOutcome: WellnessNormalizedOutcome;
 }
 
 export interface WellnessProgramReportDetail {
@@ -611,7 +630,9 @@ export interface WellnessProgramRollup {
   recipientsCount: number;
   programFamily: string;
   programType?: WellnessProgramType | null;
+  variantKeys: string[];
   cadence?: string | null;
+  distributionMode?: WellnessDistributionMode | null;
   targetSize: number;
   reporting: WellnessReporting;
 }

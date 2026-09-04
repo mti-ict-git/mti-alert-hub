@@ -32,6 +32,7 @@
     "backend:import:baseline:rollback": "node backend/dist/scripts/import-phase1-baseline.js --rollback",
     "backend:generate:baseline-from-mock:dev": "tsx backend/src/scripts/generate-phase1-baseline-from-mock.ts",
     "backend:generate:baseline-from-mock": "node backend/dist/scripts/generate-phase1-baseline-from-mock.js",
+    "test:wellness-reporting": "node --import tsx --test backend/tests/wellness-reporting.test.ts tests/wellness-reporting-export.test.ts tests/wellness-analytics.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

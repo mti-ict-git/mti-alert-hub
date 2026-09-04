@@ -92,6 +92,22 @@ export type WellnessReportingDeviceOutcome = {
   timedOutCount: number;
 };
 
+export type WellnessReportingOccurrence = {
+  policyId: string;
+  deviceId: string;
+  siteName: string | null;
+  areaName: string | null;
+  occurrenceUtc: string | null;
+  localDate: string | null;
+  localHour: number | null;
+  timezone: string | null;
+  displayed: boolean;
+  engaged: boolean;
+  started: boolean;
+  stepAdvancedCount: number;
+  finalOutcome: WellnessNormalizedOutcome;
+};
+
 export type WellnessActionBreakdownItem = {
   actionKey: string | null;
   actionKind: string | null;
@@ -107,6 +123,8 @@ export type WellnessReportingSummary = {
   displayedCount: number;
   engagedCount: number;
   startedCount: number;
+  stepAdvancedCount: number;
+  startedButNotCompletedCount: number;
   completionCount: number;
   deferredCount: number;
   dismissedCount: number;
@@ -131,6 +149,7 @@ export type WellnessReporting = {
   }>;
   actionBreakdown: WellnessActionBreakdownItem[];
   deviceOutcomes: WellnessReportingDeviceOutcome[];
+  occurrences: WellnessReportingOccurrence[];
   timeline: WellnessReportingTimelineItem[];
 };
 
@@ -143,6 +162,7 @@ type OccurrenceAggregate = {
   displayed: boolean;
   engaged: boolean;
   started: boolean;
+  stepAdvancedCount: number;
   latestTerminalOutcome: WellnessTerminalOutcome | null;
   latestTerminalAtMs: number | null;
   latestEventAtMs: number | null;
@@ -179,6 +199,7 @@ export function buildWellnessReporting(input: {
       displayed: false,
       engaged: false,
       started: false,
+      stepAdvancedCount: 0,
       latestTerminalOutcome: null,
       latestTerminalAtMs: null,
       latestEventAtMs: null,
@@ -195,6 +216,10 @@ export function buildWellnessReporting(input: {
 
     if (event.eventType === "Started") {
       existing.started = true;
+    }
+
+    if (event.eventType === "StepAdvanced") {
+      existing.stepAdvancedCount += 1;
     }
 
     const eventAtMs = parseIsoMs(event.occurredAt);
@@ -226,6 +251,13 @@ export function buildWellnessReporting(input: {
   const displayedOccurrences = occurrences.filter((item) => item.displayed);
   const engagedOccurrences = occurrences.filter((item) => item.engaged);
   const startedOccurrences = occurrences.filter((item) => item.started);
+  const completedAfterStartOccurrences = startedOccurrences.filter(
+    (item) => item.finalOutcome === "Completed",
+  );
+  const startedButNotCompletedOccurrences = startedOccurrences.filter(
+    (item) => item.finalOutcome !== "Completed",
+  );
+  const stepAdvancedCount = occurrences.reduce((total, item) => total + item.stepAdvancedCount, 0);
   const completedOccurrences = occurrences.filter((item) => item.finalOutcome === "Completed");
   const deferredOccurrences = occurrences.filter((item) => item.finalOutcome === "Deferred");
   const dismissedOccurrences = occurrences.filter((item) => item.finalOutcome === "Dismissed");
@@ -234,29 +266,40 @@ export function buildWellnessReporting(input: {
     (item) => item.finalOutcome === "AmbiguousCloseCompletion",
   );
 
-  const displayedPolicyIds = new Set(displayedOccurrences.map((item) => item.policyId));
+  const activePolicies = input.policies.filter((policy) => policy.isActive);
+  const activeDeviceIds = new Set(activePolicies.map((policy) => policy.deviceId));
+  const displayedDeviceIds = new Set(
+    displayedOccurrences
+      .filter((occurrence) => activeDeviceIds.has(occurrence.deviceId))
+      .map((occurrence) => occurrence.deviceId),
+  );
 
   const summary: WellnessReportingSummary = {
     totalPolicies: input.policies.length,
-    activePolicies: input.policies.filter((policy) => policy.isActive).length,
-    displayedDevices: displayedPolicyIds.size,
+    activePolicies: activePolicies.length,
+    displayedDevices: displayedDeviceIds.size,
     displayedCount: displayedOccurrences.length,
     engagedCount: engagedOccurrences.length,
     startedCount: startedOccurrences.length,
+    stepAdvancedCount,
+    startedButNotCompletedCount: startedButNotCompletedOccurrences.length,
     completionCount: completedOccurrences.length,
     deferredCount: deferredOccurrences.length,
     dismissedCount: dismissedOccurrences.length,
     timedOutCount: timedOutOccurrences.length,
     ambiguousCloseCount: ambiguousCloseOccurrences.length,
-    displayRate: safeRate(displayedPolicyIds.size, input.policies.length),
+    displayRate: safeRate(displayedDeviceIds.size, activePolicies.length),
     engagementRate: safeRate(engagedOccurrences.length, displayedOccurrences.length),
     completionRate: safeRate(completedOccurrences.length, displayedOccurrences.length),
-    completionRateAfterStart: safeRate(completedOccurrences.length, startedOccurrences.length),
+    completionRateAfterStart: safeRate(
+      completedAfterStartOccurrences.length,
+      startedOccurrences.length,
+    ),
     deferRate: safeRate(deferredOccurrences.length, displayedOccurrences.length),
     dismissRate: safeRate(dismissedOccurrences.length, displayedOccurrences.length),
     timeoutRate: safeRate(timedOutOccurrences.length, displayedOccurrences.length),
     startAbandonmentRate: safeRate(
-      Math.max(startedOccurrences.length - completedOccurrences.length, 0),
+      startedButNotCompletedOccurrences.length,
       startedOccurrences.length,
     ),
   };
@@ -283,14 +326,72 @@ export function buildWellnessReporting(input: {
     occurrences,
     timeline,
   });
+  const occurrenceItems = occurrences
+    .map((occurrence) => buildOccurrenceItem(occurrence, policyById.get(occurrence.policyId)))
+    .sort((left, right) => compareIsoDesc(left.occurrenceUtc, right.occurrenceUtc));
 
   return {
     summary,
     funnel,
     actionBreakdown,
     deviceOutcomes,
+    occurrences: occurrenceItems,
     timeline,
   };
+}
+
+function buildOccurrenceItem(
+  occurrence: OccurrenceAggregate,
+  policy: ReminderPolicyInput | undefined,
+): WellnessReportingOccurrence {
+  const timezone = policy?.timezone || null;
+  const localTime = resolveLocalTime(occurrence.occurrenceUtc, timezone);
+
+  return {
+    policyId: occurrence.policyId,
+    deviceId: occurrence.deviceId,
+    siteName: policy?.siteName ?? null,
+    areaName: policy?.areaName ?? null,
+    occurrenceUtc: occurrence.occurrenceUtc,
+    localDate: localTime?.date ?? null,
+    localHour: localTime?.hour ?? null,
+    timezone,
+    displayed: occurrence.displayed,
+    engaged: occurrence.engaged,
+    started: occurrence.started,
+    stepAdvancedCount: occurrence.stepAdvancedCount,
+    finalOutcome: occurrence.finalOutcome,
+  };
+}
+
+function resolveLocalTime(value: string | null, timezone: string | null) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+    const read = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value;
+    const year = read("year");
+    const month = read("month");
+    const day = read("day");
+    const hour = Number(read("hour"));
+    if (!year || !month || !day || !Number.isInteger(hour)) {
+      return null;
+    }
+    return { date: `${year}-${month}-${day}`, hour };
+  } catch {
+    return null;
+  }
 }
 
 export function inferWellnessProgramFamily(input: {
@@ -474,6 +575,16 @@ function resolveOccurrenceFinalOutcome(occurrence: OccurrenceAggregate): Wellnes
 
 function normalizeReminderEventOutcome(event: ReminderEventInput): WellnessNormalizedOutcome {
   const actionKind = readMetadataString(event.metadata, "actionKind");
+  const explicitTerminalOutcome = readMetadataString(event.metadata, "terminalOutcome");
+
+  if (
+    (event.eventType === "Completed" && explicitTerminalOutcome === "Completed") ||
+    (event.eventType === "Snoozed" && explicitTerminalOutcome === "Deferred") ||
+    (event.eventType === "Dismissed" && explicitTerminalOutcome === "Dismissed") ||
+    (event.eventType === "TimedOut" && explicitTerminalOutcome === "TimedOut")
+  ) {
+    return explicitTerminalOutcome;
+  }
 
   switch (event.eventType) {
     case "Triggered":

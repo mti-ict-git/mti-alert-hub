@@ -256,6 +256,7 @@ type WellnessProgramRollupRow = {
   updatedAt: string | null;
   recipientsCount: number;
   wellnessProgram: unknown | null;
+  publishRequestJson: unknown | null;
 };
 
 type DeliveryJobStatus =
@@ -656,7 +657,14 @@ export class CommunicationDraftService {
             from public.communication_recipients cr
             where cr.communication_id = c.id
           ) as "recipientsCount",
-          c.wellness_program_json as "wellnessProgram"
+          c.wellness_program_json as "wellnessProgram",
+          (
+            select cs.publish_request_json
+            from public.communication_schedules cs
+            where cs.communication_id = c.id
+            order by cs.requested_at desc, cs.created_at desc
+            limit 1
+          ) as "publishRequestJson"
         from public.communications c
         where c.communication_type = 'Reminder'
           and c.wellness_program_json is not null
@@ -667,6 +675,7 @@ export class CommunicationDraftService {
     return Promise.all(
       rows.map(async (row) => {
         const wellnessProgram = parseWellnessProgramRecord(row.wellnessProgram);
+        const distribution = parseScheduleDistributionMetadata(row.publishRequestJson);
         const { policies, events } = await this.loadCommunicationReminderActivity(
           row.communicationId,
         );
@@ -684,7 +693,9 @@ export class CommunicationDraftService {
             variantKeys: wellnessProgram?.variantKeys ?? [],
           }),
           programType: wellnessProgram?.programType ?? null,
+          variantKeys: wellnessProgram?.variantKeys ?? [],
           cadence: policies[0]?.recurrenceRule ?? null,
+          distributionMode: distribution.distributionMode,
           targetSize: row.recipientsCount,
           reporting: buildWellnessReporting({
             policies,

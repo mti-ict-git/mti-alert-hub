@@ -16,6 +16,7 @@ dist-ssr
 .nitro
 *.local
 .env
+.tmp/
 backend/local-packages/
 MTI.Alert.Agent/
 

@@ -2557,6 +2557,8 @@ components:
           displayedCount,
           engagedCount,
           startedCount,
+          stepAdvancedCount,
+          startedButNotCompletedCount,
           completionCount,
           deferredCount,
           dismissedCount,
@@ -2575,6 +2577,10 @@ components:
         engagedCount:
           type: integer
         startedCount:
+          type: integer
+        stepAdvancedCount:
+          type: integer
+        startedButNotCompletedCount:
           type: integer
         completionCount:
           type: integer
@@ -2781,9 +2787,50 @@ components:
         timedOutCount:
           type: integer
 
+    WellnessReportingOccurrence:
+      type: object
+      required: [policyId, deviceId, displayed, engaged, started, stepAdvancedCount, finalOutcome]
+      properties:
+        policyId:
+          type: string
+        deviceId:
+          type: string
+        siteName:
+          type: string
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        occurrenceUtc:
+          type: string
+          format: date-time
+          nullable: true
+        localDate:
+          type: string
+          format: date
+          nullable: true
+        localHour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        displayed:
+          type: boolean
+        engaged:
+          type: boolean
+        started:
+          type: boolean
+        stepAdvancedCount:
+          type: integer
+        finalOutcome:
+          $ref: "#/components/schemas/WellnessNormalizedOutcome"
+
     WellnessReporting:
       type: object
-      required: [summary, funnel, actionBreakdown, deviceOutcomes, timeline]
+      required: [summary, funnel, actionBreakdown, deviceOutcomes, occurrences, timeline]
       properties:
         summary:
           $ref: "#/components/schemas/WellnessReportingSummary"
@@ -2799,6 +2846,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WellnessReportingDeviceOutcome"
+        occurrences:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessReportingOccurrence"
         timeline:
           type: array
           items:
@@ -2838,7 +2889,16 @@ components:
     WellnessProgramRollup:
       type: object
       required:
-        [communicationId, title, status, recipientsCount, programFamily, targetSize, reporting]
+        [
+          communicationId,
+          title,
+          status,
+          recipientsCount,
+          programFamily,
+          variantKeys,
+          targetSize,
+          reporting,
+        ]
       properties:
         communicationId:
           type: string
@@ -2862,8 +2922,16 @@ components:
           allOf:
             - $ref: "#/components/schemas/WellnessProgramType"
           nullable: true
+        variantKeys:
+          type: array
+          items:
+            type: string
         cadence:
           type: string
+          nullable: true
+        distributionMode:
+          allOf:
+            - $ref: "#/components/schemas/WellnessDistributionMode"
           nullable: true
         targetSize:
           type: integer
@@ -4245,6 +4313,12 @@ components:
           type: object
           additionalProperties: true
           nullable: true
+          description: Reminder evidence metadata. New wellness agents include `terminalOutcome` for terminal CTA actions; historical payloads may omit it.
+          properties:
+            terminalOutcome:
+              type: string
+              enum: [Completed, Deferred, Dismissed, TimedOut]
+              description: Explicit normalized terminal result. `Close` uses `Dismissed`; `GotIt` and `Done` use `Completed`; `RemindMeLater` uses `Deferred`.
 
     DeliveryRecord:
       type: object

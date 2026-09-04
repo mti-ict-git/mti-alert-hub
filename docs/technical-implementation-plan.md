@@ -1,15 +1,19 @@
 # MTI Alert Technical Implementation Plan
 
 ## Document Status
+
 - Version: `0.2`
 - Status: `Draft Baseline`
 - Last Updated: `2026-09-01`
 
 ## Purpose
+
 This document defines the recommended technical shape of the `MTI Alert` server so backend, frontend, and Windows Agent teams can work from one consistent implementation direction.
 
 ## System Positioning
+
 `MTI Alert` is the central server platform. It is responsible for:
+
 - administrative authentication and authorization
 - communication lifecycle management
 - audience resolution
@@ -22,7 +26,9 @@ It is not the desktop receiver itself. The `Windows Agent` is a separate client 
 Administrative authentication should rely on LDAP or Active Directory, while authorization and scope mapping remain owned by MTI Alert.
 
 ## Recommended Architecture
+
 ### Logical Components
+
 - `Admin API`: serves the web admin frontend.
 - `Agent API`: serves the Windows Agent for device registration, realtime negotiation, acknowledgment, response submission, and heartbeat.
 - `Realtime Hub`: maintains SignalR-style push connectivity for Windows Agent delivery and status callbacks.
@@ -34,12 +40,15 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - `Reporting Layer`: provides dashboard and report queries.
 
 ### Suggested Backend Style
+
 - Modular monolith for MVP.
 - Clear domain boundaries by module.
 - Event-friendly internal design to allow future asynchronous scaling.
 
 ## Suggested Modules
+
 ### 1. Auth And Access Module
+
 - LDAP or Active Directory login and session/token issuance
 - LDAP or Active Directory lookup support for best-effort Windows Agent active-user enrichment
 - Local role and scope mapping
@@ -48,6 +57,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Phase 1 baseline access mapping may default to a documented global scope placeholder before site and area scoped records are implemented
 
 ### 2. Organization Module
+
 - Sites
 - Areas
 - Departments
@@ -58,6 +68,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Limited override support where explicitly allowed
 
 ### 3. Communication Module
+
 - Communication drafts
 - Publication state
 - Scheduling
@@ -69,6 +80,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Publish preview and confirmation workflow
 
 ### 4. Audience Module
+
 - Audience rules
 - Audience preview
 - Saved groups
@@ -76,12 +88,14 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Device-by-location resolution for Windows Agent targeting
 
 ### 5. Workflow Module
+
 - Response workflow definitions
 - Response options
 - Recipient-only escalation rules for MVP
 - Ack and response semantics
 
 ### 6. Delivery Module
+
 - Delivery jobs
 - Delivery attempts
 - Channel-specific payload rendering
@@ -91,6 +105,7 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Bounded retry orchestration
 
 ### 7. Windows Agent Module
+
 - Device registration
 - Pending device enrollment capture and admin approval workflow for unknown endpoints
 - Realtime connection negotiation
@@ -111,20 +126,24 @@ Administrative authentication should rely on LDAP or Active Directory, while aut
 - Wellness activity evidence that remains device-centric while optionally carrying the currently active Windows user as audit metadata when the endpoint can report it safely
 
 ### 8. WhatsApp Module
+
 - Outbound message dispatch
 - Template mapping
 - Provider callback processing
 - Inbound response parsing if used
 
 ### 9. Reporting And Audit Module
+
 - Dashboard queries
 - Historical reports
 - Audit trails
 
 ## Recommended Technology Direction
+
 The current repository already leans toward TypeScript for the admin application. For the server:
 
 ### Preferred
+
 - `Node.js + TypeScript`
 - `PostgreSQL`
 - `Redis` for queueing, caching, or scheduling assistance
@@ -132,21 +151,26 @@ The current repository already leans toward TypeScript for the admin application
 - `OpenAPI` as the authoritative API contract
 
 ### Acceptable Alternatives
+
 - Another backend stack is acceptable only if the OpenAPI contract, workflows, and data model remain aligned with the documents.
 
 ## Communication Execution Model
+
 ### Authoring Stage
+
 - Communication is created as `Draft`.
 - Audience rules and channels are attached.
 - Response workflow and schedule are configured.
 
 ### Publication Stage
+
 - Audience resolver generates a recipient snapshot.
 - Delivery jobs are created per recipient and per selected or policy-resolved channel.
 - Communication state moves to `Queued` or `Sending`.
 - Publish preview must resolve target audience, device counts, channel plan, and critical policy summary before final confirmation.
 
 ### Recurring Routine Reminder Stage
+
 - The server remains the authoritative owner of the recurrence rule, execution mode, policy version, and cancellation state.
 - Recurring schedules may execute in one of two modes:
   - `ServerGenerated` for normal scheduled execution
@@ -155,6 +179,7 @@ The current repository already leans toward TypeScript for the admin application
 - The agent executes only the synchronized policy window and must stop using a policy when it is expired, replaced, or cancelled by the server.
 
 ### Delivery Stage
+
 - Channel connector or realtime hub attempts delivery.
 - Delivery attempt records are written.
 - Recipient channel status is updated as callbacks or agent confirmations arrive.
@@ -164,13 +189,16 @@ The current repository already leans toward TypeScript for the admin application
 - Locally executed routine reminders must reconcile occurrence and interaction evidence back to the server when connectivity is available.
 
 ### Response Stage
+
 - If response is required, recipients enter `AwaitingResponse`.
 - Responses update workflow tracking and dashboards.
 - In MVP, overdue timers may trigger recipient-only follow-up behavior such as re-alerting the same recipient.
 - A workflow response should also satisfy acknowledgment in MVP.
 
 ## Windows Agent Integration Direction
+
 ### Responsibilities Of The Agent
+
 - Register the device and user context with the server.
 - Establish and maintain a realtime connection using the server's SignalR-style contract.
 - Send periodic heartbeat.
@@ -183,8 +211,11 @@ The current repository already leans toward TypeScript for the admin application
 - Report `Read` only after real interaction occurs.
 - Confirm display, read, and user response.
 - Report locally executed reminder occurrences and outcomes when the server becomes reachable.
+- Build advanced wellness analytics from normalized occurrence rows rather than raw event counts. Each occurrence carries the resolved terminal outcome, device-local date/hour derived from the policy timezone, device-centric site/area context, and guided-routine progress evidence; browser comparisons then aggregate this bounded read model by family, cadence, distribution mode, location, and time window.
+- Keep active-user identifiers out of aggregate effectiveness payloads and UI until the privacy boundary is explicitly approved. Raw timeline compatibility does not authorize person-centric reporting.
 
 ### Minimum Agent API Needs
+
 - authenticate or register device session
 - capture unknown device enrollment requests without silently auto-trusting the endpoint
 - negotiate realtime connection or obtain hub credentials
@@ -201,7 +232,9 @@ The current repository already leans toward TypeScript for the admin application
 - report active user context only as optional audit metadata and shared-device replay suppression input, not as the primary desktop recipient identity
 
 ## WhatsApp Integration Direction
+
 ### Responsibilities Of The Server
+
 - Render channel-specific WhatsApp payloads from the unified communication source.
 - Dispatch through the configured provider or gateway.
 - Receive webhook callbacks for delivery state changes.
@@ -209,6 +242,7 @@ The current repository already leans toward TypeScript for the admin application
 - Only promote WhatsApp to `Read` when a provider or gateway emits a real read receipt.
 
 ## Data Strategy
+
 - Use normalized operational tables for authoritative state.
 - Use append-only event records for status transitions where possible.
 - Keep resolved audience snapshots to preserve historical targeting truth even if org structure later changes.
@@ -219,8 +253,10 @@ The current repository already leans toward TypeScript for the admin application
 - Preserve local reminder occurrence evidence after reconciliation so monitoring and audit trails remain server-queryable.
 - Keep flat device records with site, area, and location metadata directly on the device model for MVP simplicity.
 - Treat wellness-program assignment and execution evidence as device-primary in MVP. Optional active-user context may enrich auditability, but it must not replace device identity as the authoritative assignment boundary on shared endpoints.
+- Keep wellness outcome evidence explicit across the agent boundary: `GotIt` and `Done` are completion, `RemindMeLater` is defer, `Start` and `Next` are progress, and all close-only paths are dismissal. New terminal CTA events should include normalized `terminalOutcome` metadata without rewriting ambiguous historical evidence.
 
 ## Security Direction
+
 - Enforce authentication for all admin APIs.
 - Enforce scoped authorization for all create, publish, and report actions.
 - Protect agent endpoints with device credentials, signed tokens, or equivalent secure mechanism.
@@ -229,6 +265,7 @@ The current repository already leans toward TypeScript for the admin application
 - Block template-locked field overrides at the API layer and return explicit validation errors.
 
 ## Observability
+
 - Structured logs per module
 - Audit log for product actions
 - Connector health monitoring
@@ -238,11 +275,13 @@ The current repository already leans toward TypeScript for the admin application
 - Preview-to-publish auditability for critical communications
 
 ## API Contract Rules
+
 - `docs/openapi.yaml` is the source of truth for backend contract.
 - Backend behavior changes must update the OpenAPI contract.
 - Frontend and Windows Agent integrations should be generated or validated against the OpenAPI spec where practical.
 
 ## Implementation Notes For AI Builders
+
 - Treat `Communication` as the primary aggregate root.
 - Do not create separate engines for reminders, alerts, and news unless the specification is updated.
 - Preserve role scope enforcement as a backend rule, not only a frontend restriction.

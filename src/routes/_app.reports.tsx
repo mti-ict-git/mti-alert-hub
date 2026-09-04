@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,12 +39,16 @@ import { format } from "date-fns";
 import { Download, FileDown, FileSpreadsheet, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { buildWellnessProgramSummaryCsv, downloadCsv } from "@/lib/wellness-reporting-export";
+import { WellnessAdvancedAnalytics } from "@/components/reports/WellnessAdvancedAnalytics";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
 });
 
 function ReportsPage() {
+  useEffect(() => {
+    document.title = "Reports | MTI Alert Hub";
+  }, []);
   const { data: deliveryByContentType = [] } = useQuery({
     queryKey: ["report-delivery-by-content-type"],
     queryFn: reportsService.deliveryByContentType,
@@ -132,24 +136,6 @@ function ReportsPage() {
       wellnessTo,
     ],
   );
-
-  const wellnessTrend = useMemo(() => {
-    const daily = new Map<string, { date: string; completed: number; deferred: number }>();
-    filteredWellnessPrograms.forEach((program) => {
-      program.reporting.timeline.forEach((event) => {
-        if (event.normalizedOutcome !== "Completed" && event.normalizedOutcome !== "Deferred")
-          return;
-        const date = event.occurredAt.slice(0, 10);
-        const bucket = daily.get(date) ?? { date, completed: 0, deferred: 0 };
-        if (event.normalizedOutcome === "Completed") bucket.completed += 1;
-        if (event.normalizedOutcome === "Deferred") bucket.deferred += 1;
-        daily.set(date, bucket);
-      });
-    });
-    return [...daily.values()]
-      .sort((left, right) => left.date.localeCompare(right.date))
-      .slice(-14);
-  }, [filteredWellnessPrograms]);
 
   return (
     <div>
@@ -358,41 +344,15 @@ function ReportsPage() {
               </div>
             )}
 
-            {!isWellnessError && wellnessTrend.length > 0 && (
-              <div>
-                <h3 className="mb-3 text-sm font-medium">Complete versus defer trend</h3>
-                <div className="h-64" aria-label="Daily completed and deferred wellness outcomes">
-                  <ResponsiveContainer>
-                    <BarChart data={wellnessTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
-                      <YAxis allowDecimals={false} fontSize={11} stroke="var(--muted-foreground)" />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--popover)",
-                          border: "1px solid var(--border)",
-                        }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar
-                        name="Completed"
-                        dataKey="completed"
-                        fill="var(--success)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        name="Deferred"
-                        dataKey="deferred"
-                        fill="var(--warning)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+            {!isWellnessError && !isWellnessLoading && (
+              <WellnessAdvancedAnalytics
+                programs={filteredWellnessPrograms}
+                site={wellnessSite}
+                area={wellnessArea}
+              />
             )}
 
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-md border">
               <Table aria-label="Wellness program outcome report">
                 <TableHeader>
                   <TableRow>
