@@ -272,6 +272,19 @@ export function registerCommunicationRoutes(
       },
     },
     {
+      method: "GET",
+      path: "/communications/{communicationId}/wellness-reporting",
+      requiresAuth: true,
+      async handler({ params }) {
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.getCommunicationWellnessReporting(
+            params.communicationId ?? "",
+          ),
+        };
+      },
+    },
+    {
       method: "PATCH",
       path: "/communications/{communicationId}",
       requiresAuth: true,

@@ -124,6 +124,7 @@ export async function createBackendApp() {
       }),
       ...registerDashboardRoutes({
         dashboardReadService,
+        communicationDraftService,
       }),
       ...registerWorkflowRoutes({
         workflowDefinitionService,

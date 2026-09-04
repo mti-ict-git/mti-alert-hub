@@ -5,6 +5,7 @@ import type {
   Recipient,
   ReminderActivity,
   ResponseRecord,
+  WellnessProgramReportDetail,
   WellnessProgramListItem,
   WellnessProgram,
 } from "@/types";
@@ -194,6 +195,8 @@ type ApiReminderActivityResponse = {
   events: ApiReminderEventRecord[];
 };
 
+type ApiWellnessReportingResponse = WellnessProgramReportDetail;
+
 type DeliveryVisibility = {
   items: ApiDeliveryRecord[];
   recipients: Recipient[];
@@ -251,7 +254,9 @@ export const notificationsService = {
     const details = await Promise.all(
       reminderSummaries.map((item) => notificationsService.get(item.id)),
     );
-    const wellnessItems = details.filter((item): item is Notification => Boolean(item?.wellnessProgram));
+    const wellnessItems = details.filter((item): item is Notification =>
+      Boolean(item?.wellnessProgram),
+    );
     const monitoringItems = await Promise.all(
       wellnessItems.map(async (item) => {
         const reminderActivity =
@@ -283,7 +288,9 @@ export const notificationsService = {
 
     return {
       items: response.items,
-      recipients: response.recipients.map((recipient) => mapDeliveryRecipientToRecipient(id, recipient)),
+      recipients: response.recipients.map((recipient) =>
+        mapDeliveryRecipientToRecipient(id, recipient),
+      ),
       logs: response.events.map((event) => mapDeliveryEventToLog(id, event)),
       page: response.page,
     };
@@ -325,6 +332,9 @@ export const notificationsService = {
       events: response.events,
     };
   },
+  async wellnessReporting(id: string): Promise<WellnessProgramReportDetail> {
+    return apiClient.get<ApiWellnessReportingResponse>(`/communications/${id}/wellness-reporting`);
+  },
   async audiencePreview(id: string): Promise<ApiAudiencePreview> {
     return apiClient.post<ApiAudiencePreview>(`/communications/${id}/audience-preview`);
   },
@@ -344,7 +354,10 @@ export const notificationsService = {
     return mapDetailToNotification(detail);
   },
   async publish(id: string, input: PublishNotificationInput): Promise<Notification> {
-    const detail = await apiClient.post<ApiCommunicationDetail>(`/communications/${id}/publish`, input);
+    const detail = await apiClient.post<ApiCommunicationDetail>(
+      `/communications/${id}/publish`,
+      input,
+    );
     return mapDetailToNotification(detail);
   },
   async cancel(id: string): Promise<Notification> {
@@ -402,8 +415,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
     targetEmployeeId:
       primaryTarget?.targetType === "Employee" ? primaryTarget.targetValue : undefined,
     channels: item.channelSelections.map(mapChannelFromApi),
-    targetDeviceId:
-      primaryTarget?.targetType === "Device" ? primaryTarget.targetValue : undefined,
+    targetDeviceId: primaryTarget?.targetType === "Device" ? primaryTarget.targetValue : undefined,
     targetDeviceIds: deviceTargets,
     workflowId: item.workflow?.id ?? null,
     requireAck: Boolean(item.requiresResponse || item.workflow?.id),
@@ -423,7 +435,9 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
   };
 }
 
-function mapPriorityFromApi(priority: ApiCommunicationSummary["priority"]): Notification["priority"] {
+function mapPriorityFromApi(
+  priority: ApiCommunicationSummary["priority"],
+): Notification["priority"] {
   return priority === "Critical" ? "Emergency" : priority;
 }
 
@@ -545,7 +559,9 @@ function mapAckStatusFromApi(status: string): Recipient["ackStatus"] {
   }
 }
 
-function inferCommunicationType(category: Notification["category"]): ApiCommunicationDetail["communicationType"] {
+function inferCommunicationType(
+  category: Notification["category"],
+): ApiCommunicationDetail["communicationType"] {
   switch (category) {
     case "OHSE":
     case "Security":
@@ -575,7 +591,7 @@ function buildCreatePayload(input: CreateNotificationInput) {
     instruction: normalizedDesktopAgent.instruction,
     channelSelections: input.channels.map(mapChannelToApi),
     targets: buildTargetsFromNotification(input),
-    workflowId: input.requireAck ? input.workflowId ?? null : null,
+    workflowId: input.requireAck ? (input.workflowId ?? null) : null,
     windowsAgentPresentation: normalizedDesktopAgent.windowsAgentPresentation,
     toastAutoDismissSeconds: normalizedDesktopAgent.toastAutoDismissSeconds,
     wellnessProgram: mapWellnessProgramToApi(input.wellnessProgram),
@@ -634,7 +650,7 @@ function buildUpdatePayload(input: UpdateNotificationInput) {
   }
 
   if (input.requireAck !== undefined) {
-    payload.workflowId = input.requireAck ? input.workflowId ?? null : null;
+    payload.workflowId = input.requireAck ? (input.workflowId ?? null) : null;
   }
 
   if (input.reminderSchedule !== undefined) {
@@ -675,18 +691,20 @@ function normalizeDesktopAgentAuthoringInput(input: {
   if (input.priority === "Info") {
     const presentation = input.windowsAgentPresentation ?? "Toast";
     return {
-      instruction: presentation === "Toast" ? null : input.instruction ?? null,
+      instruction: presentation === "Toast" ? null : (input.instruction ?? null),
       windowsAgentPresentation: presentation,
-      toastAutoDismissSeconds: presentation === "Toast" ? input.toastAutoDismissSeconds ?? null : null,
+      toastAutoDismissSeconds:
+        presentation === "Toast" ? (input.toastAutoDismissSeconds ?? null) : null,
     };
   }
 
-  const normalizedPresentation = input.windowsAgentPresentation ?? (hasDesktopAgentChannel ? "Toast" : null);
+  const normalizedPresentation =
+    input.windowsAgentPresentation ?? (hasDesktopAgentChannel ? "Toast" : null);
   return {
     instruction: input.instruction ?? null,
     windowsAgentPresentation: normalizedPresentation,
     toastAutoDismissSeconds:
-      normalizedPresentation === "Toast" ? input.toastAutoDismissSeconds ?? null : null,
+      normalizedPresentation === "Toast" ? (input.toastAutoDismissSeconds ?? null) : null,
   };
 }
 
@@ -719,7 +737,9 @@ function buildTargetsFromNotification(input: UpdateNotificationInput) {
   }
 }
 
-function mapReminderScheduleInputToApi(reminderSchedule: Notification["reminderSchedule"] | null | undefined) {
+function mapReminderScheduleInputToApi(
+  reminderSchedule: Notification["reminderSchedule"] | null | undefined,
+) {
   if (!reminderSchedule || reminderSchedule.scheduleType !== "Recurring") {
     return null;
   }
@@ -735,14 +755,18 @@ function mapReminderScheduleInputToApi(reminderSchedule: Notification["reminderS
   };
 }
 
-function mapWellnessProgramToApi(wellnessProgram: Notification["wellnessProgram"] | null | undefined) {
+function mapWellnessProgramToApi(
+  wellnessProgram: Notification["wellnessProgram"] | null | undefined,
+) {
   if (!wellnessProgram) {
     return null;
   }
 
   return {
     ...wellnessProgram,
-    variantKeys: (wellnessProgram.variantKeys ?? []).filter((value): value is string => typeof value === "string" && value.length > 0),
+    variantKeys: (wellnessProgram.variantKeys ?? []).filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    ),
     heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
     countdownSeconds: wellnessProgram.countdownSeconds ?? null,
     rotationMode: wellnessProgram.rotationMode ?? null,

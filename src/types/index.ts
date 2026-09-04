@@ -5,12 +5,7 @@ export type Priority = "Info" | "Warning" | "Emergency" | "Critical";
 export type Category = "IT" | "OHSE" | "Security" | "Operation" | "HR" | "General";
 export type Channel = "DesktopAgent" | "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage";
 export type CommunicationType =
-  | "Alert"
-  | "Reminder"
-  | "OperationalNotice"
-  | "News"
-  | "Article"
-  | "KnowledgeUpdate";
+  "Alert" | "Reminder" | "OperationalNotice" | "News" | "Article" | "KnowledgeUpdate";
 export type TargetType =
   | "All"
   | "Site"
@@ -33,14 +28,7 @@ export type NotificationStatus =
   | "Cancelled"
   | "Failed";
 export type DeliveryStatus =
-  | "Pending"
-  | "Sent"
-  | "Delivered"
-  | "Displayed"
-  | "Read"
-  | "Overdue"
-  | "Responded"
-  | "Failed";
+  "Pending" | "Sent" | "Delivered" | "Displayed" | "Read" | "Overdue" | "Responded" | "Failed";
 export type AckStatus = "Safe" | "NeedAssistance" | "NotInArea" | "Acknowledged" | "NoResponse";
 export type DeviceStatus = "Online" | "Offline" | "Stale";
 export type EmployeeStatus = "Active" | "Inactive";
@@ -50,11 +38,7 @@ export type WindowsAgentPresentation = "Toast" | "Modal" | "Fullscreen";
 export type WellnessProgramType = "SimpleReminder" | "GuidedRoutine";
 export type WellnessTheme = "Blue" | "Green";
 export type WellnessLayoutVariant =
-  | "ReminderCard"
-  | "CountdownCard"
-  | "OverviewCard"
-  | "GuidedRoutine"
-  | "CompletionCard";
+  "ReminderCard" | "CountdownCard" | "OverviewCard" | "GuidedRoutine" | "CompletionCard";
 export type WellnessRotationMode = "Fixed" | "Sequential" | "Random";
 export type WellnessDistributionMode = "Synchronized" | "Staggered";
 export type WellnessActionKind = "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
@@ -432,12 +416,7 @@ export interface Template {
   id: string;
   name: string;
   communicationType:
-    | "Alert"
-    | "Reminder"
-    | "OperationalNotice"
-    | "News"
-    | "Article"
-    | "KnowledgeUpdate";
+    "Alert" | "Reminder" | "OperationalNotice" | "News" | "Article" | "KnowledgeUpdate";
   category: Category;
   priority: Priority;
   defaultMessage: string;
@@ -505,6 +484,136 @@ export interface ReminderEventRecord {
 export interface ReminderActivity {
   policies: ReminderPolicySummary[];
   events: ReminderEventRecord[];
+}
+
+export type WellnessNormalizedOutcome =
+  | "Triggered"
+  | "NoInteraction"
+  | "Engaged"
+  | "InProgress"
+  | "Completed"
+  | "Deferred"
+  | "Dismissed"
+  | "TimedOut"
+  | "AmbiguousCloseCompletion";
+
+export type WellnessTerminalOutcome =
+  "Completed" | "Deferred" | "Dismissed" | "TimedOut" | "AmbiguousCloseCompletion";
+
+export interface WellnessReportingSummary {
+  totalPolicies: number;
+  activePolicies: number;
+  displayedDevices: number;
+  displayedCount: number;
+  engagedCount: number;
+  startedCount: number;
+  completionCount: number;
+  deferredCount: number;
+  dismissedCount: number;
+  timedOutCount: number;
+  ambiguousCloseCount: number;
+  displayRate?: number | null;
+  engagementRate?: number | null;
+  completionRate?: number | null;
+  completionRateAfterStart?: number | null;
+  deferRate?: number | null;
+  dismissRate?: number | null;
+  timeoutRate?: number | null;
+  startAbandonmentRate?: number | null;
+}
+
+export interface WellnessActionBreakdownItem {
+  actionKey?: string | null;
+  actionKind?: string | null;
+  actionLabel?: string | null;
+  normalizedOutcome: WellnessNormalizedOutcome;
+  count: number;
+}
+
+export interface WellnessReportingTimelineItem {
+  eventId: string;
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  eventType: ReminderEventRecord["eventType"] | string;
+  occurredAt: string;
+  reportedAt: string;
+  activeUserIdentifier?: string | null;
+  occurrenceUtc?: string | null;
+  snoozedUntilUtc?: string | null;
+  actionKey?: string | null;
+  actionKind?: string | null;
+  actionLabel?: string | null;
+  normalizedOutcome: WellnessNormalizedOutcome;
+}
+
+export interface WellnessReportingDeviceOutcome {
+  policyId: string;
+  deviceId: string;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+  siteName?: string | null;
+  areaName?: string | null;
+  isActive: boolean;
+  scheduleVersion: number;
+  recurrenceRule: string;
+  timezone: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  lastSyncedAt?: string | null;
+  lastActivityAt?: string | null;
+  lastEventType?: ReminderEventRecord["eventType"] | string | null;
+  lastActionKind?: string | null;
+  lastActionLabel?: string | null;
+  lastNormalizedOutcome?: WellnessNormalizedOutcome | null;
+  lastTerminalOutcome?: WellnessTerminalOutcome | null;
+  ambiguousCloseCount: number;
+  displayedCount: number;
+  engagedCount: number;
+  startedCount: number;
+  completedCount: number;
+  deferredCount: number;
+  dismissedCount: number;
+  timedOutCount: number;
+}
+
+export interface WellnessReporting {
+  summary: WellnessReportingSummary;
+  funnel: Array<{
+    key: string;
+    label: string;
+    count: number;
+  }>;
+  actionBreakdown: WellnessActionBreakdownItem[];
+  deviceOutcomes: WellnessReportingDeviceOutcome[];
+  timeline: WellnessReportingTimelineItem[];
+}
+
+export interface WellnessProgramReportDetail {
+  communicationId: string;
+  title: string;
+  status: NotificationStatus;
+  programFamily: string;
+  programType?: WellnessProgramType | null;
+  theme?: WellnessTheme | null;
+  layoutVariant?: WellnessLayoutVariant | null;
+  variantKeys: string[];
+  reporting: WellnessReporting;
+}
+
+export interface WellnessProgramRollup {
+  communicationId: string;
+  title: string;
+  status: NotificationStatus;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  recipientsCount: number;
+  programFamily: string;
+  programType?: WellnessProgramType | null;
+  cadence?: string | null;
+  targetSize: number;
+  reporting: WellnessReporting;
 }
 
 export interface WellnessMonitoringCounts {

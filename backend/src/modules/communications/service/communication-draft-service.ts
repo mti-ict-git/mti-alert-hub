@@ -5,10 +5,8 @@ import type { DeliveryChannel } from "../../../app/config/env.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
 import type { WorkflowDefinitionService } from "../../workflows/service/workflow-definition-service.js";
-import type {
-  ChannelPlanItem,
-  ExecutionAudienceResolution,
-} from "./audience-preview-service.js";
+import { buildWellnessReporting, inferWellnessProgramFamily } from "./wellness-reporting.js";
+import type { ChannelPlanItem, ExecutionAudienceResolution } from "./audience-preview-service.js";
 import { AudiencePreviewService } from "./audience-preview-service.js";
 import type {
   Channel,
@@ -24,14 +22,7 @@ import { CommunicationTemplateService } from "./communication-template-service.j
 const COMMUNICATION_BODY_MAX_LENGTH = 320;
 
 type CommunicationStatus =
-  | "Draft"
-  | "Scheduled"
-  | "Queued"
-  | "Sending"
-  | "Active"
-  | "Completed"
-  | "Cancelled"
-  | "Failed";
+  "Draft" | "Scheduled" | "Queued" | "Sending" | "Active" | "Completed" | "Cancelled" | "Failed";
 
 type WorkflowSummary = {
   id: string;
@@ -116,11 +107,7 @@ type ReminderDraftScheduleInput = {
 type WellnessProgramType = "SimpleReminder" | "GuidedRoutine";
 type WellnessTheme = "Blue" | "Green";
 type WellnessLayoutVariant =
-  | "ReminderCard"
-  | "CountdownCard"
-  | "OverviewCard"
-  | "GuidedRoutine"
-  | "CompletionCard";
+  "ReminderCard" | "CountdownCard" | "OverviewCard" | "GuidedRoutine" | "CompletionCard";
 type WellnessActionKind = "GotIt" | "Done" | "Start" | "Next" | "Close" | "RemindMeLater";
 
 type WellnessAction = {
@@ -235,6 +222,8 @@ type ReminderPolicySummaryRow = {
   deviceId: string;
   deviceIdentifier: string | null;
   hostname: string | null;
+  siteName: string | null;
+  areaName: string | null;
   scheduleVersion: number;
   recurrenceRule: string;
   timezone: string;
@@ -259,14 +248,18 @@ type ReminderEventRow = {
   metadata: unknown;
 };
 
+type WellnessProgramRollupRow = {
+  communicationId: string;
+  title: string;
+  status: CommunicationStatus;
+  createdAt: string | null;
+  updatedAt: string | null;
+  recipientsCount: number;
+  wellnessProgram: unknown | null;
+};
+
 type DeliveryJobStatus =
-  | "Pending"
-  | "Sent"
-  | "Delivered"
-  | "Displayed"
-  | "Read"
-  | "Responded"
-  | "Failed";
+  "Pending" | "Sent" | "Delivered" | "Displayed" | "Read" | "Responded" | "Failed";
 
 type DeliveryEventType = "Queued" | "Overdue" | DeliveryJobStatus;
 
@@ -596,54 +589,7 @@ export class CommunicationDraftService {
       });
     }
 
-    const [policies, events] = await Promise.all([
-      this.database.query<ReminderPolicySummaryRow>(
-        `
-          select
-            arp.id::text as "policyId",
-            arp.device_id::text as "deviceId",
-            d.device_identifier::text as "deviceIdentifier",
-            d.hostname::text as hostname,
-            arp.schedule_version as "scheduleVersion",
-            arp.recurrence_rule::text as "recurrenceRule",
-            arp.timezone::text as timezone,
-            coalesce(arp.valid_from, cs.valid_from)::text as "validFrom",
-            arp.valid_until::text as "validUntil",
-            arp.is_active as "isActive",
-            arp.last_synced_at::text as "lastSyncedAt",
-            arp.updated_at::text as "updatedAt",
-            arp.wellness_program_json as "wellnessProgram"
-          from public.agent_reminder_policies arp
-          inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
-          left join public.devices d on d.id = arp.device_id
-          where arp.communication_id::text = $1
-          order by arp.created_at desc, arp.updated_at desc
-        `,
-        [communicationId],
-      ),
-      this.database.query<ReminderEventRow>(
-        `
-          select
-            are.id::text as "eventId",
-            are.agent_reminder_policy_id::text as "policyId",
-            are.device_id::text as "deviceId",
-            d.device_identifier::text as "deviceIdentifier",
-            d.hostname::text as hostname,
-            are.event_type::text as "eventType",
-            are.occurred_at::text as "occurredAt",
-            are.created_at::text as "reportedAt",
-            are.active_user_identifier::text as "activeUserIdentifier",
-            are.metadata_json as metadata
-          from public.agent_reminder_events are
-          inner join public.agent_reminder_policies arp on arp.id = are.agent_reminder_policy_id
-          left join public.devices d on d.id = are.device_id
-          where arp.communication_id::text = $1
-          order by are.occurred_at desc, are.created_at desc
-          limit 200
-        `,
-        [communicationId],
-      ),
-    ]);
+    const { policies, events } = await this.loadCommunicationReminderActivity(communicationId);
 
     return {
       policies,
@@ -655,6 +601,104 @@ export class CommunicationDraftService {
             : null,
       })),
     };
+  }
+
+  async getCommunicationWellnessReporting(communicationId: string) {
+    const detail = await this.getCommunicationDetailRow(communicationId);
+    if (!detail) {
+      throw new AppError({
+        statusCode: 404,
+        code: "COMMUNICATION_NOT_FOUND",
+        message: "The requested communication was not found.",
+      });
+    }
+
+    const { policies, events } = await this.loadCommunicationReminderActivity(communicationId);
+    const wellnessProgram = parseWellnessProgramRecord(detail.wellnessProgram);
+
+    return {
+      communicationId: detail.id,
+      title: detail.title,
+      status: detail.status,
+      programFamily: inferWellnessProgramFamily({
+        programType: wellnessProgram?.programType,
+        theme: wellnessProgram?.theme,
+        variantKeys: wellnessProgram?.variantKeys ?? [],
+      }),
+      programType: wellnessProgram?.programType ?? null,
+      theme: wellnessProgram?.theme ?? null,
+      layoutVariant: wellnessProgram?.layoutVariant ?? null,
+      variantKeys: wellnessProgram?.variantKeys ?? [],
+      reporting: buildWellnessReporting({
+        policies,
+        events: events.map((event) => ({
+          ...event,
+          metadata:
+            event.metadata && typeof event.metadata === "object"
+              ? (event.metadata as Record<string, unknown>)
+              : null,
+        })),
+      }),
+    };
+  }
+
+  async listWellnessProgramRollups() {
+    const rows = await this.database.query<WellnessProgramRollupRow>(
+      `
+        select
+          c.id::text as "communicationId",
+          c.title::text as title,
+          c.status::text as status,
+          c.created_at::text as "createdAt",
+          c.updated_at::text as "updatedAt",
+          (
+            select count(*)::int
+            from public.communication_recipients cr
+            where cr.communication_id = c.id
+          ) as "recipientsCount",
+          c.wellness_program_json as "wellnessProgram"
+        from public.communications c
+        where c.communication_type = 'Reminder'
+          and c.wellness_program_json is not null
+        order by coalesce(c.updated_at, c.created_at) desc
+      `,
+    );
+
+    return Promise.all(
+      rows.map(async (row) => {
+        const wellnessProgram = parseWellnessProgramRecord(row.wellnessProgram);
+        const { policies, events } = await this.loadCommunicationReminderActivity(
+          row.communicationId,
+        );
+
+        return {
+          communicationId: row.communicationId,
+          title: row.title,
+          status: row.status,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          recipientsCount: row.recipientsCount,
+          programFamily: inferWellnessProgramFamily({
+            programType: wellnessProgram?.programType,
+            theme: wellnessProgram?.theme,
+            variantKeys: wellnessProgram?.variantKeys ?? [],
+          }),
+          programType: wellnessProgram?.programType ?? null,
+          cadence: policies[0]?.recurrenceRule ?? null,
+          targetSize: row.recipientsCount,
+          reporting: buildWellnessReporting({
+            policies,
+            events: events.map((event) => ({
+              ...event,
+              metadata:
+                event.metadata && typeof event.metadata === "object"
+                  ? (event.metadata as Record<string, unknown>)
+                  : null,
+            })),
+          }),
+        };
+      }),
+    );
   }
 
   async listCommunicationDeliveries(options: ListCommunicationDeliveriesOptions) {
@@ -675,9 +719,10 @@ export class CommunicationDraftService {
       [options.communicationId],
     );
 
-    const [recipientRows, recipientJobRows, deliveryRows, totalRows, eventRows] = await Promise.all([
-      this.database.query<CommunicationDeliveryRecipientRow>(
-        `
+    const [recipientRows, recipientJobRows, deliveryRows, totalRows, eventRows] = await Promise.all(
+      [
+        this.database.query<CommunicationDeliveryRecipientRow>(
+          `
           select
             cr.id::text as "recipientId",
             cr.recipient_type::text as "recipientType",
@@ -725,10 +770,10 @@ export class CommunicationDraftService {
           where cr.communication_id::text = $1
           order by cr.created_at asc
         `,
-        [options.communicationId],
-      ),
-      this.database.query<CommunicationDeliveryRecipientJobRow>(
-        `
+          [options.communicationId],
+        ),
+        this.database.query<CommunicationDeliveryRecipientJobRow>(
+          `
           select
             cr.id::text as "recipientId",
             dj.channel::text as channel,
@@ -738,10 +783,10 @@ export class CommunicationDraftService {
           inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
           where dj.communication_id::text = $1
         `,
-        [options.communicationId],
-      ),
-      this.database.query<CommunicationDeliveryRow>(
-        `
+          [options.communicationId],
+        ),
+        this.database.query<CommunicationDeliveryRow>(
+          `
           select
             dj.id::text as "deliveryJobId",
             cr.id::text as "recipientId",
@@ -799,18 +844,18 @@ export class CommunicationDraftService {
           limit $2
           offset $3
         `,
-        pagination.values,
-      ),
-      this.database.query<{ totalItems: number }>(
-        `
+          pagination.values,
+        ),
+        this.database.query<{ totalItems: number }>(
+          `
           select count(*)::int as "totalItems"
           from public.delivery_jobs
           where communication_id::text = $1
         `,
-        [options.communicationId],
-      ),
-      this.database.query<CommunicationDeliveryEventRow>(
-        `
+          [options.communicationId],
+        ),
+        this.database.query<CommunicationDeliveryEventRow>(
+          `
           select
             de.id::text as "eventId",
             dj.id::text as "deliveryJobId",
@@ -845,9 +890,10 @@ export class CommunicationDraftService {
           order by de.occurred_at desc, de.created_at desc
           limit 200
         `,
-        [options.communicationId],
-      ),
-    ]);
+          [options.communicationId],
+        ),
+      ],
+    );
 
     return {
       items: deliveryRows.map((row) => serializeDeliveryRecord(row)),
@@ -1255,9 +1301,8 @@ export class CommunicationDraftService {
       targets,
       channelSelections,
     });
-    const executionAudience = await this.audiencePreviewService.resolveExecutionAudience(
-      communicationId,
-    );
+    const executionAudience =
+      await this.audiencePreviewService.resolveExecutionAudience(communicationId);
     validateAgentLocalRoutineAudience(effectivePublishInput, executionAudience);
     const workflowSnapshot = existing.workflowId
       ? await this.getWorkflowSummary(existing.workflowId)
@@ -1581,6 +1626,66 @@ export class CommunicationDraftService {
     return this.getCommunicationDetail(communicationId);
   }
 
+  private async loadCommunicationReminderActivity(communicationId: string) {
+    const [policies, events] = await Promise.all([
+      this.database.query<ReminderPolicySummaryRow>(
+        `
+          select
+            arp.id::text as "policyId",
+            arp.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            s.name::text as "siteName",
+            a.name::text as "areaName",
+            arp.schedule_version as "scheduleVersion",
+            arp.recurrence_rule::text as "recurrenceRule",
+            arp.timezone::text as timezone,
+            coalesce(arp.valid_from, cs.valid_from)::text as "validFrom",
+            arp.valid_until::text as "validUntil",
+            arp.is_active as "isActive",
+            arp.last_synced_at::text as "lastSyncedAt",
+            arp.updated_at::text as "updatedAt",
+            arp.wellness_program_json as "wellnessProgram"
+          from public.agent_reminder_policies arp
+          inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
+          left join public.devices d on d.id = arp.device_id
+          left join public.sites s on s.id = d.site_id
+          left join public.areas a on a.id = d.area_id
+          where arp.communication_id::text = $1
+          order by arp.created_at desc, arp.updated_at desc
+        `,
+        [communicationId],
+      ),
+      this.database.query<ReminderEventRow>(
+        `
+          select
+            are.id::text as "eventId",
+            are.agent_reminder_policy_id::text as "policyId",
+            are.device_id::text as "deviceId",
+            d.device_identifier::text as "deviceIdentifier",
+            d.hostname::text as hostname,
+            are.event_type::text as "eventType",
+            are.occurred_at::text as "occurredAt",
+            are.created_at::text as "reportedAt",
+            are.active_user_identifier::text as "activeUserIdentifier",
+            are.metadata_json as metadata
+          from public.agent_reminder_events are
+          inner join public.agent_reminder_policies arp on arp.id = are.agent_reminder_policy_id
+          left join public.devices d on d.id = are.device_id
+          where arp.communication_id::text = $1
+          order by are.occurred_at desc, are.created_at desc
+          limit 500
+        `,
+        [communicationId],
+      ),
+    ]);
+
+    return {
+      policies,
+      events,
+    };
+  }
+
   private async serializeCommunicationDetail(detail: CommunicationDetailRow) {
     const [targets, workflow, schedule] = await Promise.all([
       this.listTargets(detail.id),
@@ -1804,9 +1909,10 @@ export class CommunicationDraftService {
   }
 
   private async replaceTargets(communicationId: string, targets: TargetRule[]) {
-    await this.database.query(`delete from public.communication_targets where communication_id::text = $1`, [
-      communicationId,
-    ]);
+    await this.database.query(
+      `delete from public.communication_targets where communication_id::text = $1`,
+      [communicationId],
+    );
 
     for (const [index, target] of targets.entries()) {
       await this.database.query(
@@ -1848,7 +1954,9 @@ export class CommunicationDraftService {
   private async resolveWriteModelForCreate(
     input: CreateCommunicationDraftInput,
   ): Promise<CommunicationWriteModel> {
-    const template = input.templateId ? await this.templateService.getTemplateById(input.templateId) : null;
+    const template = input.templateId
+      ? await this.templateService.getTemplateById(input.templateId)
+      : null;
 
     const communicationType = template?.communicationType ?? input.communicationType;
     if (template && input.communicationType !== template.communicationType) {
@@ -1883,8 +1991,7 @@ export class CommunicationDraftService {
     existingTargets: TargetRule[],
     input: UpdateCommunicationDraftInput,
   ): Promise<CommunicationWriteModel> {
-    const templateId =
-      input.templateId === undefined ? existing.templateId : input.templateId;
+    const templateId = input.templateId === undefined ? existing.templateId : input.templateId;
     const template = templateId ? await this.templateService.getTemplateById(templateId) : null;
 
     return this.validateAndBuildWriteModel({
@@ -1945,10 +2052,11 @@ export class CommunicationDraftService {
     const finalWorkflowId = template?.defaultWorkflowId ?? input.workflowId;
     const finalWindowsAgentPresentation =
       template?.defaultWindowsAgentPresentation ?? input.windowsAgentPresentation;
-    const finalToastAutoDismissSeconds = normalizeToastAutoDismissSeconds(input.toastAutoDismissSeconds);
+    const finalToastAutoDismissSeconds = normalizeToastAutoDismissSeconds(
+      input.toastAutoDismissSeconds,
+    );
     const finalDeliveryStrategy = template?.defaultDeliveryStrategy ?? input.deliveryStrategy;
-    const requiresResponse =
-      template?.defaultRequiresResponse ?? Boolean(finalWorkflowId);
+    const requiresResponse = template?.defaultRequiresResponse ?? Boolean(finalWorkflowId);
 
     if (template) {
       validateAllowedTargetTypes(template, input.targets);
@@ -1974,8 +2082,13 @@ export class CommunicationDraftService {
       );
 
       if (template.lockedFields.includes("channelSelections")) {
-        const allowedChannels = new Set([...template.mandatoryChannels, ...template.optionalChannels]);
-        const hasUnsupportedChannel = normalizedChannelSelections.some((channel) => !allowedChannels.has(channel));
+        const allowedChannels = new Set([
+          ...template.mandatoryChannels,
+          ...template.optionalChannels,
+        ]);
+        const hasUnsupportedChannel = normalizedChannelSelections.some(
+          (channel) => !allowedChannels.has(channel),
+        );
         if (hasUnsupportedChannel) {
           throw new AppError({
             statusCode: 422,
@@ -2035,7 +2148,8 @@ export class CommunicationDraftService {
       throw new AppError({
         statusCode: 422,
         code: "TOAST_RESPONSE_NOT_SUPPORTED",
-        message: "Windows Agent toast notifications cannot require acknowledgement or workflow responses when they are the only selected channel.",
+        message:
+          "Windows Agent toast notifications cannot require acknowledgement or workflow responses when they are the only selected channel.",
       });
     }
 
@@ -2150,7 +2264,8 @@ function normalizeWindowsAgentAuthoringRules(options: {
   return {
     instruction: options.instruction,
     windowsAgentPresentation: normalizedPresentation,
-    toastAutoDismissSeconds: normalizedPresentation === "Toast" ? options.toastAutoDismissSeconds : null,
+    toastAutoDismissSeconds:
+      normalizedPresentation === "Toast" ? options.toastAutoDismissSeconds : null,
   };
 }
 
@@ -2170,8 +2285,14 @@ function normalizeReminderDraftScheduleInput(
     });
   }
 
-  const scheduledAt = parseOptionalIsoDate(reminderSchedule.scheduledAt, "reminderSchedule.scheduledAt");
-  const validUntil = parseOptionalIsoDate(reminderSchedule.validUntil, "reminderSchedule.validUntil");
+  const scheduledAt = parseOptionalIsoDate(
+    reminderSchedule.scheduledAt,
+    "reminderSchedule.scheduledAt",
+  );
+  const validUntil = parseOptionalIsoDate(
+    reminderSchedule.validUntil,
+    "reminderSchedule.validUntil",
+  );
   const recurrenceRule = normalizeNullableText(reminderSchedule.recurrenceRule);
   const timezone = normalizeNullableText(reminderSchedule.timezone);
 
@@ -2210,7 +2331,7 @@ function normalizeReminderDraftScheduleInput(
     distributionMode: reminderSchedule.distributionMode ?? "Synchronized",
     staggerWindowMinutes:
       reminderSchedule.distributionMode === "Staggered"
-        ? reminderSchedule.staggerWindowMinutes ?? 30
+        ? (reminderSchedule.staggerWindowMinutes ?? 30)
         : null,
     scheduleVersion: 0,
     validFrom: scheduledAt?.toISOString() ?? null,
@@ -2469,7 +2590,9 @@ function parseWellnessProgramRecord(value: unknown): WellnessProgramInput | null
     theme: record.theme,
     layoutVariant: record.layoutVariant,
     variantKeys: Array.isArray(record.variantKeys)
-      ? record.variantKeys.filter((value): value is string => typeof value === "string" && value.length > 0)
+      ? record.variantKeys.filter(
+          (value): value is string => typeof value === "string" && value.length > 0,
+        )
       : [],
     heroAssetUrl: typeof record.heroAssetUrl === "string" ? record.heroAssetUrl : null,
     countdownSeconds: typeof record.countdownSeconds === "number" ? record.countdownSeconds : null,
@@ -2628,7 +2751,10 @@ function validateTargets(targets: TargetRule[]) {
   }
 }
 
-function validateChannelSelections(channels: Channel[], enabledDeliveryChannels: DeliveryChannel[]) {
+function validateChannelSelections(
+  channels: Channel[],
+  enabledDeliveryChannels: DeliveryChannel[],
+) {
   if (channels.length === 0) {
     throw new AppError({
       statusCode: 422,
@@ -2768,7 +2894,11 @@ function validatePublishRequest(
       assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
       assertPublishFieldAbsent(timezone, "timezone", input.publishMode);
       assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
-      assertPublishFieldAbsent(input.distributionMode ?? null, "distributionMode", input.publishMode);
+      assertPublishFieldAbsent(
+        input.distributionMode ?? null,
+        "distributionMode",
+        input.publishMode,
+      );
       assertPublishFieldAbsent(staggerWindowMinutes, "staggerWindowMinutes", input.publishMode);
       assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
       return;
@@ -2798,7 +2928,11 @@ function validatePublishRequest(
       assertValidTimeZone(timezone);
       assertPublishFieldAbsent(recurrenceRule, "recurrenceRule", input.publishMode);
       assertPublishFieldAbsent(input.executionMode ?? null, "executionMode", input.publishMode);
-      assertPublishFieldAbsent(input.distributionMode ?? null, "distributionMode", input.publishMode);
+      assertPublishFieldAbsent(
+        input.distributionMode ?? null,
+        "distributionMode",
+        input.publishMode,
+      );
       assertPublishFieldAbsent(staggerWindowMinutes, "staggerWindowMinutes", input.publishMode);
       assertPublishFieldAbsent(validUntil, "validUntil", input.publishMode);
       return;
@@ -2833,7 +2967,11 @@ function validatePublishRequest(
         });
       }
       if (distributionMode === "Staggered") {
-        if (staggerWindowMinutes === null || staggerWindowMinutes < 5 || staggerWindowMinutes > 720) {
+        if (
+          staggerWindowMinutes === null ||
+          staggerWindowMinutes < 5 ||
+          staggerWindowMinutes > 720
+        ) {
           throw new AppError({
             statusCode: 422,
             code: "STAGGER_WINDOW_INVALID",
@@ -2904,7 +3042,12 @@ function validatePublishTemplatePolicy(options: {
 
   validateAllowedTargetTypes(template, targets);
   validateMandatoryChannels(template, channelSelections);
-  validateTemplateLockedField("priority", template, communication.priority, template.defaultPriority);
+  validateTemplateLockedField(
+    "priority",
+    template,
+    communication.priority,
+    template.defaultPriority,
+  );
   validateTemplateLockedField(
     "workflowId",
     template,
@@ -2926,7 +3069,9 @@ function validatePublishTemplatePolicy(options: {
 
   if (template.lockedFields.includes("channelSelections")) {
     const allowedChannels = new Set([...template.mandatoryChannels, ...template.optionalChannels]);
-    const hasUnsupportedChannel = channelSelections.some((channel) => !allowedChannels.has(channel));
+    const hasUnsupportedChannel = channelSelections.some(
+      (channel) => !allowedChannels.has(channel),
+    );
     if (hasUnsupportedChannel) {
       throw new AppError({
         statusCode: 422,
@@ -3614,9 +3759,7 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60_000);
 }
 
-function dedupeAgentReminderDevices(
-  recipients: ExecutionAudienceResolution["recipients"],
-) {
+function dedupeAgentReminderDevices(recipients: ExecutionAudienceResolution["recipients"]) {
   const devices = new Map<string, AgentReminderDeviceRecipient>();
 
   for (const recipient of recipients) {
@@ -3630,10 +3773,10 @@ function dedupeAgentReminderDevices(
   return [...devices.values()];
 }
 
-function collectWindowsAgentDeviceIds(
-  recipients: ExecutionAudienceResolution["recipients"],
-) {
-  return [...new Set(dedupeAgentReminderDevices(recipients).map((recipient) => recipient.deviceId))];
+function collectWindowsAgentDeviceIds(recipients: ExecutionAudienceResolution["recipients"]) {
+  return [
+    ...new Set(dedupeAgentReminderDevices(recipients).map((recipient) => recipient.deviceId)),
+  ];
 }
 
 type AgentReminderDeviceRecipient = ExecutionAudienceResolution["recipients"][number] & {
@@ -3800,15 +3943,18 @@ function serializeDeliveryRecipients(
   return recipientRows.map((row) => {
     const jobs = jobsByRecipientId.get(row.recipientId) ?? [];
     const channels = dedupeChannels(jobs.map((job) => job.channel));
-    const latestJob = jobs.reduce<CommunicationDeliveryRecipientJobRow | null>((latest, candidate) => {
-      if (!latest) {
-        return candidate;
-      }
+    const latestJob = jobs.reduce<CommunicationDeliveryRecipientJobRow | null>(
+      (latest, candidate) => {
+        if (!latest) {
+          return candidate;
+        }
 
-      return toTimestampValue(candidate.lastUpdatedAt) > toTimestampValue(latest.lastUpdatedAt)
-        ? candidate
-        : latest;
-    }, null);
+        return toTimestampValue(candidate.lastUpdatedAt) > toTimestampValue(latest.lastUpdatedAt)
+          ? candidate
+          : latest;
+      },
+      null,
+    );
 
     return {
       recipientId: row.recipientId,
@@ -4046,7 +4192,9 @@ function parseWorkflowSummary(value: unknown): WorkflowSummary | null {
       ? parsedValue.options
           .filter(
             (option): option is { key: string; label: string } =>
-              isRecord(option) && typeof option.key === "string" && typeof option.label === "string",
+              isRecord(option) &&
+              typeof option.key === "string" &&
+              typeof option.label === "string",
           )
           .map((option) => ({
             key: option.key,
@@ -4134,7 +4282,9 @@ function buildDeliveryEventDetail(
         ? `Response overdue in ${source}: ${reason}.`
         : `Response overdue and queued for recipient-only follow-up.`;
     case "Responded": {
-      const responseLabel = responseOptionKey ? `Response "${responseOptionKey}" submitted` : "Response submitted";
+      const responseLabel = responseOptionKey
+        ? `Response "${responseOptionKey}" submitted`
+        : "Response submitted";
       return responseNote ? `${responseLabel}: ${responseNote}` : `${responseLabel}.`;
     }
     case "Failed":

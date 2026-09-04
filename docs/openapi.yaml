@@ -867,6 +867,35 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+
+  /communications/{communicationId}/wellness-reporting:
+    get:
+      tags: [Communications]
+      summary: Get normalized wellness outcome reporting for one program
+      description: |
+        Returns the first outcome-oriented wellness reporting baseline for one `Wellness Program`.
+
+        Current Phase 4 note:
+        - The payload is derived from the existing reminder-policy and reminder-event model.
+        - `actionKind = Close` reported through `eventType = Completed` is exposed as `AmbiguousCloseCompletion` instead of being silently merged into clean completion metrics.
+        - This endpoint is intended for the dedicated wellness admin detail flow and wellness-specific reporting surfaces.
+      operationId: getCommunicationWellnessReporting
+      x-implementation-phase: Phase 4
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      responses:
+        "200":
+          description: Wellness reporting detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WellnessProgramReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
 
@@ -1550,6 +1579,30 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /dashboard/wellness-program-rollups:
+    get:
+      tags: [Dashboard]
+      summary: Get wellness program outcome rollups
+      description: |
+        Returns the first global wellness reporting baseline for the `Reports` view.
+
+        Current Phase 4 note:
+        - The response aggregates one row per wellness communication and reuses the same normalized reporting semantics as the dedicated program detail endpoint.
+        - This slice focuses on outcome visibility for completion, defer, dismiss, timeout, and ambiguous close behavior without requiring a Windows Agent rebuild.
+      operationId: getWellnessProgramRollups
+      x-implementation-phase: Phase 4
+      responses:
+        "200":
+          description: Wellness program rollups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WellnessProgramRollupListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /audit-logs:
     get:
       tags: [Audit]
@@ -1789,7 +1842,18 @@ components:
     AgentRolloutState:
       type: string
       enum:
-        [UpdateAvailable, Downloading, Staged, InstallPending, Installing, Succeeded, Failed, UninstallPending, Uninstalling, Uninstalled]
+        [
+          UpdateAvailable,
+          Downloading,
+          Staged,
+          InstallPending,
+          Installing,
+          Succeeded,
+          Failed,
+          UninstallPending,
+          Uninstalling,
+          Uninstalled,
+        ]
     DeliveryJobStatus:
       type: string
       enum: [Pending, Sent, Delivered, Displayed, Read, Responded, Failed]
@@ -1804,7 +1868,19 @@ components:
       enum: [ServerGenerated, AgentLocalRoutine]
     ReminderEventType:
       type: string
-      enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded, Started, StepAdvanced, Completed, TimedOut]
+      enum:
+        [
+          Triggered,
+          Displayed,
+          Read,
+          Dismissed,
+          Snoozed,
+          Responded,
+          Started,
+          StepAdvanced,
+          Completed,
+          TimedOut,
+        ]
 
     PageMeta:
       type: object
@@ -2412,7 +2488,19 @@ components:
           nullable: true
         eventType:
           type: string
-          enum: [Triggered, Displayed, Read, Dismissed, Snoozed, Responded]
+          enum:
+            [
+              Triggered,
+              Displayed,
+              Read,
+              Dismissed,
+              Snoozed,
+              Responded,
+              Started,
+              StepAdvanced,
+              Completed,
+              TimedOut,
+            ]
         occurredAt:
           type: string
           format: date-time
@@ -2440,6 +2528,357 @@ components:
           items:
             $ref: "#/components/schemas/ReminderEventRecord"
 
+    WellnessNormalizedOutcome:
+      type: string
+      enum:
+        [
+          Triggered,
+          NoInteraction,
+          Engaged,
+          InProgress,
+          Completed,
+          Deferred,
+          Dismissed,
+          TimedOut,
+          AmbiguousCloseCompletion,
+        ]
+
+    WellnessTerminalOutcome:
+      type: string
+      enum: [Completed, Deferred, Dismissed, TimedOut, AmbiguousCloseCompletion]
+
+    WellnessReportingSummary:
+      type: object
+      required:
+        [
+          totalPolicies,
+          activePolicies,
+          displayedDevices,
+          displayedCount,
+          engagedCount,
+          startedCount,
+          completionCount,
+          deferredCount,
+          dismissedCount,
+          timedOutCount,
+          ambiguousCloseCount,
+        ]
+      properties:
+        totalPolicies:
+          type: integer
+        activePolicies:
+          type: integer
+        displayedDevices:
+          type: integer
+        displayedCount:
+          type: integer
+        engagedCount:
+          type: integer
+        startedCount:
+          type: integer
+        completionCount:
+          type: integer
+        deferredCount:
+          type: integer
+        dismissedCount:
+          type: integer
+        timedOutCount:
+          type: integer
+        ambiguousCloseCount:
+          type: integer
+        displayRate:
+          type: number
+          nullable: true
+        engagementRate:
+          type: number
+          nullable: true
+        completionRate:
+          type: number
+          nullable: true
+        completionRateAfterStart:
+          type: number
+          nullable: true
+        deferRate:
+          type: number
+          nullable: true
+        dismissRate:
+          type: number
+          nullable: true
+        timeoutRate:
+          type: number
+          nullable: true
+        startAbandonmentRate:
+          type: number
+          nullable: true
+
+    WellnessFunnelItem:
+      type: object
+      required: [key, label, count]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        count:
+          type: integer
+
+    WellnessActionBreakdownItem:
+      type: object
+      required: [normalizedOutcome, count]
+      properties:
+        actionKey:
+          type: string
+          nullable: true
+        actionKind:
+          type: string
+          nullable: true
+        actionLabel:
+          type: string
+          nullable: true
+        normalizedOutcome:
+          $ref: "#/components/schemas/WellnessNormalizedOutcome"
+        count:
+          type: integer
+
+    WellnessReportingTimelineItem:
+      type: object
+      required: [eventId, policyId, deviceId, eventType, occurredAt, reportedAt, normalizedOutcome]
+      properties:
+        eventId:
+          type: string
+        policyId:
+          type: string
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        eventType:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        reportedAt:
+          type: string
+          format: date-time
+        activeUserIdentifier:
+          type: string
+          nullable: true
+        occurrenceUtc:
+          type: string
+          format: date-time
+          nullable: true
+        snoozedUntilUtc:
+          type: string
+          format: date-time
+          nullable: true
+        actionKey:
+          type: string
+          nullable: true
+        actionKind:
+          type: string
+          nullable: true
+        actionLabel:
+          type: string
+          nullable: true
+        normalizedOutcome:
+          $ref: "#/components/schemas/WellnessNormalizedOutcome"
+
+    WellnessReportingDeviceOutcome:
+      type: object
+      required:
+        [
+          policyId,
+          deviceId,
+          isActive,
+          scheduleVersion,
+          recurrenceRule,
+          timezone,
+          ambiguousCloseCount,
+          displayedCount,
+          engagedCount,
+          startedCount,
+          completedCount,
+          deferredCount,
+          dismissedCount,
+          timedOutCount,
+        ]
+      properties:
+        policyId:
+          type: string
+        deviceId:
+          type: string
+        deviceIdentifier:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+          nullable: true
+        siteName:
+          type: string
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        scheduleVersion:
+          type: integer
+        recurrenceRule:
+          type: string
+        timezone:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastActivityAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastEventType:
+          type: string
+          nullable: true
+        lastActionKind:
+          type: string
+          nullable: true
+        lastActionLabel:
+          type: string
+          nullable: true
+        lastNormalizedOutcome:
+          allOf:
+            - $ref: "#/components/schemas/WellnessNormalizedOutcome"
+          nullable: true
+        lastTerminalOutcome:
+          allOf:
+            - $ref: "#/components/schemas/WellnessTerminalOutcome"
+          nullable: true
+        ambiguousCloseCount:
+          type: integer
+        displayedCount:
+          type: integer
+        engagedCount:
+          type: integer
+        startedCount:
+          type: integer
+        completedCount:
+          type: integer
+        deferredCount:
+          type: integer
+        dismissedCount:
+          type: integer
+        timedOutCount:
+          type: integer
+
+    WellnessReporting:
+      type: object
+      required: [summary, funnel, actionBreakdown, deviceOutcomes, timeline]
+      properties:
+        summary:
+          $ref: "#/components/schemas/WellnessReportingSummary"
+        funnel:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessFunnelItem"
+        actionBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessActionBreakdownItem"
+        deviceOutcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessReportingDeviceOutcome"
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessReportingTimelineItem"
+
+    WellnessProgramReportDetail:
+      type: object
+      required: [communicationId, title, status, programFamily, variantKeys, reporting]
+      properties:
+        communicationId:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/CommunicationStatus"
+        programFamily:
+          type: string
+        programType:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramType"
+          nullable: true
+        theme:
+          allOf:
+            - $ref: "#/components/schemas/WellnessTheme"
+          nullable: true
+        layoutVariant:
+          allOf:
+            - $ref: "#/components/schemas/WellnessLayoutVariant"
+          nullable: true
+        variantKeys:
+          type: array
+          items:
+            type: string
+        reporting:
+          $ref: "#/components/schemas/WellnessReporting"
+
+    WellnessProgramRollup:
+      type: object
+      required:
+        [communicationId, title, status, recipientsCount, programFamily, targetSize, reporting]
+      properties:
+        communicationId:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/CommunicationStatus"
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        recipientsCount:
+          type: integer
+        programFamily:
+          type: string
+        programType:
+          allOf:
+            - $ref: "#/components/schemas/WellnessProgramType"
+          nullable: true
+        cadence:
+          type: string
+          nullable: true
+        targetSize:
+          type: integer
+        reporting:
+          $ref: "#/components/schemas/WellnessReporting"
+
+    WellnessProgramRollupListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WellnessProgramRollup"
+
     TargetRule:
       type: object
       required: [targetType, targetValue]
@@ -2451,7 +2890,15 @@ components:
 
     AudiencePreviewResponse:
       type: object
-      required: [totalRecipients, deviceRecipients, whatsappRecipients, previewWarnings, channelPlan, recipients]
+      required:
+        [
+          totalRecipients,
+          deviceRecipients,
+          whatsappRecipients,
+          previewWarnings,
+          channelPlan,
+          recipients,
+        ]
       properties:
         totalRecipients:
           type: integer
@@ -3325,7 +3772,21 @@ components:
     HealthDiagnosticsResponse:
       type: object
       required:
-        [status, requestId, service, environment, startedAt, uptimeSeconds, enabledDeliveryChannels, database, adminSessions, agentSessions, alerts, realtimeHub, devices]
+        [
+          status,
+          requestId,
+          service,
+          environment,
+          startedAt,
+          uptimeSeconds,
+          enabledDeliveryChannels,
+          database,
+          adminSessions,
+          agentSessions,
+          alerts,
+          realtimeHub,
+          devices,
+        ]
       properties:
         status:
           type: string
@@ -3363,7 +3824,13 @@ components:
     DeviceSessionRevocationResponse:
       type: object
       required:
-        [deviceId, revokedSessionCount, disconnectedRealtimeConnectionCount, resultingStatus, revokedAt]
+        [
+          deviceId,
+          revokedSessionCount,
+          disconnectedRealtimeConnectionCount,
+          resultingStatus,
+          revokedAt,
+        ]
       properties:
         deviceId:
           type: string
@@ -3401,8 +3868,7 @@ components:
 
     DeviceTestNotificationResponse:
       type: object
-      required:
-        [deviceId, hostname, communicationId, communicationStatus, title]
+      required: [deviceId, hostname, communicationId, communicationStatus, title]
       properties:
         deviceId:
           type: string

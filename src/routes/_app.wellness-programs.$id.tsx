@@ -1,7 +1,17 @@
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Activity, Eye, HeartPulse, Pencil, RefreshCw, Rocket, ShieldCheck, XCircle } from "lucide-react";
+import {
+  Activity,
+  Download,
+  Eye,
+  HeartPulse,
+  Pencil,
+  RefreshCw,
+  Rocket,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MarkdownText } from "@/components/common/MarkdownText";
@@ -21,6 +31,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -36,6 +52,13 @@ import {
   type WellnessRecurrenceUnit,
 } from "@/lib/wellness-authoring";
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
+import {
+  buildWellnessDeviceOutcomeCsv,
+  buildWellnessEventTimelineCsv,
+  buildWellnessProgramSummaryCsv,
+  downloadCsv,
+  safeCsvFileStem,
+} from "@/lib/wellness-reporting-export";
 import { notificationsService } from "@/services/notifications.service";
 import type {
   AudiencePreview,
@@ -46,6 +69,8 @@ import type {
   ReminderPolicySummary,
   Recipient,
   WellnessDistributionMode,
+  WellnessNormalizedOutcome,
+  WellnessReportingDeviceOutcome,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -109,6 +134,19 @@ function WellnessProgramDetailPage() {
     refetchInterval: 15000,
     refetchIntervalInBackground: true,
   });
+  const {
+    data: wellnessReporting,
+    isError: isWellnessReportingError,
+    error: wellnessReportingError,
+    isFetching: isWellnessReportingFetching,
+    refetch: refetchWellnessReporting,
+  } = useQuery({
+    queryKey: ["notification-wellness-reporting", id],
+    queryFn: () => notificationsService.wellnessReporting(id),
+    enabled: Boolean(notification?.wellnessProgram),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+  });
 
   const [publishOpen, setPublishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -124,7 +162,8 @@ function WellnessProgramDetailPage() {
     isNotificationFetching ||
     isAudienceFetching ||
     isDeliveryFetching ||
-    isReminderActivityFetching;
+    isReminderActivityFetching ||
+    isWellnessReportingFetching;
 
   const publishMutation = useMutation({
     mutationFn: () =>
@@ -179,7 +218,12 @@ function WellnessProgramDetailPage() {
   });
 
   useEffect(() => {
-    if (!notification?.wellnessProgram || search.mode !== "publish" || publishOpen || notification.status !== "Draft") {
+    if (
+      !notification?.wellnessProgram ||
+      search.mode !== "publish" ||
+      publishOpen ||
+      notification.status !== "Draft"
+    ) {
       return;
     }
 
@@ -201,6 +245,23 @@ function WellnessProgramDetailPage() {
       mapPreviewRecipientToRecipient(id, recipient, index),
     );
   }, [audiencePreview?.recipients, deliveryVisibility?.recipients, id]);
+  const policyScheduleInsights = useMemo(
+    () => buildPolicyScheduleInsights(reminderActivity),
+    [reminderActivity],
+  );
+  const policyScheduleInsightByPolicyId = useMemo(
+    () => new Map(policyScheduleInsights.map((item) => [item.policyId, item])),
+    [policyScheduleInsights],
+  );
+  const wellnessDeviceOutcomeByPolicyId = useMemo(
+    () =>
+      new Map(
+        (wellnessReporting?.reporting.deviceOutcomes ?? []).map(
+          (item) => [item.policyId, item] as const,
+        ),
+      ),
+    [wellnessReporting?.reporting.deviceOutcomes],
+  );
 
   if (isLoading || !notification) {
     return <div className="p-6 text-muted-foreground">Loading wellness program...</div>;
@@ -222,8 +283,8 @@ function WellnessProgramDetailPage() {
         />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            The current record is reminder-backed, but it is not classified as a dedicated
-            `Wellness Program`. Use the standard notification detail route for generic reminder handling.
+            The current record is reminder-backed, but it is not classified as a dedicated `Wellness
+            Program`. Use the standard notification detail route for generic reminder handling.
           </CardContent>
         </Card>
       </div>
@@ -232,18 +293,13 @@ function WellnessProgramDetailPage() {
 
   const wellness = notification.wellnessProgram;
   const monitoring = buildWellnessMonitoringSummary(reminderActivity);
-  const policyScheduleInsights = useMemo(
-    () => buildPolicyScheduleInsights(reminderActivity),
-    [reminderActivity],
-  );
-  const policyScheduleInsightByPolicyId = useMemo(
-    () => new Map(policyScheduleInsights.map((item) => [item.policyId, item])),
-    [policyScheduleInsights],
-  );
+  const wellnessDeviceOutcomes = wellnessReporting?.reporting.deviceOutcomes ?? [];
+  const wellnessSummary = wellnessReporting?.reporting.summary ?? null;
   const recipientCount = recipients.length;
   const eligibleDeviceRecipientCount = audiencePreview?.deviceRecipients ?? 0;
   const hasDesktopAgentChannel = notification.channels.includes("DesktopAgent");
-  const isRoutinePriority = notification.priority !== "Emergency" && notification.priority !== "Critical";
+  const isRoutinePriority =
+    notification.priority !== "Emergency" && notification.priority !== "Critical";
   const nextRunWindowSummary = summarizeNextRunWindow(policyScheduleInsights);
   const canPublish = notification.status === "Draft";
   const canCancel = CANCELLABLE_STATUSES.includes(notification.status);
@@ -288,6 +344,7 @@ function WellnessProgramDetailPage() {
                   refetchAudiencePreview(),
                   refetchDeliveryVisibility(),
                   refetchReminderActivity(),
+                  refetchWellnessReporting(),
                 ])
               }
               disabled={isRefreshing}
@@ -298,6 +355,55 @@ function WellnessProgramDetailPage() {
             <Button variant="outline" asChild>
               <Link to="/wellness-programs">Back To Wellness Programs</Link>
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!wellnessReporting}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    if (!wellnessReporting) return;
+                    downloadCsv(
+                      `${safeCsvFileStem(notification.title)}-summary.csv`,
+                      buildWellnessProgramSummaryCsv([
+                        {
+                          ...wellnessReporting,
+                          recipientsCount: wellnessReporting.reporting.summary.totalPolicies,
+                          targetSize: wellnessReporting.reporting.summary.totalPolicies,
+                          cadence: reminderActivity?.policies[0]?.recurrenceRule ?? null,
+                        },
+                      ]),
+                    );
+                  }}
+                >
+                  Program summary
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    wellnessReporting &&
+                    downloadCsv(
+                      `${safeCsvFileStem(notification.title)}-device-outcomes.csv`,
+                      buildWellnessDeviceOutcomeCsv(wellnessReporting),
+                    )
+                  }
+                >
+                  Device outcomes
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    wellnessReporting &&
+                    downloadCsv(
+                      `${safeCsvFileStem(notification.title)}-event-timeline.csv`,
+                      buildWellnessEventTimelineCsv(wellnessReporting),
+                    )
+                  }
+                >
+                  Event timeline
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canPublish && (
               <Button size="sm" onClick={() => openPublishDialog(notification)}>
                 <Rocket className="mr-2 h-4 w-4" />
@@ -352,17 +458,29 @@ function WellnessProgramDetailPage() {
         />
         <SummaryCard
           icon={Activity}
-          title="Completion"
-          value={monitoring.completionRate != null ? `${monitoring.completionRate}%` : "—"}
-          description={`Triggered ${monitoring.counts.triggered}, completed ${monitoring.counts.completed}, timed out ${monitoring.counts.timedOut}.`}
+          title="Outcome"
+          value={
+            wellnessSummary?.completionRate != null
+              ? `${wellnessSummary.completionRate}%`
+              : monitoring.completionRate != null
+                ? `${monitoring.completionRate}%`
+                : "—"
+          }
+          description={
+            wellnessSummary
+              ? `Displayed ${wellnessSummary.displayedCount}, completed ${wellnessSummary.completionCount}, deferred ${wellnessSummary.deferredCount}.`
+              : `Triggered ${monitoring.counts.triggered}, completed ${monitoring.counts.completed}, timed out ${monitoring.counts.timedOut}.`
+          }
         />
         <SummaryCard
           icon={Rocket}
           title="Execution"
           value={notification.reminderSchedule?.executionMode ?? "Draft"}
-          description={notification.reminderSchedule?.validUntil
-            ? `Valid until ${formatOptionalDate(notification.reminderSchedule.validUntil)}`
-            : "No expiry is set. The routine stays active until an operator deactivates it."}
+          description={
+            notification.reminderSchedule?.validUntil
+              ? `Valid until ${formatOptionalDate(notification.reminderSchedule.validUntil)}`
+              : "No expiry is set. The routine stays active until an operator deactivates it."
+          }
         />
       </div>
 
@@ -371,7 +489,9 @@ function WellnessProgramDetailPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activity">Wellness Activity</TabsTrigger>
           <TabsTrigger value="recipients">Recipients ({recipientCount})</TabsTrigger>
-          <TabsTrigger value="logs">Delivery Logs ({deliveryVisibility?.logs.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="logs">
+            Delivery Logs ({deliveryVisibility?.logs.length ?? 0})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -384,9 +504,15 @@ function WellnessProgramDetailPage() {
               <Info label="Theme" value={wellness.theme} />
               <Info label="Layout Variant" value={wellness.layoutVariant} />
               <Info label="Rotation Mode" value={wellness.rotationMode ?? "—"} />
-              <Info label="Countdown Seconds" value={wellness.countdownSeconds != null ? `${wellness.countdownSeconds}` : "—"} />
+              <Info
+                label="Countdown Seconds"
+                value={wellness.countdownSeconds != null ? `${wellness.countdownSeconds}` : "—"}
+              />
               <Info label="Hero Asset" value={wellness.heroAssetUrl ?? "—"} />
-              <Info label="Actions" value={wellness.actions.map((action) => action.label).join(", ") || "—"} />
+              <Info
+                label="Actions"
+                value={wellness.actions.map((action) => action.label).join(", ") || "—"}
+              />
               <Info label="Step Count" value={`${wellness.steps?.length ?? 0}`} />
             </CardContent>
           </Card>
@@ -399,14 +525,17 @@ function WellnessProgramDetailPage() {
               <Info label="Message" value={notification.message} markdown />
               <Info label="Instruction" value={notification.instruction || "—"} markdown />
               <Info label="Channels" value={notification.channels.join(", ")} />
-              <Info label="Windows Agent Presentation" value={notification.windowsAgentPresentation || "—"} />
-              <Info label="Target Type" value={notification.targetType} />
               <Info
-                label="Target Devices"
-                value={formatTargetDeviceSummary(notification)}
+                label="Windows Agent Presentation"
+                value={notification.windowsAgentPresentation || "—"}
               />
+              <Info label="Target Type" value={notification.targetType} />
+              <Info label="Target Devices" value={formatTargetDeviceSummary(notification)} />
               <Info label="Created By" value={notification.createdBy} />
-              <Info label="Created At" value={format(new Date(notification.createdAt), "dd MMM yyyy HH:mm")} />
+              <Info
+                label="Created At"
+                value={format(new Date(notification.createdAt), "dd MMM yyyy HH:mm")}
+              />
             </CardContent>
           </Card>
 
@@ -415,19 +544,32 @@ function WellnessProgramDetailPage() {
               <CardTitle className="text-base">Execution Contract</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-              <Info label="Schedule Type" value={notification.reminderSchedule?.scheduleType ?? "Recurring"} />
-              <Info label="First Occurrence" value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)} />
+              <Info
+                label="Schedule Type"
+                value={notification.reminderSchedule?.scheduleType ?? "Recurring"}
+              />
+              <Info
+                label="First Occurrence"
+                value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)}
+              />
               <Info
                 label="Recurrence"
-                value={formatWellnessRecurrenceSummary(notification.reminderSchedule?.recurrenceRule)}
+                value={formatWellnessRecurrenceSummary(
+                  notification.reminderSchedule?.recurrenceRule,
+                )}
               />
               <Info label="Timezone" value={notification.reminderSchedule?.timezone || "—"} />
-              <Info label="Execution Mode" value={notification.reminderSchedule?.executionMode || "—"} />
+              <Info
+                label="Execution Mode"
+                value={notification.reminderSchedule?.executionMode || "—"}
+              />
               <Info
                 label="Expires"
-                value={notification.reminderSchedule?.validUntil
-                  ? formatOptionalDate(notification.reminderSchedule.validUntil)
-                  : "Never expires unless stopped from the server"}
+                value={
+                  notification.reminderSchedule?.validUntil
+                    ? formatOptionalDate(notification.reminderSchedule.validUntil)
+                    : "Never expires unless stopped from the server"
+                }
               />
               <Info
                 label="Distribution"
@@ -446,7 +588,10 @@ function WellnessProgramDetailPage() {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <Info label="Total Recipients" value={`${audiencePreview.totalRecipients}`} />
                   <Info label="Device Recipients" value={`${audiencePreview.deviceRecipients}`} />
-                  <Info label="WhatsApp Recipients" value={`${audiencePreview.whatsappRecipients}`} />
+                  <Info
+                    label="WhatsApp Recipients"
+                    value={`${audiencePreview.whatsappRecipients}`}
+                  />
                   <Info label="Warnings" value={`${audiencePreview.previewWarnings.length}`} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -476,6 +621,33 @@ function WellnessProgramDetailPage() {
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4 space-y-4">
+          {isWellnessReportingError && (
+            <div
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+              role="alert"
+            >
+              Outcome reporting could not be loaded.{" "}
+              {wellnessReportingError instanceof Error
+                ? wellnessReportingError.message
+                : "Use Refresh to try again."}
+            </div>
+          )}
+          {wellnessSummary && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Outcome Funnel</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-4 p-6 md:grid-cols-4">
+                {wellnessReporting?.reporting.funnel.map((item) => (
+                  <div key={item.key} className="rounded-md border p-3">
+                    <div className="text-xs uppercase text-muted-foreground">{item.label}</div>
+                    <div className="mt-1 text-2xl font-semibold">{item.count}</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Wellness Activity Summary</CardTitle>
@@ -489,7 +661,10 @@ function WellnessProgramDetailPage() {
                 ["Completed", monitoring.counts.completed],
                 ["Timed Out", monitoring.counts.timedOut],
                 ["Step Advanced", monitoring.counts.stepAdvanced],
-                ["Compliance", monitoring.completionRate != null ? `${monitoring.completionRate}%` : "—"],
+                [
+                  "Compliance",
+                  monitoring.completionRate != null ? `${monitoring.completionRate}%` : "—",
+                ],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-md border p-3">
                   <div className="text-xs uppercase text-muted-foreground">{label}</div>
@@ -498,6 +673,48 @@ function WellnessProgramDetailPage() {
               ))}
             </CardContent>
           </Card>
+
+          {wellnessSummary && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Action Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Kind</TableHead>
+                      <TableHead>Outcome</TableHead>
+                      <TableHead>Count</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {wellnessReporting?.reporting.actionBreakdown.slice(0, 12).map((item) => (
+                      <TableRow
+                        key={`${item.actionKey ?? "none"}-${item.actionKind ?? "none"}-${item.normalizedOutcome}`}
+                      >
+                        <TableCell>{item.actionLabel ?? item.actionKey ?? "—"}</TableCell>
+                        <TableCell>{item.actionKind ?? "—"}</TableCell>
+                        <TableCell>{renderOutcomeLabel(item.normalizedOutcome)}</TableCell>
+                        <TableCell>{item.count}</TableCell>
+                      </TableRow>
+                    ))}
+                    {(wellnessReporting?.reporting.actionBreakdown.length ?? 0) === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
+                          No action-derived wellness outcomes have been reported yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -509,47 +726,73 @@ function WellnessProgramDetailPage() {
                   <TableRow>
                     <TableHead>Device</TableHead>
                     <TableHead>Schedule Version</TableHead>
-                      <TableHead>Valid From</TableHead>
+                    <TableHead>Valid From</TableHead>
                     <TableHead>Recurrence</TableHead>
                     <TableHead>Timezone</TableHead>
-                      <TableHead>Next Run</TableHead>
-                      <TableHead>Schedule State</TableHead>
+                    <TableHead>Next Run</TableHead>
+                    <TableHead>Schedule State</TableHead>
                     <TableHead>Valid Until</TableHead>
                     <TableHead>Last Synced</TableHead>
                     <TableHead>Last Activity</TableHead>
                     <TableHead>Latest Event</TableHead>
+                    <TableHead>Last Terminal Outcome</TableHead>
                     <TableHead>State</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {reminderActivity?.policies.map((policy) => {
-                    const deviceMonitoring = monitoring.deviceItems.find((item) => item.policyId === policy.policyId);
+                    const deviceMonitoring = monitoring.deviceItems.find(
+                      (item) => item.policyId === policy.policyId,
+                    );
                     const scheduleInsight = policyScheduleInsightByPolicyId.get(policy.policyId);
+                    const deviceOutcome = wellnessDeviceOutcomeByPolicyId.get(policy.policyId);
 
                     return (
                       <TableRow key={policy.policyId}>
-                        <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
+                        <TableCell>
+                          {policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}
+                        </TableCell>
                         <TableCell>{policy.scheduleVersion}</TableCell>
                         <TableCell>{formatOptionalDate(policy.validFrom)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {formatWellnessRecurrenceSummary(policy.recurrenceRule)}
                         </TableCell>
                         <TableCell>{policy.timezone}</TableCell>
-                        <TableCell>{formatScheduleInsightDate(scheduleInsight?.nextRunAt)}</TableCell>
-                        <TableCell>{renderScheduleStateLabel(scheduleInsight?.scheduleState ?? "Unknown")}</TableCell>
+                        <TableCell>
+                          {formatScheduleInsightDate(scheduleInsight?.nextRunAt)}
+                        </TableCell>
+                        <TableCell>
+                          {renderScheduleStateLabel(scheduleInsight?.scheduleState ?? "Unknown")}
+                        </TableCell>
                         <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
                         <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
-                        <TableCell>{formatOptionalDate(deviceMonitoring?.lastActivityAt)}</TableCell>
                         <TableCell>
-                          {deviceMonitoring?.lastEventType ? <StatusBadge status={deviceMonitoring.lastEventType} /> : "—"}
+                          {formatOptionalDate(deviceMonitoring?.lastActivityAt)}
                         </TableCell>
-                        <TableCell><StatusBadge status={policy.isActive ? "Active" : "Cancelled"} /></TableCell>
+                        <TableCell>
+                          {deviceMonitoring?.lastEventType ? (
+                            <StatusBadge status={deviceMonitoring.lastEventType} />
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {deviceOutcome?.lastTerminalOutcome
+                            ? renderOutcomeLabel(deviceOutcome.lastTerminalOutcome)
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={policy.isActive ? "Active" : "Cancelled"} />
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                   {(reminderActivity?.policies.length ?? 0) === 0 && (
                     <TableRow>
-                      <TableCell colSpan={12} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={13}
+                        className="py-8 text-center text-sm text-muted-foreground"
+                      >
                         No reminder policies have been materialized for this wellness program yet.
                       </TableCell>
                     </TableRow>
@@ -564,29 +807,43 @@ function WellnessProgramDetailPage() {
               <CardTitle className="text-base">Recent Wellness Timeline</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-6">
-              {monitoring.recentEvents.map((event) => (
-                <div key={event.eventId} className="rounded-md border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={event.eventType} />
-                      <span className="text-sm font-medium">
-                        {event.deviceIdentifier ?? event.hostname ?? event.deviceId}
-                      </span>
-                      {event.activeUserIdentifier && <Badge variant="outline">{event.activeUserIdentifier}</Badge>}
+              {(wellnessReporting?.reporting.timeline.slice(0, 12) ?? monitoring.recentEvents).map(
+                (event) => (
+                  <div key={event.eventId} className="rounded-md border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={event.eventType} />
+                        {"normalizedOutcome" in event &&
+                          renderOutcomeLabel(event.normalizedOutcome)}
+                        <span className="text-sm font-medium">
+                          {event.deviceIdentifier ?? event.hostname ?? event.deviceId}
+                        </span>
+                        {event.activeUserIdentifier && (
+                          <Badge variant="outline">{event.activeUserIdentifier}</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(event.occurredAt), "dd MMM yyyy HH:mm:ss")}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {format(new Date(event.occurredAt), "dd MMM yyyy HH:mm:ss")}
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Policy {event.policyId}
                     </div>
+                    {"actionLabel" in event && (event.actionLabel || event.actionKind) && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Action: {event.actionLabel ?? event.actionKind}
+                      </div>
+                    )}
+                    {"metadata" in event && event.metadata && (
+                      <div className="mt-2 rounded bg-muted/40 p-2 font-mono text-xs text-muted-foreground">
+                        {JSON.stringify(event.metadata)}
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-2 text-xs text-muted-foreground">Policy {event.policyId}</div>
-                  {event.metadata && (
-                    <div className="mt-2 rounded bg-muted/40 p-2 font-mono text-xs text-muted-foreground">
-                      {JSON.stringify(event.metadata)}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {monitoring.recentEvents.length === 0 && (
+                ),
+              )}
+              {(wellnessReporting?.reporting.timeline.length ?? monitoring.recentEvents.length) ===
+                0 && (
                 <div className="text-sm text-muted-foreground">
                   No recent wellness events have been reported yet.
                 </div>
@@ -611,6 +868,8 @@ function WellnessProgramDetailPage() {
                       <TableHead>Area</TableHead>
                       <TableHead>Channels</TableHead>
                       <TableHead>Last Activity</TableHead>
+                      <TableHead>Last Event</TableHead>
+                      <TableHead>Last Terminal Outcome</TableHead>
                       <TableHead>Next Run</TableHead>
                       <TableHead>Schedule State</TableHead>
                       <TableHead>Status</TableHead>
@@ -619,12 +878,21 @@ function WellnessProgramDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {recipients.map((recipient) => {
-                      const scheduleInsight = findRecipientScheduleInsight(recipient, policyScheduleInsights);
+                      const scheduleInsight = findRecipientScheduleInsight(
+                        recipient,
+                        policyScheduleInsights,
+                      );
+                      const recipientOutcome = findRecipientOutcome(
+                        recipient,
+                        wellnessDeviceOutcomes,
+                      );
 
                       return (
                         <TableRow key={recipient.id}>
                           <TableCell>{recipient.recipientType ?? "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{buildRecipientReference(recipient)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {buildRecipientReference(recipient)}
+                          </TableCell>
                           <TableCell>{recipient.name || "—"}</TableCell>
                           <TableCell>{recipient.department || "—"}</TableCell>
                           <TableCell>{recipient.section || "—"}</TableCell>
@@ -633,19 +901,44 @@ function WellnessProgramDetailPage() {
                           <TableCell className="text-xs text-muted-foreground">
                             {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
                           </TableCell>
-                          <TableCell>{formatOptionalDate(scheduleInsight?.lastActivityAt)}</TableCell>
-                          <TableCell>{formatScheduleInsightDate(scheduleInsight?.nextRunAt)}</TableCell>
                           <TableCell>
-                            {renderScheduleStateLabel(resolveRecipientScheduleState(notification.status, scheduleInsight))}
+                            {formatOptionalDate(scheduleInsight?.lastActivityAt)}
                           </TableCell>
-                          <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
-                          <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
+                          <TableCell>
+                            {recipientOutcome?.lastEventType ? (
+                              <StatusBadge status={recipientOutcome.lastEventType} />
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {recipientOutcome?.lastTerminalOutcome
+                              ? renderOutcomeLabel(recipientOutcome.lastTerminalOutcome)
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {formatScheduleInsightDate(scheduleInsight?.nextRunAt)}
+                          </TableCell>
+                          <TableCell>
+                            {renderScheduleStateLabel(
+                              resolveRecipientScheduleState(notification.status, scheduleInsight),
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={recipient.deliveryStatus} />
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={recipient.ackStatus} />
+                          </TableCell>
                         </TableRow>
                       );
                     })}
                     {recipients.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={13} className="py-8 text-center text-sm text-muted-foreground">
+                        <TableCell
+                          colSpan={15}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
                           No recipient snapshots are available yet for this wellness program.
                         </TableCell>
                       </TableRow>
@@ -678,13 +971,18 @@ function WellnessProgramDetailPage() {
                       </TableCell>
                       <TableCell>{log.channel}</TableCell>
                       <TableCell>{log.target}</TableCell>
-                      <TableCell><StatusBadge status={log.status} /></TableCell>
+                      <TableCell>
+                        <StatusBadge status={log.status} />
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{log.detail}</TableCell>
                     </TableRow>
                   ))}
                   {(deliveryVisibility?.logs.length ?? 0) === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="py-8 text-center text-sm text-muted-foreground"
+                      >
                         No delivery events have been recorded for this wellness program yet.
                       </TableCell>
                     </TableRow>
@@ -701,7 +999,8 @@ function WellnessProgramDetailPage() {
           <DialogHeader>
             <DialogTitle>Publish Wellness Program</DialogTitle>
             <DialogDescription>
-              Confirm the dedicated wellness contract before this draft becomes an active local routine on Windows Agent.
+              Confirm the dedicated wellness contract before this draft becomes an active local
+              routine on Windows Agent.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
@@ -714,7 +1013,8 @@ function WellnessProgramDetailPage() {
                 <div>Layout: {wellness.layoutVariant}</div>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Wellness drafts do not use the generic publish modes. They publish through the bounded recurring local-routine path only.
+                Wellness drafts do not use the generic publish modes. They publish through the
+                bounded recurring local-routine path only.
               </p>
             </div>
 
@@ -740,12 +1040,28 @@ function WellnessProgramDetailPage() {
             <div className="rounded-md border p-3 text-sm">
               <div className="font-medium">Guardrails</div>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-                <li>{hasDesktopAgentChannel ? "OK" : "Missing"}: Desktop Agent channel remains enabled.</li>
-                <li>{notification.targetType === "Device" ? "OK" : "Missing"}: targeting stays device-bound.</li>
-                <li>{eligibleDeviceRecipientCount > 0 ? "OK" : "Missing"}: latest preview resolves at least one Windows Agent device.</li>
-                <li>{isRoutinePriority ? "OK" : "Missing"}: priority is not Emergency or Critical.</li>
-                <li>{neverExpires || validUntil.trim() ? "OK" : "Missing"}: expiry policy is defined.</li>
-                <li>{recurrenceSummary}: operator-friendly cadence will be converted to RRULE on publish.</li>
+                <li>
+                  {hasDesktopAgentChannel ? "OK" : "Missing"}: Desktop Agent channel remains
+                  enabled.
+                </li>
+                <li>
+                  {notification.targetType === "Device" ? "OK" : "Missing"}: targeting stays
+                  device-bound.
+                </li>
+                <li>
+                  {eligibleDeviceRecipientCount > 0 ? "OK" : "Missing"}: latest preview resolves at
+                  least one Windows Agent device.
+                </li>
+                <li>
+                  {isRoutinePriority ? "OK" : "Missing"}: priority is not Emergency or Critical.
+                </li>
+                <li>
+                  {neverExpires || validUntil.trim() ? "OK" : "Missing"}: expiry policy is defined.
+                </li>
+                <li>
+                  {recurrenceSummary}: operator-friendly cadence will be converted to RRULE on
+                  publish.
+                </li>
                 <li>
                   {distributionMode === "Staggered"
                     ? `Staggered within ${staggerWindowMinutes || "30"} minutes to avoid simultaneous prompts.`
@@ -758,7 +1074,10 @@ function WellnessProgramDetailPage() {
             <Button variant="outline" onClick={() => setPublishOpen(false)}>
               Close
             </Button>
-            <Button onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending || publishInvalid}>
+            <Button
+              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending || publishInvalid}
+            >
               {publishMutation.isPending ? "Publishing..." : "Publish Wellness Program"}
             </Button>
           </DialogFooter>
@@ -770,7 +1089,8 @@ function WellnessProgramDetailPage() {
           <DialogHeader>
             <DialogTitle>Deactivate Wellness Program</DialogTitle>
             <DialogDescription>
-              This stops future recurring execution for the current wellness program and cancels pending local routine work.
+              This stops future recurring execution for the current wellness program and cancels
+              pending local routine work.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
@@ -795,8 +1115,16 @@ function WellnessProgramDetailPage() {
   );
 
   function openPublishDialog(item: Notification) {
-    setScheduledAt(item.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(item.reminderSchedule.scheduledAt) : "");
-    setValidUntil(item.reminderSchedule?.validUntil ? toDateTimeLocalInput(item.reminderSchedule.validUntil) : "");
+    setScheduledAt(
+      item.reminderSchedule?.scheduledAt
+        ? toDateTimeLocalInput(item.reminderSchedule.scheduledAt)
+        : "",
+    );
+    setValidUntil(
+      item.reminderSchedule?.validUntil
+        ? toDateTimeLocalInput(item.reminderSchedule.validUntil)
+        : "",
+    );
     setNeverExpires(!item.reminderSchedule?.validUntil);
     setTimezone(item.reminderSchedule?.timezone ?? getLocalTimeZone());
     const recurrence = parseWellnessRecurrenceRule(item.reminderSchedule?.recurrenceRule);
@@ -879,7 +1207,9 @@ function mapPreviewRecipientToRecipient(
   };
 }
 
-function mapPreviewChannelToChannel(channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage") {
+function mapPreviewChannelToChannel(
+  channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage",
+) {
   return channel === "WindowsAgent" ? "DesktopAgent" : channel;
 }
 
@@ -902,7 +1232,9 @@ function buildWellnessDescription(notification: Notification) {
     notification.wellnessProgram?.programType,
     notification.wellnessProgram?.theme,
     target,
-  ].filter(Boolean).join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function formatTargetDeviceSummary(notification: Notification) {
@@ -979,7 +1311,9 @@ type PolicyScheduleInsight = {
   scheduleState: PolicyScheduleState;
 };
 
-function buildPolicyScheduleInsights(reminderActivity?: ReminderActivity | null): PolicyScheduleInsight[] {
+function buildPolicyScheduleInsights(
+  reminderActivity?: ReminderActivity | null,
+): PolicyScheduleInsight[] {
   const policies = reminderActivity?.policies ?? [];
   const events = reminderActivity?.events ?? [];
   const eventsByPolicyId = new Map<string, ReminderEventRecord[]>();
@@ -1001,8 +1335,17 @@ function buildPolicyScheduleInsights(reminderActivity?: ReminderActivity | null)
       (left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
     );
     const lastTriggeredOccurrenceUtc = getLastTriggeredOccurrenceUtc(policyEvents);
-    const snoozedUntilUtc = getPendingSnoozedUntilUtc(policy, policyEvents, lastTriggeredOccurrenceUtc);
-    const nextRun = getNextPolicyOccurrenceUtc(policy, now, lastTriggeredOccurrenceUtc, snoozedUntilUtc);
+    const snoozedUntilUtc = getPendingSnoozedUntilUtc(
+      policy,
+      policyEvents,
+      lastTriggeredOccurrenceUtc,
+    );
+    const nextRun = getNextPolicyOccurrenceUtc(
+      policy,
+      now,
+      lastTriggeredOccurrenceUtc,
+      snoozedUntilUtc,
+    );
     const validFrom = parseIsoDate(policy.validFrom);
     const validUntil = parseIsoDate(policy.validUntil);
 
@@ -1012,7 +1355,8 @@ function buildPolicyScheduleInsights(reminderActivity?: ReminderActivity | null)
     } else if (snoozedUntilUtc && nextRun && sameInstant(nextRun, snoozedUntilUtc)) {
       scheduleState = "Snoozed";
     } else if (!nextRun) {
-      scheduleState = validUntil && validUntil.getTime() < now.getTime() ? "Expired" : "No schedule";
+      scheduleState =
+        validUntil && validUntil.getTime() < now.getTime() ? "Expired" : "No schedule";
     } else if (nextRun.getTime() <= now.getTime()) {
       scheduleState = "Due now";
     } else if (!lastTriggeredOccurrenceUtc && validFrom && sameInstant(nextRun, validFrom)) {
@@ -1056,7 +1400,8 @@ function getNextPolicyOccurrenceUtc(
     snoozedUntilUtc &&
     snoozedUntilUtc.getTime() >= validFrom.getTime() &&
     snoozedUntilUtc.getTime() <= validUntil.getTime() &&
-    (!lastTriggeredOccurrenceUtc || snoozedUntilUtc.getTime() > lastTriggeredOccurrenceUtc.getTime())
+    (!lastTriggeredOccurrenceUtc ||
+      snoozedUntilUtc.getTime() > lastTriggeredOccurrenceUtc.getTime())
   ) {
     return snoozedUntilUtc;
   }
@@ -1080,7 +1425,13 @@ function getNextPolicyOccurrenceUtc(
     case "Minute":
       return getIntervalOccurrenceUtc(validFrom, baseline, validUntil, recurrence.interval, 60_000);
     case "Hour":
-      return getIntervalOccurrenceUtc(validFrom, baseline, validUntil, recurrence.interval, 3_600_000);
+      return getIntervalOccurrenceUtc(
+        validFrom,
+        baseline,
+        validUntil,
+        recurrence.interval,
+        3_600_000,
+      );
     case "Day":
       return getDailyOccurrenceUtc(policy, validFrom, baseline, validUntil, recurrence.interval);
     default:
@@ -1096,10 +1447,7 @@ function getIntervalOccurrenceUtc(
   unitMs: number,
 ) {
   const stepMs = Math.max(1, interval) * unitMs;
-  const steps = Math.max(
-    0,
-    Math.floor((baselineUtc.getTime() - anchorUtc.getTime()) / stepMs) + 1,
-  );
+  const steps = Math.max(0, Math.floor((baselineUtc.getTime() - anchorUtc.getTime()) / stepMs) + 1);
   const candidate = new Date(anchorUtc.getTime() + steps * stepMs);
   return candidate.getTime() <= validUntilUtc.getTime() ? candidate : null;
 }
@@ -1146,7 +1494,9 @@ function getDailyOccurrenceUtc(
 
 function getLastTriggeredOccurrenceUtc(events: ReminderEventRecord[]) {
   const triggeredEvent = events.find((event) => event.eventType === "Triggered");
-  return parseIsoDate(readEventMetadataString(triggeredEvent, "occurrenceUtc") ?? triggeredEvent?.occurredAt);
+  return parseIsoDate(
+    readEventMetadataString(triggeredEvent, "occurrenceUtc") ?? triggeredEvent?.occurredAt,
+  );
 }
 
 function getPendingSnoozedUntilUtc(
@@ -1166,30 +1516,51 @@ function getPendingSnoozedUntilUtc(
     return null;
   }
 
-  if (snoozedUntilUtc.getTime() < validFrom.getTime() || snoozedUntilUtc.getTime() > validUntil.getTime()) {
+  if (
+    snoozedUntilUtc.getTime() < validFrom.getTime() ||
+    snoozedUntilUtc.getTime() > validUntil.getTime()
+  ) {
     return null;
   }
 
-  if (lastTriggeredOccurrenceUtc && snoozedUntilUtc.getTime() <= lastTriggeredOccurrenceUtc.getTime()) {
+  if (
+    lastTriggeredOccurrenceUtc &&
+    snoozedUntilUtc.getTime() <= lastTriggeredOccurrenceUtc.getTime()
+  ) {
     return null;
   }
 
   return snoozedUntilUtc;
 }
 
-function findRecipientScheduleInsight(
-  recipient: Recipient,
-  insights: PolicyScheduleInsight[],
-) {
+function findRecipientScheduleInsight(recipient: Recipient, insights: PolicyScheduleInsight[]) {
   if (recipient.recipientType !== "Device") {
     return null;
   }
 
-  return insights.find((item) =>
-    (recipient.deviceId && item.deviceId === recipient.deviceId) ||
-    (recipient.deviceIdentifier && item.deviceIdentifier === recipient.deviceIdentifier) ||
-    (recipient.hostname && item.hostname === recipient.hostname),
-  ) ?? null;
+  return (
+    insights.find(
+      (item) =>
+        (recipient.deviceId && item.deviceId === recipient.deviceId) ||
+        (recipient.deviceIdentifier && item.deviceIdentifier === recipient.deviceIdentifier) ||
+        (recipient.hostname && item.hostname === recipient.hostname),
+    ) ?? null
+  );
+}
+
+function findRecipientOutcome(recipient: Recipient, outcomes: WellnessReportingDeviceOutcome[]) {
+  if (recipient.recipientType !== "Device") {
+    return null;
+  }
+
+  return (
+    outcomes.find(
+      (item) =>
+        (recipient.deviceId && item.deviceId === recipient.deviceId) ||
+        (recipient.deviceIdentifier && item.deviceIdentifier === recipient.deviceIdentifier) ||
+        (recipient.hostname && item.hostname === recipient.hostname),
+    ) ?? null
+  );
 }
 
 function resolveRecipientScheduleState(
@@ -1234,7 +1605,10 @@ function renderScheduleStateLabel(state: PolicyScheduleState) {
         state === "Snoozed" && "border-amber-200 bg-amber-50 text-amber-700",
         state === "Due now" && "border-emerald-200 bg-emerald-50 text-emerald-700",
         (state === "Inactive" || state === "Expired") && "border-rose-200 bg-rose-50 text-rose-700",
-        (state === "No schedule" || state === "Not materialized" || state === "Pending publish" || state === "Unknown") &&
+        (state === "No schedule" ||
+          state === "Not materialized" ||
+          state === "Pending publish" ||
+          state === "Unknown") &&
           "border-slate-200 bg-slate-50 text-slate-700",
       )}
     >
@@ -1243,10 +1617,29 @@ function renderScheduleStateLabel(state: PolicyScheduleState) {
   );
 }
 
-function readEventMetadataString(
-  event: ReminderEventRecord | undefined,
-  key: string,
-) {
+function renderOutcomeLabel(outcome: WellnessNormalizedOutcome) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
+        outcome === "Completed" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        outcome === "Deferred" && "border-amber-200 bg-amber-50 text-amber-700",
+        outcome === "Dismissed" && "border-rose-200 bg-rose-50 text-rose-700",
+        outcome === "TimedOut" && "border-orange-200 bg-orange-50 text-orange-700",
+        outcome === "InProgress" && "border-sky-200 bg-sky-50 text-sky-700",
+        outcome === "Engaged" && "border-indigo-200 bg-indigo-50 text-indigo-700",
+        outcome === "NoInteraction" && "border-slate-200 bg-slate-50 text-slate-700",
+        outcome === "AmbiguousCloseCompletion" &&
+          "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+        outcome === "Triggered" && "border-slate-200 bg-slate-50 text-slate-700",
+      )}
+    >
+      {outcome}
+    </span>
+  );
+}
+
+function readEventMetadataString(event: ReminderEventRecord | undefined, key: string) {
   const value = event?.metadata?.[key];
   return typeof value === "string" ? value : null;
 }
@@ -1345,7 +1738,14 @@ function zonedDateTimeToUtc(
   value: { year: number; month: number; day: number; hour: number; minute: number; second: number },
   timeZone: string,
 ) {
-  const localGuess = Date.UTC(value.year, value.month - 1, value.day, value.hour, value.minute, value.second);
+  const localGuess = Date.UTC(
+    value.year,
+    value.month - 1,
+    value.day,
+    value.hour,
+    value.minute,
+    value.second,
+  );
   let candidate = new Date(localGuess - getTimeZoneOffsetMs(new Date(localGuess), timeZone));
   const correctedOffset = getTimeZoneOffsetMs(candidate, timeZone);
   candidate = new Date(localGuess - correctedOffset);
@@ -1381,9 +1781,10 @@ function compareLocalDate(
   left: { year: number; month: number; day: number },
   right: { year: number; month: number; day: number },
 ) {
-  return Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day);
+  return (
+    Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day)
+  );
 }
-
 
 function getLocalTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

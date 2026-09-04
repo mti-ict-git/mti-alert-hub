@@ -1,27 +1,34 @@
 # MTI Alert Implementation Roadmap
 
 ## Document Status
+
 - Version: `0.6`
 - Status: `Active`
 - Last Updated: `2026-09-03`
 
 ## Active Phase
+
 - `Phase 4 - Hardening And Expansion`
 
 ## Roadmap Execution Gate
+
 - Every roadmap checklist step must include a matching challenge/verification activity before it can be marked complete.
 - Challenge/verification must test the changed behavior, contract, workflow path, authorization path, or failure path relevant to that step.
 - Completion evidence must be written into the owning phase `Challenge / Verification` section or a referenced supporting verification document before status changes are declared.
 - A checked checklist item without recorded verification evidence is treated as `not yet complete`.
 
 ## Phase 0 - Documentation Baseline
+
 ### Status
+
 - `Completed`
 
 ### Objective
+
 Establish the baseline source-of-truth documentation for the MTI Alert server so implementation can proceed with explicit product, workflow, data, and API guidance.
 
 ### Source Documents
+
 - `docs/project-plan.md`
 - `docs/product-principles.md`
 - `docs/functional-specification.md`
@@ -32,6 +39,7 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `docs/template-policy-schema.md`
 
 ### Supporting Documents
+
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
@@ -40,6 +48,7 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `docs/phase-1-execution-plan.md`
 
 ### Checklist
+
 - `[x]` Documentation baseline: define the project vision and MVP scope.
 - `[x]` Documentation baseline: define product principles and operating constraints.
 - `[x]` Documentation baseline: define functional domains and key workflows.
@@ -55,23 +64,29 @@ Establish the baseline source-of-truth documentation for the MTI Alert server so
 - `[x]` Documentation refinement: add a Phase 1 execution plan for implementation sequencing and verification.
 
 ### Output
+
 - A complete baseline documentation package in `docs/`.
 - Repository entry documents should guide humans and AI agents into the authoritative `docs/` set.
 - Supporting schema references may be added when they reduce implementation ambiguity.
 
 ### Challenge / Verification
+
 - Verification target: required documentation files exist and form a coherent baseline for implementation.
 - Challenge: key architecture decisions were narrowed, but several implementation details remain open and are tracked in `docs/open-questions-and-challenges.md`.
 - Evidence: mandatory baseline documents were created and refined against explicit user decisions on `2026-07-06`, then extended with supporting baseline references, a template policy schema reference, repository entry documentation guidance, a more implementation-ready phased OpenAPI contract, backend module breakdown guidance, and a dedicated Phase 1 execution plan on `2026-07-06`.
 
 ## Phase 1 - Core Backend Foundation
+
 ### Status
+
 - `Completed`
 
 ### Objective
+
 Implement the core backend foundation for authentication, role scope enforcement, organization data, communication management, and audience resolution.
 
 ### Source Documents
+
 - `docs/project-plan.md`
 - `docs/functional-specification.md`
 - `docs/technical-implementation-plan.md`
@@ -79,6 +94,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `docs/openapi.yaml`
 
 ### Supporting Documents
+
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
@@ -88,6 +104,7 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `docs/phase-1-execution-plan.md`
 
 ### Checklist
+
 - `[x]` Application baseline: scaffold the backend runtime, config loading, database bootstrap placeholder, request validation utility, shared error handling, and health endpoint.
 - `[x]` Auth foundation: define the concrete LDAP or AD login flow.
 - `[x]` Auth foundation: define session or token strategy for admin APIs.
@@ -107,10 +124,12 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `[x]` Frontend integration: validate that admin flows still work against the new contract.
 
 ### Output
+
 - Running backend foundation with documented API coverage.
 - Initial backend modules exist for auth, authorization, organization references, communication drafts, and audience preview.
 
 ### Challenge / Verification
+
 - Milestone 0 scaffold builds a separate `backend/` runtime foundation without changing current business behavior.
 - Milestone 1 and Milestone 2 baseline currently use LDAP-backed admin authentication, opaque in-memory bearer sessions, role metadata, and a documented global-scope placeholder until organization-scoped records arrive.
 - Versioned migration support now exists through `backend:migrate` and `backend:migrate:status`, with the initial Phase 1 foundation schema recorded in `backend/migrations/0001_phase1_foundation.up.sql`.
@@ -133,13 +152,17 @@ Implement the core backend foundation for authentication, role scope enforcement
 - `2026-07-08`: frontend smoke verification remains partially constrained by the current browser automation environment because cross-port localhost requests from the tool fail with `net::ERR_FAILED`, but the Phase 1 admin contract was still challenged through successful frontend build, backend-backed service wiring, and direct runtime checks against the same frontend origin and backend target.
 
 ## Phase 2 - Delivery Orchestration
+
 ### Status
+
 - `In Progress`
 
 ### Objective
+
 Implement communication publication, scheduling, recipient snapshots, delivery job orchestration, and routine reminder policy distribution, with the first live release focused on Windows Agent connectivity before WhatsApp provider integration.
 
 ### Source Documents
+
 - `docs/functional-specification.md`
 - `docs/technical-implementation-plan.md`
 - `docs/database-schema-specification.md`
@@ -147,6 +170,7 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `docs/open-questions-and-challenges.md`
 
 ### Supporting Documents
+
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/deployment-and-environment.md`
@@ -158,6 +182,7 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `docs/ohih-program-module-blueprint.md`
 
 ### Checklist
+
 - `[x]` Slice 2.1 Publish guardrails: require confirmed preview and reject publish attempts for non-draft communications.
 - `[x]` Slice 2.1 Publish guardrails: validate `publishMode`, `scheduledAt`, `recurrenceRule`, `timezone`, `executionMode`, and `validUntil` combinations before state changes.
 - `[x]` Slice 2.1 Publish guardrails: reject template-policy violations that would make execution behavior ambiguous at publish time.
@@ -186,12 +211,14 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `[x]` Slice 2.11 Frontend publish integration: validate the admin publish and delivery monitoring flow against the new Phase 2 contract.
 
 ### Output
+
 - Backend supports end-to-end Windows Agent communication dispatch orchestration for the first live release.
 - Windows Agent delivery orchestration, reconciliation, and routine reminder sync are ready to serve the initial client go-live path.
 - WhatsApp provider delivery orchestration is explicitly deferred until after the first Windows Agent go-live release.
 - Routine reminder policies can be synchronized to Windows Agent for bounded local execution without changing server ownership of schedule lifecycle.
 
 ### Challenge / Verification
+
 - Scheduled and immediate communications are both verified.
 - Approved local routine reminders remain functional across disconnect and reconnect scenarios.
 - Failed delivery paths are challenged.
@@ -228,25 +255,31 @@ Implement communication publication, scheduling, recipient snapshots, delivery j
 - `2026-07-15`: realtime negotiation is now hardened against loopback misconfiguration in deployment env. If `BACKEND_PUBLIC_BASE_URL` is accidentally left as `localhost` or another loopback host, but the inbound negotiate request arrives on a non-loopback host such as `10.60.10.59`, the backend now prefers the inbound request host for `connectionUrl` so remote Windows Agent clients do not try to open SSE against themselves. Verification passed with `npm run backend:typecheck`, `npm run backend:build`, and a dedicated runtime on `BACKEND_PORT=4027` started with `BACKEND_PUBLIC_BASE_URL=http://localhost:4027`; a live `POST /agent/session` plus `POST /agent/realtime/negotiate` request sent with `Host: 10.60.10.59:4027` returned `connectionUrl=http://10.60.10.59:4027/agent/realtime-hub?...`.
 
 ## Phase 3 - Response Workflow And Monitoring
+
 ### Status
+
 - `Completed`
 
 ### Objective
+
 Implement recipient response workflows, overdue behavior, monitoring, and audit-ready reporting on top of the persisted delivery foundation from Phase 2.
 
 Phase 3 is the bridge between delivery execution and operator visibility:
+
 - turn persisted delivery evidence into operator-facing response and monitoring views
 - ensure required-response communications move through explicit lifecycle states
 - make overdue and follow-up behavior operationally visible
 - prepare representative audit evidence before broader hardening in Phase 4
 
 ### Source Documents
+
 - `docs/functional-specification.md`
 - `docs/technical-implementation-plan.md`
 - `docs/database-schema-specification.md`
 - `docs/openapi.yaml`
 
 ### Supporting Documents
+
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/template-policy-schema.md`
@@ -254,7 +287,9 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - `docs/backend-module-breakdown.md`
 
 ### Execution Direction
+
 #### Slice 3.1 Workflow Baseline
+
 - Scope:
   - workflow definition source-of-truth is available to communication drafting and response evaluation
   - workflow option constraints are validated consistently during submission
@@ -266,6 +301,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - runtime no longer depends on undocumented workflow assumptions
 
 #### Slice 3.2 Response Ingestion And Semantics
+
 - Scope:
   - Windows Agent response submission persists workflow result, actor context, and optional note
   - `response implies ack` behavior is enforced when configured by the workflow
@@ -277,6 +313,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - monitoring endpoints can explain who responded, what option was chosen, and when it happened
 
 #### Slice 3.3 Monitoring And Reporting Baseline
+
 - Scope:
   - communication-level, recipient-level, dashboard, and tracked-content rollup views are backend-backed
   - device, employee, and contact-endpoint recipient contexts are distinguishable in monitoring
@@ -288,6 +325,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - monitoring counts reconcile against `communication_recipients`, `delivery_jobs`, and `delivery_events`
 
 #### Slice 3.4 Overdue And Recipient-Only Follow-Up
+
 - Scope:
   - required-response recipients can transition into `Overdue`
   - MVP follow-up remains recipient-only and must not escalate to new recipients automatically
@@ -298,6 +336,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - follow-up behavior is recorded explicitly enough to challenge and support operational review
 
 #### Slice 3.5 Auditability
+
 - Scope:
   - publish, cancel, override rejection, response, and representative state transitions produce explicit audit evidence
   - audit evidence is queryable enough for operator/support investigation
@@ -308,6 +347,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - support teams can reconstruct a communication lifecycle without reading raw infrastructure logs
 
 #### Slice 3.6 Frontend Alignment
+
 - Scope:
   - remove monitoring/reporting mocks that would hide real backend state
   - ensure admin views show persisted response, overdue, and delivery rollups
@@ -317,6 +357,7 @@ Phase 3 is the bridge between delivery execution and operator visibility:
   - operator UI is a faithful read-model of backend monitoring state for the MVP release path
 
 ### Checklist
+
 - `[x]` Workflow management: implement workflow definition CRUD or managed seed loading.
 - `[x]` Workflow management: implement workflow option validation rules.
 - `[x]` Response handling: implement response submission for Windows Agent and compatible channel responses.
@@ -331,12 +372,14 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - `[x]` Frontend integration: replace mock reports, dashboards, and response summary services with backend-backed calls.
 
 ### Output
+
 - Backend supports monitored response workflows and operational reporting.
 - Reporting and monitoring are backed by persisted delivery, response, and audit records.
 - Operators can identify required-response progress, overdue recipients, and recipient-only follow-up behavior from backend-backed views.
 - Phase 3 response workflow, monitoring, overdue, auditability, and compatible-channel response baselines are complete for the MVP release path.
 
 ### Challenge / Verification
+
 - Response state transitions are validated.
 - Overdue cases are challenged.
 - Dashboard counts reconcile with source records.
@@ -370,19 +413,24 @@ Phase 3 is the bridge between delivery execution and operator visibility:
 - `2026-07-14`: focused verification passed with `npm run backend:typecheck`, `npm run backend:build`, `npm run build`, and `node backend/tmp/phase3-compatible-channel-response-smoke.mjs`; the smoke started a dedicated runtime on `BACKEND_PORT=4027`, published a `Reminder` to an employee over `WhatsApp`, confirmed `GET /communications/{communicationId}/deliveries` returned a `ContactEndpoint` recipient with `channelEndpoint = +628000000001`, submitted response option `done` through the new delivery-response endpoint, and then confirmed both `GET /communications/{communicationId}/responses` and `GET /audit-logs` reflected the persisted `WhatsApp` response evidence.
 
 ## Phase 4 - Hardening And Expansion
+
 ### Status
+
 - `In Progress`
 
 ### Objective
+
 Prepare the platform for broader rollout and future channels.
 
 ### Source Documents
+
 - `docs/project-plan.md`
 - `docs/technical-implementation-plan.md`
 - `docs/open-questions-and-challenges.md`
 - `docs/openapi.yaml`
 
 ### Supporting Documents
+
 - `docs/architecture-decisions.md`
 - `docs/testing-strategy.md`
 - `docs/software-acceptance-test.md`
@@ -398,6 +446,7 @@ Prepare the platform for broader rollout and future channels.
 - `docs/wellness-program-execution-checklist.md`
 
 ### Checklist
+
 - `[ ]` Channel expansion: define and document the email connector contract.
 - `[ ]` Channel expansion: implement email delivery orchestration if included in scope.
 - `[ ]` Channel expansion: define and document the digital signage connector contract.
@@ -420,10 +469,12 @@ Prepare the platform for broader rollout and future channels.
 - `[x]` Documentation: update source docs and supporting docs for any post-MVP contract changes.
 
 ### Output
+
 - Hardened platform with clearer path to post-MVP expansion.
 - Operational and security guidance is documented for production-oriented rollout.
 
 ### Challenge / Verification
+
 - New channel contracts are documented.
 - Operational failure recovery is challenged.
 - Security-sensitive actions are re-verified.
@@ -563,6 +614,9 @@ Prepare the platform for broader rollout and future channels.
 - `2026-09-03`: the dedicated `Wellness Programs` authoring and publish UX is now aligned more closely with operator review. `src/lib/wellness-template-catalog.ts` now re-exposes `A3` and both visible stretching start cards `B1` plus `B2`, `src/routes/_app.wellness-programs.new.tsx` now replaces raw RRULE entry with an interval-and-unit cadence builder, adds `Never Expires` support, exposes `rotationMode` as `Fixed`, `Sequential`, or `Shuffle`, and allows bulk device selection for one draft, while `src/routes/_app.wellness-programs.$id.tsx` now uses the same operator-friendly schedule language during detail review and publish. Frontend notification mapping now preserves multiple device targets through `targetDeviceIds` so the same draft can materialize multiple device-bound reminder targets without changing the underlying device-centric contract. Supporting source-of-truth wording is synchronized in `docs/functional-specification.md` and `docs/wellness-program-execution-checklist.md`. Verification passed with `npm run build`.
 - `2026-09-03`: the wellness refinement pass now carries the operator concept all the way through runtime. `src/routes/_app.wellness-programs.new.tsx` now starts from `Program Family` (`20-20-20 Rule` vs `Office Stretching`) instead of a flat template dropdown, enables multi-variant selection per family, and only exposes `rotationMode` as a meaningful control when multiple variants are chosen. `src/components/wellness/WellnessScheduleFields.tsx` now also exposes `Distribution Mode` (`Synchronized` vs `Staggered`) plus a stagger window so bulk wellness rollout does not have to fire simultaneously. Backend reminder scheduling now persists distribution metadata through `publish_request_json` and materializes staggered `agent_reminder_policies` with deterministic per-device `valid_from` offsets inside `backend/src/modules/communications/service/communication-draft-service.ts`, while the agent sync/parser plus `MTI.Alert.Agent/Services/NotificationRenderer.cs` now carry `variantKeys` and resolve the effective wellness variant per occurrence using `Fixed`, `Sequential`, or `Random` rotation at render time. Verification passed with `npm run build`, `npm run backend:typecheck`, `npm run backend:build`, and `dotnet build .\\MTI.Alert.Agent\\MTI.Alert.Agent.csproj --no-restore`. `dotnet test .\\MTI.Alert.Agent\\Tests\\MTI.Alert.Agent.Tests\\MTI.Alert.Agent.Tests.csproj --no-restore` passed all 27 tests, but the sandbox reported restricted cleanup paths after completion.
 - `2026-09-04`: the wellness detail monitoring now exposes effective execution timing per device without requiring a new agent package. `src/routes/_app.wellness-programs.$id.tsx` now derives `Next Run` and schedule state from the existing reminder policy plus reminder-event read model, surfaces the operator-facing view in `Recipients`, mirrors the same timing data in `Wellness Activity > Reminder Policies`, and summarizes the active `Next Run Window` in the execution contract panel. Supporting source-of-truth wording is synchronized in `docs/functional-specification.md` and `docs/wellness-program-execution-checklist.md`. Verification passed with `npm run build` and `npm run backend:typecheck`.
+- `2026-09-04`: a dedicated wellness reporting reference baseline now exists to guide the next OHIH analytics slice before code changes expand dashboards or exports. `docs/wellness-reporting-reference.md` now defines the current delivered baseline, the normalized outcome taxonomy (`Completed`, `Deferred`, `Dismissed`, `TimedOut`, `InProgress`, `NoInteraction`), recommended KPI definitions, proposed reporting surfaces, and phased implementation guidance that separates backend/frontend-only reporting work from later agent-contract cleanup. `docs/open-questions-and-challenges.md` now also records the remaining ambiguity around `Close` versus `Completed` semantics so future analytics work does not silently assume the wrong behavior. Verification passed through cross-document review against the current wellness monitoring, event model, and roadmap entries.
+- `2026-09-04`: the wellness reporting reference is now decomposed into an implementation-ready execution plan. `docs/wellness-reporting-task-breakdown.md` now splits the work into `Phase A` (backend/frontend-only reporting baseline), `Phase B` (agent contract cleanup that requires rebuild/package work), and `Phase C` (advanced analytics), with concrete workstreams for metric normalization, read models, API contracts, UI surfaces, exports, and verification. `docs/wellness-reporting-reference.md` now links to that execution breakdown so future implementation can start from an agreed task map instead of reinterpreting the reporting goals from scratch. Verification passed through cross-document review confirming the task breakdown remains aligned with the approved reporting reference and the existing open-question boundary for `Close` versus `Completed`.
+- `2026-09-04`: the first Phase A wellness reporting baseline is now implemented without changing the Windows Agent contract. The backend now exposes `GET /communications/{communicationId}/wellness-reporting` plus `GET /dashboard/wellness-program-rollups`, normalizes raw reminder events into outcome reporting semantics including explicit `AmbiguousCloseCompletion` handling, and the frontend now surfaces `Outcome Funnel`, `Action Breakdown`, per-device `Last Terminal Outcome`, and a global wellness outcome table in `Reports`. Source-of-truth docs are synchronized in `docs/functional-specification.md` and `docs/openapi.yaml`. Verification passed with `npm run backend:typecheck`, `npm run backend:build`, and `npm run build`.
 - `2026-08-31`: the Docker admin publish path upload ceiling is now aligned with the MSI rollout workflow. `docker/nginx.admin-gateway.conf` now raises `client_max_body_size` from `10m` to `512m`, matching the backend upload route baseline for `POST /devices/rollout-packages/upload` so operator MSI uploads from `Settings > Desktop Agent` no longer fail at the gateway with `413 Request Entity Too Large` before reaching the backend service. Supporting operational notes were updated in `README.md`, `docs/deployment-and-environment.md`, and `docs/operational-runbook.md`. Verification: source inspection confirms the gateway limit now matches the backend upload baseline; automated `docker compose config` verification could not be executed in the current agent environment because the `docker` CLI is unavailable here.
 - `2026-08-31`: the public rollout package path is now wired end-to-end instead of only existing as generated metadata. `backend/src/modules/agent/controller/register-agent-routes.ts` now serves `GET /agent/packages/local/{fileName}` by reading the published MSI from `backend/local-packages/` through `DeviceActionService`, and `backend/src/app/bootstrap/create-backend-app.ts` now passes the same package-management service into the agent route module. `docker/nginx.admin-gateway.conf` now also proxies `/agent/packages/*` to the backend service so public rollout URLs on the admin host do not fall through to the frontend SSR `404` page. Supporting deployment and operations notes were updated in `README.md`, `docs/deployment-and-environment.md`, and `docs/operational-runbook.md`. Verification passed with `npm run backend:build`; live public-link verification still requires restarting the backend plus reloading the gateway in the target environment.
 - `2026-08-31`: the Docker package store is now made durable instead of depending on the backend container filesystem. `docker-compose.yml` now mounts the named volume `backend_local_packages` into `/app/backend/local-packages`, and deployment notes were updated in `README.md`, `docs/deployment-and-environment.md`, plus `docs/operational-runbook.md` so rebuild behavior is explicit for rollout-package uploads. This addresses the observed production symptom where an uploaded `MTI.Alert.Agent.Setup.msi` disappeared after backend rebuild because no persistent storage layer had been attached yet. Verification passed through source inspection of the compose mount and volume declaration; live persistence validation still requires recreating the backend container and re-uploading at least one package on the target host.

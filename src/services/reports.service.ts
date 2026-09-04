@@ -1,12 +1,8 @@
 import { apiClient } from "@/services/api-client";
+import type { WellnessProgramRollup } from "@/types";
 
 type CommunicationType =
-  | "Alert"
-  | "Reminder"
-  | "OperationalNotice"
-  | "News"
-  | "Article"
-  | "KnowledgeUpdate";
+  "Alert" | "Reminder" | "OperationalNotice" | "News" | "Article" | "KnowledgeUpdate";
 
 type ApiContentTypeRollup = {
   communicationType: CommunicationType;
@@ -25,8 +21,14 @@ type ApiContentTypeRollupResponse = {
   items: ApiContentTypeRollup[];
 };
 
+type ApiWellnessProgramRollupResponse = {
+  items: WellnessProgramRollup[];
+};
+
 async function getContentTypeRollups() {
-  const response = await apiClient.get<ApiContentTypeRollupResponse>("/dashboard/content-type-rollups");
+  const response = await apiClient.get<ApiContentTypeRollupResponse>(
+    "/dashboard/content-type-rollups",
+  );
   return response.items;
 }
 
@@ -67,5 +69,11 @@ export const reportsService = {
       pending: item.pendingResponseCount,
       recipients: item.recipientCount,
     }));
+  },
+  async wellnessPrograms() {
+    const response = await apiClient.get<ApiWellnessProgramRollupResponse>(
+      "/dashboard/wellness-program-rollups",
+    );
+    return response.items;
   },
 };

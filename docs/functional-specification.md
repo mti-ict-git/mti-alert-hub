@@ -1,14 +1,17 @@
 # MTI Alert Functional Specification
 
 ## Document Status
+
 - Version: `0.4`
 - Status: `Draft Baseline`
 - Last Updated: `2026-07-16`
 
 ## Product Definition
+
 `MTI Alert` is a centralized communication server platform that enables organizations to create, schedule, deliver, monitor, and govern real-time communications across multiple channels. The MVP channels are `Windows Agent` and `WhatsApp`.
 
 The system uses a unified communication model for:
+
 - Alerts
 - Reminders
 - Operational notices
@@ -17,7 +20,9 @@ The system uses a unified communication model for:
 - Knowledge updates
 
 ## Core Functional Domains
+
 ### 1. Identity And Access
+
 - Authenticate administrative users through enterprise directory integration.
 - Support hybrid roles:
   - `Central Admin`
@@ -28,6 +33,7 @@ The system uses a unified communication model for:
 - Enforce scope restrictions primarily by site and area for device-targeted desktop delivery.
 
 ### 2. Communication Management
+
 - Create communication drafts.
 - Author communications from templates or compose them from scratch.
 - Require a strong preview and confirmation step before publication because MVP has no approval workflow.
@@ -44,6 +50,7 @@ The system uses a unified communication model for:
 - Allow specialized recurring ergonomic experiences through `Wellness Programs`, which remain part of the broader notification domain but use a dedicated authoring, lifecycle, and monitoring surface rather than the generic `Create Notification` form.
 
 ### 3. Audience Targeting
+
 - Select recipients by:
   - all employees
   - site
@@ -58,6 +65,7 @@ The system uses a unified communication model for:
 - Resolve Windows Agent targeting primarily as `device-by-location`.
 
 ### 4. Channel Orchestration
+
 - Send one communication through one or more enabled channels.
 - MVP channels:
   - Windows Agent
@@ -72,6 +80,7 @@ The system uses a unified communication model for:
 - Keep critical and ad hoc communications server-triggered; autonomous local execution is reserved for approved routine reminder policies only.
 
 ### 5. Recipient Response Workflow
+
 - Communications may require no response, simple acknowledgment, or a custom response flow.
 - Response behavior is selected per communication template or explicit communication policy.
 - A response flow may define:
@@ -87,6 +96,7 @@ The system uses a unified communication model for:
 - For workflow-enabled communications, a submitted response implicitly counts as acknowledgment in MVP.
 
 ### 6. Monitoring And Reporting
+
 - Provide communication-level status overview.
 - Show counts for queued, sent, delivered, read, responded, failed, and overdue responses.
 - Show recipient drill-down with status and response detail.
@@ -94,6 +104,7 @@ The system uses a unified communication model for:
 - For `Wellness Programs`, keep operational monitoring device-centric in MVP, while allowing the currently logged-in Windows user to be captured as optional audit metadata when the device can report it safely.
 
 ### 7. Administration
+
 - Manage organizational structure references.
 - Support external HR synchronization for basic organization data with limited MTI-managed adjustment capability.
 - Manage channel configuration and health visibility.
@@ -101,6 +112,7 @@ The system uses a unified communication model for:
 - Capture audit logs for key actions.
 
 ### 8. Recipient Experience Policy
+
 - Windows Agent presentation must support mixed behavior by policy and priority.
 - Critical communications in MVP shall start as an immediate modal, not as a toast.
 - Non-critical communications may use lighter presentation modes.
@@ -109,6 +121,7 @@ The system uses a unified communication model for:
 - Wellness-oriented recurring reminders may use brighter and friendlier visual themes than the operational notification baseline, especially blue and green ergonomic themes for eye-break and stretching experiences.
 
 ### 9. Device Endpoint Policy
+
 - Windows Agent endpoints are device-centric in MVP, especially for shared PCs and laptops.
 - Device records remain operationally flat, but each device stores site, area, and location metadata directly.
 - Device ownership is location-oriented rather than person-oriented for desktop targeting.
@@ -118,6 +131,7 @@ The system uses a unified communication model for:
 - `Wellness Programs` assignment remains device-targeted in MVP. Active user identity on the endpoint may be collected as supporting audit context for activity evidence, but it does not replace the device as the authoritative execution target.
 
 ### 10. Template Policy
+
 - Templates are full policy objects, not just content presets.
 - Templates define content defaults, workflow policy, channel policy, presentation policy, and targeting constraints.
 - Templates are versioned for auditability.
@@ -125,9 +139,11 @@ The system uses a unified communication model for:
 - Editable operator fields in MVP are limited to title, body, target, and schedule.
 
 ## Primary Entity: Communication
+
 The primary business entity is `Communication`.
 
 Each communication includes:
+
 - identity
 - template reference
 - template version snapshot
@@ -146,6 +162,7 @@ The system treats reminders, warnings, announcements, news, and articles as diff
 All MVP communication types remain delivery-tracked and read-tracked.
 
 ## Communication Types
+
 - `Alert`
 - `Reminder`
 - `OperationalNotice`
@@ -154,12 +171,15 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `KnowledgeUpdate`
 
 ## Priorities
+
 - `Info`
 - `Warning`
 - `Critical`
 
 ## Lifecycle States
+
 ### Communication Lifecycle
+
 - `Draft`
 - `Scheduled`
 - `Queued`
@@ -170,6 +190,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `Failed`
 
 ### Recipient Delivery Lifecycle
+
 - `Pending`
 - `Sent`
 - `Displayed`
@@ -178,13 +199,16 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `Failed`
 
 ### Recipient Response Lifecycle
+
 - `NotRequired`
 - `AwaitingResponse`
 - `Responded`
 - `Overdue`
 
 ## Key Workflows
+
 ### Workflow 1: Create And Send Communication
+
 1. User creates a draft.
 2. User selects content type, priority, audience, channels, message body, Windows Agent presentation, and response workflow or uses a template. The instruction field remains policy-driven when the desktop channel is enabled.
 3. System enforces template locks and override rules.
@@ -196,6 +220,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 9. Operators can reopen drafts directly from Notification Center, duplicate any prior communication as a new draft, and apply lifecycle-safe bulk actions such as cancelling multiple scheduled or active communications together.
 
 ### Workflow 2: Recurring Reminder
+
 1. User creates a reminder communication.
 2. User defines the cadence through an operator-friendly schedule builder, selects the timezone, and chooses whether the reminder expires at a specific time or stays active until manually stopped.
 3. User explicitly chooses the execution mode as either `ServerGenerated` or `AgentLocalRoutine`.
@@ -207,6 +232,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 9. Operators can later review reminder schedule metadata, policy activity, and reconciled reminder evidence from the admin experience.
 
 ### Workflow 2A: Wellness Program
+
 1. User opens `Wellness Programs` from the `Notifications` cluster.
 2. User creates or edits a wellness program such as `Eye Break` or `Office Stretching`.
 3. User selects the wellness family first, then chooses one or more approved visual variants plus the variant delivery strategy (`Fixed`, `Sequential`, or `Shuffle`) when multiple variants are enabled.
@@ -218,6 +244,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 9. Operators review program activity and compliance from the dedicated wellness monitoring surface, primarily by device and optionally by the captured active-user audit context.
 
 ### Workflow 3: Critical Emergency Communication
+
 1. User creates a critical alert.
 2. User selects urgent channels and required response workflow.
 3. System prioritizes dispatch and starts response monitoring.
@@ -227,6 +254,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 7. In MVP, non-response escalation remains recipient-only, such as re-alerting or re-attempting the same recipient.
 
 ### Workflow 4: Recipient Response
+
 1. Recipient receives the communication.
 2. Device reports `Displayed` when the message is actually rendered.
 3. Device reports `Read` only after real interaction.
@@ -234,6 +262,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 5. System stores the response and updates monitoring status.
 
 ### Workflow 5: Device Connectivity Test
+
 1. Operator opens the `Devices` admin view.
 2. Operator sends a device-scoped test notification to an online Windows Agent device.
 3. System creates and immediately publishes a one-time Windows Agent communication targeted only to that device.
@@ -241,6 +270,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 5. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
 
 ### Workflow 6: Pending Device Approval
+
 1. A newly installed Windows Agent calls the session endpoint before it exists in the trusted device baseline.
 2. System records or refreshes a pending device enrollment request instead of creating a trusted session automatically.
 3. Operator opens the `Devices` admin view and reviews the pending queue.
@@ -249,7 +279,9 @@ All MVP communication types remain delivery-tracked and read-tracked.
 6. The system records audit evidence so operations can trace who initiated the device test.
 
 ## Functional Requirements
+
 ### Communication Authoring
+
 - `FR-1` The system shall allow authorized users to create, edit, duplicate, cancel, and archive communications.
 - `FR-1A` Notification Center shall provide lifecycle-aware quick actions, including direct draft editing and contextual bulk actions that only expose operations valid for the selected communication states.
 - `FR-2` The system shall support a unified communication form with type-specific fields controlled by metadata and workflow rules.
@@ -272,17 +304,20 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-4K` Wellness operational reporting shall remain device-centric in MVP, with active-user identity treated only as optional audit metadata captured at event time when available.
 - `FR-4M` Wellness authoring shall support batch selection of multiple device targets within the same draft or publish flow without changing the underlying device-centric execution model.
 - `FR-4N` Wellness monitoring shall expose a per-device `Next Run` view together with schedule state so operators can understand effective execution timing for synchronized, staggered, or snoozed local routines without database access.
+- `FR-4O` Wellness reporting shall expose normalized outcome metrics and detail views that distinguish `Completed`, `Deferred`, `Dismissed`, `TimedOut`, `InProgress`, `NoInteraction`, and temporary `AmbiguousCloseCompletion` compatibility cases without requiring direct database access.
 - `FR-4L` A dedicated post-routine feedback prompt for rating wellness-program usefulness or need is deferred beyond the current MVP until the survey contract, trigger timing, and reporting expectations are separately approved.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
 
 ### Targeting
+
 - `FR-5` The system shall allow targeting by organization hierarchy and individual recipients.
 - `FR-6` The system shall show an audience preview before publication.
 - `FR-7` The system shall enforce authorization scope during audience selection and publication.
 - `FR-7A` The system shall support device-by-location desktop targeting using site and area as primary scope dimensions.
 
 ### Delivery
+
 - `FR-8` The system shall create delivery jobs for each selected channel.
 - `FR-9` The system shall store delivery attempts and outcomes per recipient and per channel.
 - `FR-10` The system shall support at least Windows Agent and WhatsApp in MVP.
@@ -293,6 +328,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-10E` The system shall limit autonomous local scheduling to approved routine reminder policies and shall not rely on it for critical or emergency communications.
 
 ### Response
+
 - `FR-11` The system shall allow communications to require no response, simple acknowledgment, or custom workflow response.
 - `FR-12` The system shall store response option, response time, actor, and optional note.
 - `FR-13` The system shall track overdue expected responses.
@@ -301,6 +337,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-13C` The system shall treat a workflow response as acknowledgment in MVP.
 
 ### Monitoring
+
 - `FR-14` The system shall provide live or near-real-time summary metrics for communications in progress.
 - `FR-15` The system shall provide recipient-level detail including delivery and response state.
 - `FR-16` The system shall expose channel health and connector status for operations teams.
@@ -310,6 +347,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-16D` The system shall only mark WhatsApp as `Read` when a provider or gateway supplies an actual read receipt.
 
 ### Administration
+
 - `FR-17` The system shall support template management.
 - `FR-18` The system shall support workflow definition management for reusable response models.
 - `FR-19` The system shall record audit logs for administrative and communication lifecycle actions.
@@ -322,6 +360,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - `FR-19D` The system shall block and explain attempts to override template-locked fields.
 
 ## Non-Functional Expectations
+
 - Near-real-time status visibility for active communications.
 - Traceable and auditable state changes.
 - Extensible architecture for additional channels.
@@ -329,6 +368,7 @@ All MVP communication types remain delivery-tracked and read-tracked.
 - Policy-driven configuration for retry limits and stale thresholds.
 
 ## MVP Assumptions
+
 - Windows Agent is the primary desktop receiver application and is implemented separately in C#.
 - Windows Agent uses a push-first real-time model aligned with a SignalR-style interaction pattern.
 - WhatsApp delivery is handled through an external provider or gateway integration.
