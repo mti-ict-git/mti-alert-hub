@@ -169,7 +169,7 @@ Deliver one specialized recurring wellness flow that proves:
   - actions
   - steps
   - localization
-- `[ ]` Define policy invalidation and update semantics when a program changes version.
+- `[x]` Define policy invalidation and update semantics when a program changes version. Scheduled/Active revisions atomically deactivate old policies, materialize the next version and retain history; clients adopt replacements at next sync, with offline cached-policy limitations. See `docs/wellness-program-revisions.md` (2026-09-05 implementation and verification).
 - `[ ]` Ensure the agent can distinguish:
   - generic reminder policy
   - wellness simple reminder
@@ -431,7 +431,8 @@ Deliver one specialized recurring wellness flow that proves:
   - report activity
 - `[ ]` Verify one complete narrowed `GuidedRoutine` flow end to end.
 - `[ ]` Verify offline execution then later event reconciliation.
-- `[ ]` Verify policy update behavior when a published program changes.
+- `[x]` Verify published-program revision API/database and editor behavior: add/remove targets, versions, rollback, history, confirmation and pending/failure recovery. Evidence: `docs/wellness-program-revisions.md`, 2026-09-05.
+- `[ ]` Verify installed-agent policy replacement timing after deployment, including an offline device reconnect. Existing sync contract was source-reviewed; no new installed-device rollout test was performed in the revision feature slice.
 - `[ ]` Verify that unsupported audience or channel combinations are rejected cleanly.
 - `[ ]` Verify the UI theme and button labels against the approved mockup expectations.
 - `[ ]` Verify no existing operational notification flows regress.

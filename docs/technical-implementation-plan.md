@@ -177,6 +177,7 @@ The current repository already leans toward TypeScript for the admin application
   - `AgentLocalRoutine` for approved Windows Agent reminder policies that must remain reliable during temporary disconnection
 - For `AgentLocalRoutine`, the server materializes a versioned reminder policy with a bounded validity window for eligible devices.
 - The agent executes only the synchronized policy window and must stop using a policy when it is expired, replaced, or cancelled by the server.
+- Scheduled/Active wellness revisions use `POST /communications/{communicationId}/revise-wellness`, a communication row lock and optimistic schedule-version check. Draft/template/audience/publish validation is reused inside one transaction, which replaces active schedules and policies, increments the version, cancels unfinished jobs and records an audit entry without deleting history. The temporary draft validation state is never committed. See `docs/wellness-program-revisions.md` for cadence reset, offline sync and verification evidence.
 
 ### Delivery Stage
 

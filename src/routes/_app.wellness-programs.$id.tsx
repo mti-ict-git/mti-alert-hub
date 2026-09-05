@@ -416,7 +416,7 @@ function WellnessProgramDetailPage() {
                 Publish Wellness Program
               </Button>
             )}
-            {notification.status === "Draft" && (
+            {["Draft", "Scheduled", "Active"].includes(notification.status) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -428,7 +428,7 @@ function WellnessProgramDetailPage() {
                 }
               >
                 <Pencil className="mr-2 h-4 w-4" />
-                Edit Wellness Draft
+                Edit Program
               </Button>
             )}
             {canCancel && (

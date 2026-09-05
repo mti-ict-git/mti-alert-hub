@@ -1190,6 +1190,144 @@ export class CommunicationDraftService {
     return this.getCommunicationDetail(communicationId);
   }
 
+  async reviseWellnessProgram(
+    communicationId: string,
+    input: UpdateCommunicationDraftInput,
+    expectedScheduleVersion: number,
+    actor: PublicationActor,
+  ) {
+    return this.database.withTransaction(async (transaction) => {
+      await transaction.query(
+        "select id from public.communications where id::text = $1 for update",
+        [communicationId],
+      );
+      const scopedDatabase: DatabaseClient = {
+        ...transaction,
+        withTransaction: async (run) => run(transaction),
+      };
+      const scoped = new CommunicationDraftService(
+        scopedDatabase,
+        this.templateService,
+        new AudiencePreviewService(scopedDatabase, this.templateService),
+        this.agentService,
+        this.auditLogService,
+        this.workflowDefinitionService,
+        this.enabledDeliveryChannels,
+      );
+      const existing = await scoped.getCommunicationDetailRow(communicationId);
+      if (!existing) {
+        throw new AppError({
+          statusCode: 404,
+          code: "COMMUNICATION_NOT_FOUND",
+          message: "The requested communication was not found.",
+        });
+      }
+      const schedule = await scoped.getLatestCommunicationSchedule(communicationId);
+      if (
+        !existing.wellnessProgram ||
+        !["Scheduled", "Active"].includes(existing.status) ||
+        !schedule?.isActive ||
+        schedule.executionMode !== "AgentLocalRoutine"
+      ) {
+        throw new AppError({
+          statusCode: 409,
+          code: "WELLNESS_NOT_EDITABLE",
+          message:
+            "Only scheduled or active wellness programs can be revised. Edit drafts normally; duplicate stopped programs to create a new draft.",
+        });
+      }
+      if (schedule.scheduleVersion !== expectedScheduleVersion) {
+        throw new AppError({
+          statusCode: 409,
+          code: "WELLNESS_VERSION_CONFLICT",
+          message:
+            "This program changed since you opened it. Reload the program before applying changes.",
+        });
+      }
+      if (
+        !input.wellnessProgram ||
+        !input.reminderSchedule ||
+        input.reminderSchedule.executionMode !== "AgentLocalRoutine"
+      ) {
+        throw new AppError({
+          statusCode: 422,
+          code: "WELLNESS_REVISION_REQUIRED",
+          message:
+            "Provide the wellness definition and local recurring schedule to apply a revision.",
+        });
+      }
+      const previousTargets = await scoped.listTargets(communicationId);
+      // The intermediate Draft state is transaction-local, never committed. Reuse
+      // draft/template validation and publish guards without exposing a live draft.
+      await transaction.query(
+        "update public.communications set status = 'Draft' where id::text = $1",
+        [communicationId],
+      );
+      await scoped.updateDraft(communicationId, input);
+      const targets = await scoped.listTargets(communicationId);
+      if (targets.some((target) => target.targetType !== "Device")) {
+        throw new AppError({
+          statusCode: 422,
+          code: "WELLNESS_DEVICE_TARGETS_REQUIRED",
+          message: "Wellness revisions require explicit device targets.",
+        });
+      }
+      for (const target of targets) {
+        const matches = await transaction.query<{ id: string }>(
+          "select id::text from public.devices where id::text = $1 or device_identifier = $1",
+          [target.targetValue],
+        );
+        if (matches.length !== 1) {
+          throw new AppError({
+            statusCode: 422,
+            code: "WELLNESS_DEVICE_NOT_FOUND",
+            message:
+              "A selected device is unavailable or ambiguous. Reload the device list and review assignments.",
+          });
+        }
+      }
+      const appliedAt = new Date().toISOString();
+      await markDeliveryJobsCancelled(transaction, communicationId, appliedAt);
+      await scoped.publishCommunication(
+        communicationId,
+        {
+          ...input.reminderSchedule,
+          publishMode: "Recurring",
+          confirmedPreview: true,
+        },
+        actor,
+      );
+      const nextVersion = schedule.scheduleVersion + 1;
+      await transaction.query(
+        "update public.communication_schedules set schedule_version = $2 where communication_id::text = $1 and is_active = true",
+        [communicationId, nextVersion],
+      );
+      await transaction.query(
+        "update public.agent_reminder_policies set schedule_version = $2 where communication_id::text = $1 and is_active = true",
+        [communicationId, nextVersion],
+      );
+      await this.auditLogService.record(transaction, {
+        actorUserId: actor.userIdentifier,
+        actorUsername: actor.username,
+        actionType: "ReviseWellnessProgram",
+        moduleName: "Communications",
+        entityType: "Communication",
+        entityId: communicationId,
+        description: `Applied wellness revision ${nextVersion}; prior policies were deactivated and history retained.`,
+        ipAddress: actor.ipAddress ?? null,
+        createdAt: appliedAt,
+        metadata: {
+          previousStatus: existing.status,
+          previousVersion: schedule.scheduleVersion,
+          nextVersion,
+          previousTargets,
+          targets,
+        },
+      });
+      return scoped.getCommunicationDetail(communicationId);
+    });
+  }
+
   async duplicateDraft(communicationId: string) {
     const existing = await this.getCommunicationDetailRow(communicationId);
     if (!existing) {
@@ -1794,7 +1932,7 @@ export class CommunicationDraftService {
           publish_request_json as "publishRequestJson"
         from public.communication_schedules
         where communication_id::text = $1
-        order by requested_at desc, created_at desc
+        order by schedule_version desc, requested_at desc, created_at desc
         limit 1
       `,
       [communicationId],

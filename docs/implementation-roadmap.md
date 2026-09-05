@@ -448,6 +448,7 @@ Prepare the platform for broader rollout and future channels.
 ### Checklist
 
 - `[ ]` Channel expansion: define and document the email connector contract.
+- `[x]` Wellness revisions: edit Scheduled/Active program assignments and configuration atomically with version conflicts, retained history, and agent policy replacement. Closed 2026-09-05: PostgreSQL rollback integration, 15 regression tests, backend typecheck, targeted lint, production build and isolated browser verification passed; evidence and release boundary in `docs/wellness-program-revisions.md`.
 - `[ ]` Channel expansion: implement email delivery orchestration if included in scope.
 - `[ ]` Channel expansion: define and document the digital signage connector contract.
 - `[ ]` Channel expansion: implement digital signage orchestration if included in scope.

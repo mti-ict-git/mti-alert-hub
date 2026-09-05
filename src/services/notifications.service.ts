@@ -353,6 +353,17 @@ export const notificationsService = {
     );
     return mapDetailToNotification(detail);
   },
+  async reviseWellness(
+    id: string,
+    input: UpdateNotificationInput,
+    expectedScheduleVersion: number,
+  ): Promise<Notification> {
+    const detail = await apiClient.post<ApiCommunicationDetail>(
+      `/communications/${id}/revise-wellness`,
+      { changes: buildUpdatePayload(input), expectedScheduleVersion, confirmedChanges: true },
+    );
+    return mapDetailToNotification(detail);
+  },
   async publish(id: string, input: PublishNotificationInput): Promise<Notification> {
     const detail = await apiClient.post<ApiCommunicationDetail>(
       `/communications/${id}/publish`,

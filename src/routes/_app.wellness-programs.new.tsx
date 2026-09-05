@@ -44,7 +44,11 @@ import {
   type WellnessFamily,
   type WellnessTemplateKey,
 } from "@/lib/wellness-template-catalog";
-import { getLocalUtcOffsetTimeZone, normalizeUtcOffsetTimeZone } from "@/lib/timezone-options";
+import {
+  getLocalUtcOffsetTimeZone,
+  normalizeUtcOffsetTimeZone,
+  UTC_OFFSET_TIME_ZONE_OPTIONS,
+} from "@/lib/timezone-options";
 import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
 import type { WellnessDistributionMode } from "@/types";
@@ -86,8 +90,11 @@ function CreateWellnessProgramPage() {
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [initializedDraftId, setInitializedDraftId] = useState<string | null>(null);
+  const [revisionVersion, setRevisionVersion] = useState(0);
 
   const isEditMode = Boolean(editingDraftId);
+  const isLiveRevision =
+    isEditMode && Boolean(editingDraft && ["Scheduled", "Active"].includes(editingDraft.status));
   const hasValidEditableDraft = !editingDraftId || Boolean(editingDraft?.wellnessProgram);
   const selectedFamily = family ? getWellnessFamily(family) : null;
   const familyTemplates = family ? listWellnessTemplatesByFamily(family) : [];
@@ -138,6 +145,15 @@ function CreateWellnessProgramPage() {
         : "",
     );
     setNeverExpires(!editingDraft.reminderSchedule?.validUntil);
+    if (["Scheduled", "Active"].includes(editingDraft.status)) {
+      setRevisionVersion(editingDraft.reminderSchedule?.scheduleVersion ?? 0);
+      if (
+        !editingDraft.reminderSchedule?.scheduledAt ||
+        new Date(editingDraft.reminderSchedule.scheduledAt).getTime() <= Date.now()
+      ) {
+        setScheduledAt("");
+      }
+    }
     setTimezone(normalizeUtcOffsetTimeZone(editingDraft.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule);
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
@@ -151,7 +167,9 @@ function CreateWellnessProgramPage() {
   const createMutation = useMutation({
     mutationFn: (payload: Parameters<typeof notificationsService.create>[0]) =>
       isEditMode && editingDraftId
-        ? notificationsService.update(editingDraftId, payload)
+        ? isLiveRevision
+          ? notificationsService.reviseWellness(editingDraftId, payload, revisionVersion)
+          : notificationsService.update(editingDraftId, payload)
         : notificationsService.create(payload),
     onSuccess: async () => {
       await Promise.all([
@@ -161,7 +179,13 @@ function CreateWellnessProgramPage() {
           ? [queryClient.invalidateQueries({ queryKey: ["notification", editingDraftId] })]
           : []),
       ]);
-      toast.success(isEditMode ? "Wellness draft updated" : "Wellness program draft created");
+      toast.success(
+        isLiveRevision
+          ? "Program changes applied; devices will update on their next sync"
+          : isEditMode
+            ? "Wellness draft updated"
+            : "Wellness program draft created",
+      );
       navigate({ to: "/wellness-programs" });
     },
     onError: (error) => {
@@ -185,6 +209,10 @@ function CreateWellnessProgramPage() {
     staggerWindowMinutes,
   });
   const canSubmit =
+    !createMutation.isPending &&
+    (!isEditMode ||
+      Boolean(editingDraft && ["Draft", "Scheduled", "Active"].includes(editingDraft.status))) &&
+    (!isLiveRevision || revisionVersion > 0) &&
     hasValidEditableDraft &&
     Boolean(selectedFamily) &&
     selectedVariantKeys.length > 0 &&
@@ -283,7 +311,7 @@ function CreateWellnessProgramPage() {
         title={isEditMode ? "Edit Wellness Program" : "Create Wellness Program"}
         description={
           isEditMode
-            ? "Update the dedicated wellness draft using family-first authoring, clearer variant control, and staggered device distribution."
+            ? "Update the wellness program family, variants, schedule, and device assignments."
             : "Choose the wellness family first, select one or more visual variants, and assign the cadence to approved devices."
         }
       />
@@ -447,6 +475,15 @@ function CreateWellnessProgramPage() {
                 showExecutionMode
               />
 
+              {isLiveRevision && (
+                <p role="status" className="rounded-md border bg-muted/20 p-3 text-sm">
+                  Applying changes replaces version {revisionVersion} for all selected devices.
+                  Removed devices stop on their next sync; offline devices update when they
+                  reconnect. History is retained. Leave First Occurrence empty to restart the
+                  cadence when changes are applied.
+                </p>
+              )}
+
               <WellnessDeviceAudiencePicker
                 devices={devices}
                 selectedDeviceIds={selectedDeviceIds}
@@ -454,12 +491,23 @@ function CreateWellnessProgramPage() {
               />
             </div>
 
+            {createMutation.isError && (
+              <p role="alert" className="text-sm text-destructive">
+                {createMutation.error instanceof Error
+                  ? createMutation.error.message
+                  : "Changes could not be saved. Your edits are still available; try again."}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
                 Cancel
               </Button>
               <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
-                {isEditMode ? "Save Wellness Draft" : "Create Wellness Draft"}
+                {isLiveRevision
+                  ? "Review Changes"
+                  : isEditMode
+                    ? "Save Wellness Draft"
+                    : "Create Wellness Draft"}
               </Button>
             </div>
           </CardContent>
@@ -500,12 +548,18 @@ function CreateWellnessProgramPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {isEditMode ? "Confirm Wellness Update" : "Confirm Wellness Draft"}
+              {isLiveRevision
+                ? "Apply Program Changes"
+                : isEditMode
+                  ? "Confirm Wellness Update"
+                  : "Confirm Wellness Draft"}
             </DialogTitle>
             <DialogDescription>
-              {isEditMode
-                ? "This updates the dedicated wellness draft under the separate `Wellness Programs` module."
-                : "This creates a dedicated wellness program draft under the separate `Wellness Programs` module."}
+              {isLiveRevision
+                ? "This replaces the running schedule and device assignments with a new version. Existing reporting history is retained."
+                : isEditMode
+                  ? "This updates the dedicated wellness draft under the separate `Wellness Programs` module."
+                  : "This creates a dedicated wellness program draft under the separate `Wellness Programs` module."}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
@@ -523,6 +577,19 @@ function CreateWellnessProgramPage() {
               )}{" "}
               · Distribution: {distributionMode}
             </p>
+            {isLiveRevision && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Timezone:{" "}
+                {UTC_OFFSET_TIME_ZONE_OPTIONS.find((option) => option.value === timezone)?.label ??
+                  timezone}
+                {" · "}First occurrence: {scheduledAt || "Restart cadence when applied"}
+                {" · "}Expiry: {neverExpires ? "Never" : validUntil}
+                {" · "}Rotation: {rotationMode}
+                {distributionMode === "Staggered"
+                  ? ` · Stagger window: ${staggerWindowMinutes} minutes`
+                  : ""}
+              </p>
+            )}
             {selectedDevices.length > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
                 {selectedDevices
@@ -533,6 +600,12 @@ function CreateWellnessProgramPage() {
               </p>
             )}
           </div>
+          {isLiveRevision && (
+            <p className="text-sm text-muted-foreground">
+              The cadence restarts for all selected devices. Removed devices stop on their next
+              sync; offline devices use their cached schedule until they reconnect.
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>
               Cancel
@@ -544,7 +617,13 @@ function CreateWellnessProgramPage() {
               }}
               disabled={createMutation.isPending}
             >
-              {createMutation.isPending ? "Saving..." : isEditMode ? "Confirm Update" : "Confirm"}
+              {createMutation.isPending
+                ? "Saving..."
+                : isLiveRevision
+                  ? "Apply Changes"
+                  : isEditMode
+                    ? "Confirm Update"
+                    : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

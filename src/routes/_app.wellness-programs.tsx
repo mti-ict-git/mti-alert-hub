@@ -463,7 +463,7 @@ function WellnessProgramsIndexPage() {
                             <Eye className="mr-2 h-4 w-4" />
                             View
                           </Button>
-                          {isDraft && (
+                          {["Draft", "Scheduled", "Active"].includes(notification.status) && (
                             <Button
                               variant="ghost"
                               size="sm"

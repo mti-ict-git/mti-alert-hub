@@ -155,6 +155,12 @@ const updateCommunicationSchema = z
     path: [],
   });
 
+const reviseWellnessSchema = z.object({
+  expectedScheduleVersion: z.number().int().min(1),
+  confirmedChanges: z.literal(true),
+  changes: updateCommunicationSchema,
+});
+
 const publishCommunicationSchema = z.object({
   publishMode: z.enum(["Now", "Scheduled", "Recurring"]),
   scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
@@ -308,6 +314,27 @@ export function registerCommunicationRoutes(
           });
           throw error;
         }
+      },
+    },
+    {
+      method: "POST",
+      path: "/communications/{communicationId}/revise-wellness",
+      requiresAuth: true,
+      async handler({ params, json, auth, request }) {
+        const payload = validateWithSchema(reviseWellnessSchema, await json());
+        return {
+          statusCode: 200,
+          body: await options.communicationDraftService.reviseWellnessProgram(
+            params.communicationId ?? "",
+            payload.changes,
+            payload.expectedScheduleVersion,
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: resolveRequestIpAddress(request),
+            },
+          ),
+        };
       },
     },
     {

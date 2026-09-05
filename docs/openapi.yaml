@@ -289,6 +289,50 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
 
+  /communications/{communicationId}/revise-wellness:
+    post:
+      tags: [Communications]
+      summary: Apply a revision to a scheduled or active wellness program
+      description: Atomically replaces future schedules and device policies, retains history, increments the schedule version, and audits the change. Devices apply replacements at their next sync. Past first-occurrence timestamps must be cleared or replaced by future timestamps.
+      operationId: reviseWellnessProgram
+      parameters:
+        - $ref: "#/components/parameters/CommunicationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedScheduleVersion, confirmedChanges, changes]
+              properties:
+                expectedScheduleVersion:
+                  type: integer
+                  minimum: 1
+                confirmedChanges:
+                  type: boolean
+                  enum: [true]
+                  changes:
+                    allOf:
+                      - $ref: "#/components/schemas/UpdateCommunicationRequest"
+                      - type: object
+                        required: [wellnessProgram, reminderSchedule]
+                    description: Must include wellnessProgram and an AgentLocalRoutine reminderSchedule.
+      responses:
+        "200":
+          description: Revision applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: WELLNESS_VERSION_CONFLICT or WELLNESS_NOT_EDITABLE; no changes applied.
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /communications/{communicationId}/reminder-activity:
     get:
       tags: [Communications]

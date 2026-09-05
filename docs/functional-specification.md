@@ -233,6 +233,8 @@ All MVP communication types remain delivery-tracked and read-tracked.
 
 ### Workflow 2A: Wellness Program
 
+Published Scheduled/Active wellness programs support `Edit Program` and explicit `Apply Changes` confirmation. Revisions replace assignments and future schedules under the same program ID, increment schedule version, retain history, and reject stale edits. Agent devices apply replacements and removals at their next successful sync. See `wellness-program-revisions.md` for cadence-reset, offline, and failure semantics.
+
 1. User opens `Wellness Programs` from the `Notifications` cluster.
 2. User creates or edits a wellness program such as `Eye Break` or `Office Stretching`.
 3. User selects the wellness family first, then chooses one or more approved visual variants plus the variant delivery strategy (`Fixed`, `Sequential`, or `Shuffle`) when multiple variants are enabled.

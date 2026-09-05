@@ -252,6 +252,7 @@ Current implementation note:
 - For the first integrated slice, published wellness identity remains communication-rooted:
   - `programId = communication_id`
   - `programVersion = schedule_version`
+- Published wellness revisions reuse these existing tables without migration. Old schedule/policy rows become inactive; replacements share the next incremented `schedule_version`. Historical recipient snapshots and reminder events remain attached to their original records. The communication ID is stable and target assignments represent the current selection; audit metadata retains old/new targets.
 - Windows Agent pending-message reconciliation now treats `valid_from` as the not-before boundary and `valid_until` as the authoritative stop-sync boundary whenever those values are present on the schedule.
 
 ### agent_reminder_policies
