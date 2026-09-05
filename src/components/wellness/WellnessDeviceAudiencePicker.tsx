@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,13 @@ export function WellnessDeviceAudiencePicker(props: WellnessDeviceAudiencePicker
   }, [props.devices, search]);
 
   const selectedSet = useMemo(() => new Set(props.selectedDeviceIds), [props.selectedDeviceIds]);
-  const visibleSelectedCount = filteredDevices.filter((device) => selectedSet.has(device.deviceId)).length;
+  const devicesById = useMemo(
+    () => new Map(props.devices.map((device) => [device.deviceId, device])),
+    [props.devices],
+  );
+  const visibleSelectedCount = filteredDevices.filter((device) =>
+    selectedSet.has(device.deviceId),
+  ).length;
 
   function toggleDevice(deviceId: string, checked: boolean) {
     if (checked) {
@@ -66,17 +73,33 @@ export function WellnessDeviceAudiencePicker(props: WellnessDeviceAudiencePicker
       <div className="space-y-2">
         <Label>Target Devices</Label>
         <p className="text-xs text-muted-foreground">
-          Search, bulk-select, and assign the same routine to multiple approved Windows Agent devices.
+          Search, bulk-select, and assign the same routine to multiple approved Windows Agent
+          devices.
         </p>
       </div>
 
       <div className="rounded-xl border">
         <div className="space-y-3 border-b bg-muted/20 p-3">
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search device ID, hostname, user, or department"
-          />
+          <div className="relative">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search hostname, user, site, or department"
+              className="pr-10"
+            />
+            {search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-7 w-7"
+                aria-label="Clear device search"
+                onClick={() => setSearch("")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-2">
@@ -97,7 +120,8 @@ export function WellnessDeviceAudiencePicker(props: WellnessDeviceAudiencePicker
               </Button>
             </div>
             <div className="text-xs text-muted-foreground">
-              {props.selectedDeviceIds.length} selected · {visibleSelectedCount}/{filteredDevices.length} visible
+              {props.selectedDeviceIds.length} selected · {visibleSelectedCount}/
+              {filteredDevices.length} visible
             </div>
           </div>
         </div>
@@ -119,15 +143,18 @@ export function WellnessDeviceAudiencePicker(props: WellnessDeviceAudiencePicker
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{device.deviceId}</span>
-                      <span className="text-sm text-muted-foreground">{device.hostname}</span>
+                      <span className="font-medium">{device.hostname || "Unnamed device"}</span>
                       <Badge variant="outline">{device.status}</Badge>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span>Site: {device.siteName ?? device.siteId}</span>
                       {device.areaName && <span>Area: {device.areaName}</span>}
                       <span>
-                        User: {device.currentDisplayName ?? device.currentUsername ?? device.lastActiveUserIdentifier ?? "Unknown"}
+                        User:{" "}
+                        {device.currentDisplayName ??
+                          device.currentUsername ??
+                          device.lastActiveUserIdentifier ??
+                          "Unknown"}
                       </span>
                       <span>Department: {device.currentDepartment ?? "Unknown"}</span>
                     </div>
@@ -147,11 +174,14 @@ export function WellnessDeviceAudiencePicker(props: WellnessDeviceAudiencePicker
 
       {props.selectedDeviceIds.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {props.selectedDeviceIds.slice(0, 8).map((deviceId) => (
-            <Badge key={deviceId} variant="secondary">
-              {deviceId}
-            </Badge>
-          ))}
+          {props.selectedDeviceIds.slice(0, 8).map((deviceId) => {
+            const device = devicesById.get(deviceId);
+            return (
+              <Badge key={deviceId} variant="secondary">
+                {device?.hostname || "Device unavailable"}
+              </Badge>
+            );
+          })}
           {props.selectedDeviceIds.length > 8 && (
             <Badge variant="secondary">+{props.selectedDeviceIds.length - 8} more</Badge>
           )}

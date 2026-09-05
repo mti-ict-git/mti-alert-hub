@@ -1,7 +1,15 @@
+import { useId } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   WELLNESS_RECURRENCE_PRESETS,
@@ -9,6 +17,7 @@ import {
   formatWellnessRecurrenceSummary,
   type WellnessRecurrenceUnit,
 } from "@/lib/wellness-authoring";
+import { UTC_OFFSET_TIME_ZONE_OPTIONS, normalizeUtcOffsetTimeZone } from "@/lib/timezone-options";
 import type { WellnessDistributionMode } from "@/types";
 
 type WellnessScheduleFieldsProps = {
@@ -32,6 +41,7 @@ type WellnessScheduleFieldsProps = {
 };
 
 export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
+  const timezoneId = useId();
   const recurrenceSummary = formatWellnessRecurrenceSummary(
     buildWellnessRecurrenceRule({
       interval: Number.parseInt(props.recurrenceInterval || "1", 10) || 1,
@@ -46,8 +56,8 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
           <div>
             <div className="text-sm font-medium text-slate-900">Recurrence Builder</div>
             <p className="mt-1 text-xs text-slate-600">
-              Set the cadence in operator language. The app will generate the recurrence rule for the
-              backend contract.
+              Set the cadence in operator language. The app will generate the recurrence rule for
+              the backend contract.
             </p>
           </div>
           <div className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-medium text-sky-700">
@@ -94,7 +104,9 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
             <Label>Unit</Label>
             <Select
               value={props.recurrenceUnit}
-              onValueChange={(value) => props.onRecurrenceUnitChange(value as WellnessRecurrenceUnit)}
+              onValueChange={(value) =>
+                props.onRecurrenceUnitChange(value as WellnessRecurrenceUnit)
+              }
             >
               <SelectTrigger>
                 <SelectValue />
@@ -151,12 +163,25 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
 
       <div className={`grid grid-cols-1 gap-4 ${props.showExecutionMode ? "md:grid-cols-2" : ""}`}>
         <div className="space-y-2">
-          <Label>Timezone</Label>
-          <Input
-            value={props.timezone}
-            onChange={(event) => props.onTimezoneChange(event.target.value)}
-            placeholder="e.g. Asia/Jakarta"
-          />
+          <Label htmlFor={timezoneId}>Timezone</Label>
+          <Select
+            value={normalizeUtcOffsetTimeZone(props.timezone)}
+            onValueChange={props.onTimezoneChange}
+          >
+            <SelectTrigger id={timezoneId}>
+              <SelectValue placeholder="Select UTC offset" />
+            </SelectTrigger>
+            <SelectContent className="w-[var(--radix-select-trigger-width)]">
+              {UTC_OFFSET_TIME_ZONE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Fixed UTC offset used for every device in this wellness schedule.
+          </p>
         </div>
 
         {props.showExecutionMode && (
@@ -179,7 +204,12 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Distribution</Label>
-            <Select value={props.distributionMode} onValueChange={(value) => props.onDistributionModeChange(value as WellnessDistributionMode)}>
+            <Select
+              value={props.distributionMode}
+              onValueChange={(value) =>
+                props.onDistributionModeChange(value as WellnessDistributionMode)
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

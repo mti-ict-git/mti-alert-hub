@@ -2241,6 +2241,7 @@ components:
         timezone:
           type: string
           nullable: true
+          description: Valid IANA timezone identifier. Wellness authoring uses fixed whole-hour UTC-offset identifiers while displaying operator-facing labels from UTC-12 through UTC+14.
         executionMode:
           allOf:
             - $ref: "#/components/schemas/ScheduleExecutionMode"
@@ -2265,6 +2266,7 @@ components:
           type: string
         timezone:
           type: string
+          description: Valid IANA timezone identifier. Wellness authoring uses fixed whole-hour UTC-offset identifiers while displaying operator-facing labels from UTC-12 through UTC+14.
         executionMode:
           allOf:
             - $ref: "#/components/schemas/ScheduleExecutionMode"

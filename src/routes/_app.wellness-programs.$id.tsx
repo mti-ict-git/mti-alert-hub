@@ -54,6 +54,11 @@ import {
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 import { isCancellableNotificationStatus } from "@/lib/notification-status";
 import {
+  formatUtcOffsetTimeZone,
+  getLocalUtcOffsetTimeZone,
+  normalizeUtcOffsetTimeZone,
+} from "@/lib/timezone-options";
+import {
   buildWellnessDeviceOutcomeCsv,
   buildWellnessEventTimelineCsv,
   buildWellnessProgramSummaryCsv,
@@ -154,7 +159,7 @@ function WellnessProgramDetailPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [neverExpires, setNeverExpires] = useState(true);
-  const [timezone, setTimezone] = useState(getLocalTimeZone());
+  const [timezone, setTimezone] = useState(getLocalUtcOffsetTimeZone());
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
   const [distributionMode, setDistributionMode] = useState<WellnessDistributionMode>("Staggered");
@@ -333,7 +338,7 @@ function WellnessProgramDetailPage() {
     <div>
       <PageHeader
         title={notification.title}
-        description={buildWellnessDescription(notification)}
+        description={buildWellnessDescription(notification, recipients)}
         actions={
           <>
             <Button
@@ -531,7 +536,10 @@ function WellnessProgramDetailPage() {
                 value={notification.windowsAgentPresentation || "—"}
               />
               <Info label="Target Type" value={notification.targetType} />
-              <Info label="Target Devices" value={formatTargetDeviceSummary(notification)} />
+              <Info
+                label="Target Devices"
+                value={formatTargetDeviceSummary(notification, recipients)}
+              />
               <Info label="Created By" value={notification.createdBy} />
               <Info
                 label="Created At"
@@ -559,7 +567,10 @@ function WellnessProgramDetailPage() {
                   notification.reminderSchedule?.recurrenceRule,
                 )}
               />
-              <Info label="Timezone" value={notification.reminderSchedule?.timezone || "—"} />
+              <Info
+                label="Timezone"
+                value={formatUtcOffsetTimeZone(notification.reminderSchedule?.timezone)}
+              />
               <Info
                 label="Execution Mode"
                 value={notification.reminderSchedule?.executionMode || "—"}
@@ -751,14 +762,14 @@ function WellnessProgramDetailPage() {
                     return (
                       <TableRow key={policy.policyId}>
                         <TableCell>
-                          {policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}
+                          {policy.hostname ?? policy.deviceIdentifier ?? "Unknown device"}
                         </TableCell>
                         <TableCell>{policy.scheduleVersion}</TableCell>
                         <TableCell>{formatOptionalDate(policy.validFrom)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {formatWellnessRecurrenceSummary(policy.recurrenceRule)}
                         </TableCell>
-                        <TableCell>{policy.timezone}</TableCell>
+                        <TableCell>{formatUtcOffsetTimeZone(policy.timezone)}</TableCell>
                         <TableCell>
                           {formatScheduleInsightDate(scheduleInsight?.nextRunAt)}
                         </TableCell>
@@ -817,7 +828,7 @@ function WellnessProgramDetailPage() {
                         {"normalizedOutcome" in event &&
                           renderOutcomeLabel(event.normalizedOutcome)}
                         <span className="text-sm font-medium">
-                          {event.deviceIdentifier ?? event.hostname ?? event.deviceId}
+                          {event.hostname ?? event.deviceIdentifier ?? "Unknown device"}
                         </span>
                         {event.activeUserIdentifier && (
                           <Badge variant="outline">{event.activeUserIdentifier}</Badge>
@@ -1127,7 +1138,7 @@ function WellnessProgramDetailPage() {
         : "",
     );
     setNeverExpires(!item.reminderSchedule?.validUntil);
-    setTimezone(item.reminderSchedule?.timezone ?? getLocalTimeZone());
+    setTimezone(normalizeUtcOffsetTimeZone(item.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(item.reminderSchedule?.recurrenceRule);
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
@@ -1216,7 +1227,7 @@ function mapPreviewChannelToChannel(
 
 function buildRecipientReference(recipient: Recipient) {
   if (recipient.recipientType === "Device") {
-    return recipient.deviceIdentifier ?? recipient.hostname ?? recipient.deviceId ?? "—";
+    return recipient.hostname ?? recipient.deviceIdentifier ?? "Unknown device";
   }
 
   if (recipient.recipientType === "ContactEndpoint") {
@@ -1226,8 +1237,8 @@ function buildRecipientReference(recipient: Recipient) {
   return recipient.employeeId || "—";
 }
 
-function buildWellnessDescription(notification: Notification) {
-  const target = formatTargetDeviceSummary(notification);
+function buildWellnessDescription(notification: Notification, recipients: Recipient[]) {
+  const target = formatTargetDeviceSummary(notification, recipients);
   return [
     "Dedicated wellness detail",
     notification.wellnessProgram?.programType,
@@ -1238,17 +1249,24 @@ function buildWellnessDescription(notification: Notification) {
     .join(" · ");
 }
 
-function formatTargetDeviceSummary(notification: Notification) {
+function formatTargetDeviceSummary(notification: Notification, recipients: Recipient[]) {
   if (notification.targetDeviceIds?.length) {
-    if (notification.targetDeviceIds.length === 1) {
-      return notification.targetDeviceIds[0];
-    }
-
-    const preview = notification.targetDeviceIds.slice(0, 3).join(", ");
-    return `${preview}${notification.targetDeviceIds.length > 3 ? ` + ${notification.targetDeviceIds.length - 3} more` : ""}`;
+    const hostnames = notification.targetDeviceIds.map((deviceId) => {
+      const recipient = recipients.find(
+        (item) => item.deviceIdentifier === deviceId || item.deviceId === deviceId,
+      );
+      return recipient?.hostname ?? "Unknown device";
+    });
+    const preview = hostnames.slice(0, 3).join(", ");
+    return `${preview}${hostnames.length > 3 ? ` + ${hostnames.length - 3} more` : ""}`;
   }
 
-  return notification.targetDeviceId || "—";
+  const recipient = recipients.find(
+    (item) =>
+      item.deviceIdentifier === notification.targetDeviceId ||
+      item.deviceId === notification.targetDeviceId,
+  );
+  return recipient?.hostname ?? "Unknown device";
 }
 
 function normalizeScheduledDateTime(value: string) {
@@ -1785,10 +1803,6 @@ function compareLocalDate(
   return (
     Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day)
   );
-}
-
-function getLocalTimeZone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
 const MAX_VALID_UNTIL_ISO = "9999-12-31T23:59:59.999Z";

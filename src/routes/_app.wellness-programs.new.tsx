@@ -20,7 +20,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   buildWellnessRecurrenceRule,
   formatWellnessRecurrenceSummary,
@@ -38,6 +44,7 @@ import {
   type WellnessFamily,
   type WellnessTemplateKey,
 } from "@/lib/wellness-template-catalog";
+import { getLocalUtcOffsetTimeZone, normalizeUtcOffsetTimeZone } from "@/lib/timezone-options";
 import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
 import type { WellnessDistributionMode } from "@/types";
@@ -70,7 +77,7 @@ function CreateWellnessProgramPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [neverExpires, setNeverExpires] = useState(true);
-  const [timezone, setTimezone] = useState(getLocalTimeZone());
+  const [timezone, setTimezone] = useState(getLocalUtcOffsetTimeZone());
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
   const [rotationMode, setRotationMode] = useState<WellnessRotationMode>("Fixed");
@@ -84,7 +91,10 @@ function CreateWellnessProgramPage() {
   const hasValidEditableDraft = !editingDraftId || Boolean(editingDraft?.wellnessProgram);
   const selectedFamily = family ? getWellnessFamily(family) : null;
   const familyTemplates = family ? listWellnessTemplatesByFamily(family) : [];
-  const previewVariantTemplate = familyTemplates.find((template) => selectedVariantKeys.includes(template.key)) ?? familyTemplates[0] ?? null;
+  const previewVariantTemplate =
+    familyTemplates.find((template) => selectedVariantKeys.includes(template.key)) ??
+    familyTemplates[0] ??
+    null;
   const previewWellnessProgram = selectedFamily
     ? buildWellnessProgramFromSelection({
         family,
@@ -117,14 +127,18 @@ function CreateWellnessProgramPage() {
           ? [editingDraft.targetDeviceId]
           : [],
     );
-    setScheduledAt(editingDraft.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(editingDraft.reminderSchedule.scheduledAt) : "");
+    setScheduledAt(
+      editingDraft.reminderSchedule?.scheduledAt
+        ? toDateTimeLocalInput(editingDraft.reminderSchedule.scheduledAt)
+        : "",
+    );
     setValidUntil(
       editingDraft.reminderSchedule?.validUntil
         ? toDateTimeLocalInput(editingDraft.reminderSchedule.validUntil)
         : "",
     );
     setNeverExpires(!editingDraft.reminderSchedule?.validUntil);
-    setTimezone(editingDraft.reminderSchedule?.timezone ?? getLocalTimeZone());
+    setTimezone(normalizeUtcOffsetTimeZone(editingDraft.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule);
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
@@ -143,15 +157,21 @@ function CreateWellnessProgramPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["notifications"] }),
         queryClient.invalidateQueries({ queryKey: ["wellness-programs"] }),
-        ...(editingDraftId ? [queryClient.invalidateQueries({ queryKey: ["notification", editingDraftId] })] : []),
+        ...(editingDraftId
+          ? [queryClient.invalidateQueries({ queryKey: ["notification", editingDraftId] })]
+          : []),
       ]);
       toast.success(isEditMode ? "Wellness draft updated" : "Wellness program draft created");
       navigate({ to: "/wellness-programs" });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : isEditMode
-        ? "Failed to update wellness program draft"
-        : "Failed to create wellness program draft");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : isEditMode
+            ? "Failed to update wellness program draft"
+            : "Failed to create wellness program draft",
+      );
     },
   });
 
@@ -232,7 +252,8 @@ function CreateWellnessProgramPage() {
     return (
       <div className="space-y-4 p-6">
         <div className="text-sm text-muted-foreground">
-          This draft is not a wellness program, or it could not be loaded from the reminder-backed contract.
+          This draft is not a wellness program, or it could not be loaded from the reminder-backed
+          contract.
         </div>
         <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
           Back To Wellness Programs
@@ -246,7 +267,8 @@ function CreateWellnessProgramPage() {
       <div className="space-y-4 p-6">
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           This draft uses a legacy custom wellness shape that does not map cleanly to the new
-          family-driven catalog. Create or duplicate a new draft to continue with the safer authoring flow.
+          family-driven catalog. Create or duplicate a new draft to continue with the safer
+          authoring flow.
         </div>
         <Button variant="outline" onClick={() => navigate({ to: "/wellness-programs" })}>
           Back To Wellness Programs
@@ -272,8 +294,8 @@ function CreateWellnessProgramPage() {
             <div className="rounded-md border border-sky-200 bg-sky-50/70 p-4">
               <div className="text-sm font-medium">Family-Driven Wellness Authoring</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Operators choose the wellness family first, then decide which approved visual variants
-                are eligible. Rotation only matters when more than one variant is selected.
+                Operators choose the wellness family first, then decide which approved visual
+                variants are eligible. Rotation only matters when more than one variant is selected.
               </p>
             </div>
 
@@ -281,14 +303,17 @@ function CreateWellnessProgramPage() {
               <div>
                 <div className="text-sm font-medium">Program Family</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Separate micro-break eye care from office stretching so cadence, visuals, and rollout
-                  behavior stay intentional.
+                  Separate micro-break eye care from office stretching so cadence, visuals, and
+                  rollout behavior stay intentional.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label>Family</Label>
-                <Select value={family} onValueChange={(value) => handleFamilyChange(value as WellnessFamily)}>
+                <Select
+                  value={family}
+                  onValueChange={(value) => handleFamilyChange(value as WellnessFamily)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select wellness family" />
                   </SelectTrigger>
@@ -320,8 +345,8 @@ function CreateWellnessProgramPage() {
                 <div>
                   <div className="text-sm font-medium">Visual Variants</div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Pick one or more approved shells for this family. One variant means fixed delivery.
-                    Multiple variants unlock sequential or shuffled rotation.
+                    Pick one or more approved shells for this family. One variant means fixed
+                    delivery. Multiple variants unlock sequential or shuffled rotation.
                   </p>
                 </div>
 
@@ -343,9 +368,13 @@ function CreateWellnessProgramPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{template.key}</span>
-                            <Badge variant="outline">{template.label.replace(`${template.key} - `, "")}</Badge>
+                            <Badge variant="outline">
+                              {template.label.replace(`${template.key} - `, "")}
+                            </Badge>
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">{template.description}</p>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {template.description}
+                          </p>
                         </div>
                       </label>
                     );
@@ -451,12 +480,15 @@ function CreateWellnessProgramPage() {
                 wellnessProgram={previewWellnessProgram}
               />
               <p className="text-xs text-muted-foreground">
-                Preview shows the currently selected family copy. Runtime layout may rotate across the
-                checked variants according to the selected rotation mode.
+                Preview shows the currently selected family copy. Runtime layout may rotate across
+                the checked variants according to the selected rotation mode.
               </p>
               {previewVariantTemplate && (
                 <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  Current preview anchor: <span className="font-medium text-foreground">{previewVariantTemplate.label}</span>
+                  Current preview anchor:{" "}
+                  <span className="font-medium text-foreground">
+                    {previewVariantTemplate.label}
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -467,7 +499,9 @@ function CreateWellnessProgramPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEditMode ? "Confirm Wellness Update" : "Confirm Wellness Draft"}</DialogTitle>
+            <DialogTitle>
+              {isEditMode ? "Confirm Wellness Update" : "Confirm Wellness Draft"}
+            </DialogTitle>
             <DialogDescription>
               {isEditMode
                 ? "This updates the dedicated wellness draft under the separate `Wellness Programs` module."
@@ -491,7 +525,10 @@ function CreateWellnessProgramPage() {
             </p>
             {selectedDevices.length > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {selectedDevices.slice(0, 4).map((device) => `${device.deviceId} (${device.hostname})`).join(", ")}
+                {selectedDevices
+                  .slice(0, 4)
+                  .map((device) => device.hostname)
+                  .join(", ")}
                 {selectedDevices.length > 4 ? ` + ${selectedDevices.length - 4} more` : ""}
               </p>
             )}
@@ -543,9 +580,7 @@ function buildWellnessReminderSchedule(input: {
     scheduleVersion: 0,
     validFrom: input.scheduledAt ? new Date(input.scheduledAt).toISOString() : null,
     validUntil:
-      input.neverExpires || !input.validUntil
-        ? null
-        : new Date(input.validUntil).toISOString(),
+      input.neverExpires || !input.validUntil ? null : new Date(input.validUntil).toISOString(),
     isActive: false,
   };
 }
@@ -594,14 +629,12 @@ function isValidWellnessSchedule(input: {
   return true;
 }
 
-function getLocalTimeZone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-}
-
 function TemplateReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       <div className="rounded-md border bg-background px-3 py-2 text-sm">{value}</div>
     </div>
   );
