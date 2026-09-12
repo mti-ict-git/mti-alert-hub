@@ -48,7 +48,7 @@ Local evidence under ignored `.tmp/warehouse-theme/`: `browser-results.json`, `t
 
 ## Baseline findings and acceptance boundary
 
-The strict auditor still flags existing native date/select ownership and textarea rules outside the visual slice, plus apparent actionless buttons. In the changed shell/dashboard, flagged Button-asChild links and the Radix account trigger have real navigation/menu behavior; the browser test covers navigation and keyboard account opening. Their presence is not evidence of an inert control. This report does not claim a clean whole-product accessibility or UI-contract audit.
+The strict auditor still flags existing native date/select ownership and textarea rules outside the visual slice, plus apparent actionless buttons. In the changed shell/dashboard, flagged Button-asChild links and the Radix account trigger have real navigation/menu behavior; the browser test covers navigation and keyboard account opening. Their presence is not evidence of an inert control. This report does not claim a clean whole-product accessibility or UI-contract audit. When the development server stopped, its log also showed hydration warnings for injected `data-tsd-source` attributes in the unchanged `__root.tsx` shell. The warnings concern development source-tag metadata; no uncaught browser exception occurred. Production build passed, but production-runtime hydration was not separately exercised.
 
 The Devices service still requests at most the first 200 approved/pending records; full server pagination is pre-existing follow-up work. Existing sample dashboard analytics remain labeled pending real endpoint integration. Comprehensive form/permission/backend acceptance remains with the existing project workflows.
 
