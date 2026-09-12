@@ -113,12 +113,40 @@ function LoginPage() {
           className="flex min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-12 lg:py-10"
         >
           <div className="flex flex-1 flex-col justify-center">
-            <div className="mb-7 flex flex-col items-center text-center">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emergency text-emergency-foreground">
-                <Siren aria-hidden="true" className="h-6 w-6" />
-              </div>
-              <p className="text-2xl font-semibold tracking-tight">MTI Alert</p>
-              <p className="mt-1 text-xs text-muted-foreground">Emergency Notification System</p>
+            <div
+              aria-label="Merdeka companies"
+              className="mb-7 grid grid-cols-3 items-center gap-3 rounded-lg bg-white px-2 py-5"
+            >
+              <img
+                src="/images/brand/mti-corporate.svg"
+                alt="Merdeka Tsingshan Indonesia"
+                width={138}
+                height={30}
+                className="h-12 w-full object-contain"
+              />
+              <img
+                src="/images/brand/mcg-logo.png"
+                alt="Merdeka Copper Gold"
+                width={2800}
+                height={1226}
+                className="h-12 w-full object-contain"
+              />
+              <img
+                src="/images/brand/mbm-logo.png"
+                alt="Merdeka Battery Materials"
+                width={438}
+                height={108}
+                className="h-12 w-full object-contain"
+              />
+            </div>
+            <div className="mb-6 flex justify-center rounded-lg bg-white px-4 py-2">
+              <img
+                src="/images/brand/mti-alert-logo/logo.svg"
+                alt="MTI Alert - Emergency Notification System"
+                width={660}
+                height={176}
+                className="h-auto w-full max-w-[300px]"
+              />
             </div>
             <div className="border-t pt-6 text-center">
               <h1 id="login-title" className="text-lg font-semibold">

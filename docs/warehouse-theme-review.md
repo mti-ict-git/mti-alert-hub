@@ -79,3 +79,12 @@ Vite now proxies /api to DEV_API_TARGET (default http://127.0.0.1:4019) and stri
 Real browser verification: /api/health returned 200/ok; the actual frontend apiClient sent an empty login payload to same-origin /api/auth/login and received backend validation 422. The validation rejects missing fields before LDAP, so no actual credentials or account attempts were required. This confirms the prior CORS barrier is removed; the user must retry their own credentials to verify their account login. No successful real-user login is claimed.
 
 Follow-up verification: production build and targeted config/script lint passed; all 8 isolated login regression checks passed after updating the fixture interceptor to cover both direct and same-origin API paths.
+
+
+## Login corporate and application logos - 2026-09-12
+
+Replaced Gold Resources with Merdeka Tsingshan Indonesia as requested. Corporate row uses the complete official MTI vector artwork extracted from the Merdeka 2023 sustainability report, followed by the Services MCG and MBM assets. Added a separate original geometric MTI Alert application logo with copper and graphite colors. Asset provenance and downloadable SVG/transparent PNG logo package are under public/images/brand.
+
+Verification: targeted login ESLint passed; all 8 isolated login browser checks passed with zero uncaught exceptions and synthetic intercepted authentication requests. Desktop and 390px mobile screenshots reviewed. No authentication behavior changed.
+
+Production build passed for the logo integration; git diff --check passed.

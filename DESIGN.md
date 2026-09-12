@@ -115,3 +115,8 @@ Copy is direct and operational. Wellness reporting distinguishes displayed, enga
 - **Do:** reuse shared primitives and semantic tokens across list and detail reporting surfaces.
 - **Don't:** hide ambiguous wellness outcomes inside confirmed completion.
 - **Don't:** trade table readability or accessibility for decorative dashboard styling.
+
+
+### Login brand assets
+
+Corporate header order: Merdeka Tsingshan Indonesia, Merdeka Copper Gold, Merdeka Battery Materials. Preserve original corporate artwork and proportions. MTI uses the original vector paths from the official 2023 sustainability report. The separate MTI Alert application mark uses graphite #303D49 and copper #B24F26; these brand colors do not override semantic emergency status colors. Local SVG and transparent PNG sources are in public/images/brand/mti-alert-logo.
