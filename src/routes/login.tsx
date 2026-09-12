@@ -37,14 +37,14 @@ function LoginPage() {
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-10 text-sidebar-foreground md:flex">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-login-panel p-10 text-login-foreground md:flex">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
             <Siren className="h-5 w-5" />
           </div>
           <div>
             <div className="text-lg font-semibold">MTI Alert</div>
-            <div className="text-xs uppercase tracking-widest text-sidebar-foreground/60">
+            <div className="text-xs uppercase tracking-widest text-login-foreground/60">
               Emergency Notification System
             </div>
           </div>
@@ -54,19 +54,21 @@ function LoginPage() {
             Reach every officer,
             <br /> every site, in seconds.
           </h2>
-          <p className="mt-4 max-w-sm text-sm text-sidebar-foreground/70">
+          <p className="mt-4 max-w-sm text-sm text-login-foreground/70">
             Coordinate emergency and operational notifications across desktop agents, WhatsApp,
             email, and digital signage from a single control room.
           </p>
-          <div className="mt-8 flex flex-wrap gap-2 text-xs text-sidebar-foreground/70">
+          <div className="mt-8 flex flex-wrap gap-2 text-xs text-login-foreground/70">
             {["Acid Plant", "Pyrite", "Chloride", "CCP", "Makarti", "Labota"].map((s) => (
-              <span key={s} className="rounded-full border border-sidebar-border px-3 py-1">
+              <span key={s} className="rounded-full border border-login-border px-3 py-1">
                 {s}
               </span>
             ))}
           </div>
         </div>
-        <div className="text-xs text-sidebar-foreground/50">© {new Date().getFullYear()} PT MTI. Internal use only.</div>
+        <div className="text-xs text-login-foreground/50">
+          © {new Date().getFullYear()} PT MTI. Internal use only.
+        </div>
       </div>
 
       <div className="flex items-center justify-center bg-background p-6">
@@ -83,14 +85,25 @@ function LoginPage() {
               Use your MTI corporate account to continue.
             </p>
 
-            <form onSubmit={submit} className="mt-6 space-y-4">
+            <form noValidate onSubmit={submit} className="mt-6 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="u">Username</Label>
-                <Input id="u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+                <Input
+                  id="u"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="p">Password</Label>
-                <Input id="p" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+                <Input
+                  id="p"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in…" : "Sign in"}

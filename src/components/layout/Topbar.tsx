@@ -1,6 +1,5 @@
-import { Bell, LogOut, Search, User as UserIcon } from "lucide-react";
+import { Bell, ChevronRight, LogOut, User as UserIcon } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,24 +10,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 
 export function Topbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const section = pathname.split("/")[1];
+  const sectionNames: Record<string, string> = {
+    notifications: "Notification Center",
+    "wellness-programs": "Wellness Programs",
+    employees: "Employees",
+    devices: "Devices",
+    whatsapp: "WhatsApp Gateway",
+    templates: "Templates",
+    reports: "Reports",
+    settings: "Settings",
+    "audit-logs": "Audit Logs",
+  };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-18 shrink-0 items-center gap-3 border-b bg-card px-4 md:px-6">
       <SidebarTrigger />
-      <div className="hidden flex-1 md:flex">
-        <div className="relative w-full max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search notifications, employees, devices..." className="pl-9" />
-        </div>
-      </div>
+      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+        <Link
+          to="/"
+          className="rounded-sm text-muted-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          MTI Alert
+        </Link>
+        <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate font-medium">{sectionNames[section] ?? "Control Room"}</span>
+      </nav>
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="h-4 w-4" />
+        <Button variant="ghost" size="icon" asChild>
+          <Link to="/notifications" aria-label="Open Notification Center">
+            <Bell className="h-4 w-4" />
+          </Link>
         </Button>
         <Button
           variant="ghost"
@@ -44,7 +62,7 @@ export function Topbar() {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2" aria-label="Open account menu">
+            <Button variant="ghost" className="h-11 gap-3" aria-label="Open account menu">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <UserIcon className="h-4 w-4" />
               </div>

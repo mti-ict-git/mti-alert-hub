@@ -23,6 +23,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const primaryItems = [
@@ -47,17 +48,34 @@ const systemItems = [
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isActive = (url: string) => (url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/"));
+  const { setOpenMobile } = useSidebar();
+  const activeItem = [...primaryItems, ...manageItems, ...systemItems]
+    .filter(({ url }) =>
+      url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/"),
+    )
+    .sort((a, b) => b.url.length - a.url.length)[0];
+  const isActive = (url: string) => activeItem?.url === url;
 
   const renderGroup = (label: string, items: typeof primaryItems) => (
-    <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+    <SidebarGroup className="px-3 py-3 group-data-[collapsible=icon]:px-2">
+      <SidebarGroupLabel className="mb-1 text-[10px] font-semibold uppercase tracking-widest">
+        {label}
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                <Link to={item.url}>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive(item.url)}
+                tooltip={item.title}
+                className="h-10 rounded-lg px-3"
+              >
+                <Link
+                  to={item.url}
+                  aria-current={isActive(item.url) ? "page" : undefined}
+                  onClick={() => setOpenMobile(false)}
+                >
                   <item.icon className="h-4 w-4" />
                   <span>{item.title}</span>
                 </Link>
@@ -71,20 +89,20 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
+      <SidebarHeader className="h-18 justify-center border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
             <Siren className="h-4 w-4" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold text-sidebar-foreground">MTI Alert</span>
+            <span className="text-base font-semibold text-foreground">MTI Alert</span>
             <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
               Emergency Notification
             </span>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="gap-0">
         {renderGroup("Operations", primaryItems)}
         {renderGroup("Management", manageItems)}
         {renderGroup("System", systemItems)}

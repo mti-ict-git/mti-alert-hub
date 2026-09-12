@@ -3,13 +3,13 @@ version: alpha
 name: "MTI Alert Hub"
 description: "A calm, operational command surface for communication delivery and employee wellness programs."
 colors:
-  primary: "oklch(0.42 0.15 255)"
-  background: "oklch(0.985 0.005 240)"
-  foreground: "oklch(0.18 0.03 250)"
+  primary: "#2563eb"
+  background: "#f6f8fb"
+  foreground: "#182433"
   success: "oklch(0.62 0.16 155)"
   warning: "oklch(0.76 0.16 75)"
   destructive: "oklch(0.55 0.24 27)"
-  border: "oklch(0.9 0.01 250)"
+  border: "#e5e9ef"
 typography:
   sans:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
@@ -21,6 +21,7 @@ rounded:
   md: "0.375rem"
   lg: "0.5rem"
   xl: "0.75rem"
+  surface: "1rem"
 spacing:
   control: "0.5rem"
   card: "1.5rem"
@@ -62,6 +63,8 @@ Inter is the application and data font, with system fallbacks for predictable Wi
 
 ## Layout
 
+The user-approved warehouse reference supplies a pale 246px sidebar, solid-blue active navigation, white 72px sticky header, 16px cards and 24px padding. The six Control Room metrics use a responsive 1/2/3-column grid so labels stay readable. Inter remains the declared application font with system fallbacks; no external font request is required. The login panel has independent dark tokens to avoid coupling its contrast to sidebar changes.
+
 Pages use the existing application shell, a 1.5rem section rhythm, responsive one-to-three-column summaries, and horizontally scrollable semantic tables where comparison matters. Loading, empty, and error states retain stable table geometry. Forms keep natural document scrolling; table overflow remains owned by the table surface.
 
 ## Elevation & Depth
@@ -70,9 +73,13 @@ Hierarchy comes primarily from tonal surfaces and borders. Cards may use the sha
 
 ## Shapes
 
-The base radius is 0.5rem. Controls and cards use the shared rounded scale; status badges may use a pill shape to distinguish compact metadata from actions. Avoid introducing feature-specific radii.
+The base control radius remains 0.5rem. Cards use the separate 1rem surface radius; status badges may use a pill shape to distinguish compact metadata from actions. Avoid introducing feature-specific radii.
 
 ## Components
+
+### Warehouse theme token mapping
+
+Runtime CSS remains canonical (Model B). `--primary`, `--background`, `--foreground`, and `--border` feed Tailwind semantic utilities. `--surface-radius` maps to `rounded-surface` on Card; `--surface-shadow` maps to `shadow-card`. Sidebar active buttons consume `--sidebar-primary` and its foreground; hover uses the separate accent pair. Login consumes `--login-panel`, `--login-foreground`, and `--login-border`. Dark mode retains semantic remapping. Emergency/warning/success values are preserved. This is an intentional visual evolution from the dark sidebar and 12px cards.
 
 ### Foundational visual states
 

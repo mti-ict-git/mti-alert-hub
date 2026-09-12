@@ -26,7 +26,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { devicesService } from "@/services/devices.service";
@@ -78,17 +85,27 @@ function DevicesPage() {
   const [form, setForm] = useState<RolloutFormState>(() => createDefaultRolloutForm());
   const [pendingSelection, setPendingSelection] = useState<PendingDeviceEnrollment | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
-  const [pendingForm, setPendingForm] = useState<PendingApprovalFormState>(
-    () => createDefaultPendingApprovalForm(),
+  const [pendingForm, setPendingForm] = useState<PendingApprovalFormState>(() =>
+    createDefaultPendingApprovalForm(),
   );
 
-  const { data: devices = [] } = useQuery({
+  const {
+    data: devices = [],
+    isPending: devicesLoading,
+    isError: devicesError,
+    refetch: reloadDevices,
+  } = useQuery({
     queryKey: ["devices"],
     queryFn: devicesService.list,
     refetchInterval: 8000,
   });
 
-  const { data: pendingDevices = [] } = useQuery({
+  const {
+    data: pendingDevices = [],
+    isPending: pendingLoading,
+    isError: pendingError,
+    refetch: reloadPending,
+  } = useQuery({
     queryKey: ["devices", "pending"],
     queryFn: devicesService.listPending,
     refetchInterval: 8000,
@@ -210,20 +227,61 @@ function DevicesPage() {
     <div>
       <PageHeader
         title="Desktop Agents"
-        description={`${online} of ${devices.length} approved agents online, with ${pendingCount} pending device approval request${pendingCount === 1 ? "" : "s"}.`}
+        description="Monitor registered desktop agents and review device enrollment requests."
       />
 
+      <div
+        className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-surface border bg-card px-6 py-4 text-sm"
+        role="status"
+      >
+        <span>
+          <strong className="tabular-nums">{devicesLoading || devicesError ? "—" : online}</strong>{" "}
+          online
+        </span>
+        <span>
+          <strong className="tabular-nums">
+            {devicesLoading || devicesError ? "—" : devices.length}
+          </strong>{" "}
+          approved in current view
+        </span>
+        <span>
+          <strong className="tabular-nums">
+            {pendingLoading || pendingError ? "—" : pendingCount}
+          </strong>{" "}
+          pending in current view
+        </span>
+        {(devicesError || pendingError) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void reloadDevices();
+              void reloadPending();
+            }}
+          >
+            Retry device data
+          </Button>
+        )}
+      </div>
       <Tabs defaultValue="approved" className="space-y-4">
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap gap-1 rounded-xl border bg-card p-1">
           <TabsTrigger value="approved">Approved Devices</TabsTrigger>
-          <TabsTrigger value="pending">Pending Approval ({pendingCount})</TabsTrigger>
+          <TabsTrigger value="pending">
+            Pending Approval ({pendingLoading || pendingError ? "—" : pendingCount})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="approved">
           <Card>
+            <CardHeader className="border-b">
+              <CardTitle className="text-base">Approved Devices</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Registered desktop agents and their latest connection details.
+              </p>
+            </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto rounded-b-surface">
+                <Table className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status</TableHead>
@@ -242,13 +300,26 @@ function DevicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {!devices.length && (
+                      <TableRow>
+                        <TableCell colSpan={13} className="h-32 text-center text-muted-foreground">
+                          {devicesLoading
+                            ? "Loading approved devices…"
+                            : devicesError
+                              ? "Could not load approved devices. Use Retry device data above."
+                              : "No approved devices yet."}
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {devices.map((device) => (
                       <TableRow key={device.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span
                               className={`h-2 w-2 rounded-full ${
-                                device.status === "Online" ? "bg-success animate-pulse" : "bg-muted-foreground"
+                                device.status === "Online"
+                                  ? "bg-success animate-pulse"
+                                  : "bg-muted-foreground"
                               }`}
                             />
                             <StatusBadge status={device.status} />
@@ -256,7 +327,9 @@ function DevicesPage() {
                         </TableCell>
                         <TableCell className="font-mono text-xs">{device.deviceId}</TableCell>
                         <TableCell className="font-medium">{device.hostname}</TableCell>
-                        <TableCell className="text-sm">{device.siteName ?? device.siteId}</TableCell>
+                        <TableCell className="text-sm">
+                          {device.siteName ?? device.siteId}
+                        </TableCell>
                         <TableCell className="text-sm">{device.areaName ?? "-"}</TableCell>
                         <TableCell className="text-sm">{device.locationLabel ?? "-"}</TableCell>
                         <TableCell className="text-sm">{device.ownershipMode}</TableCell>
@@ -335,7 +408,11 @@ function DevicesPage() {
                               onClick={() => {
                                 setRolloutDevice(device);
                                 setPreviewResult(null);
-                                setForm(createRolloutFormFromPackage(readyPackages[0] ?? rolloutPackages[0] ?? null));
+                                setForm(
+                                  createRolloutFormFromPackage(
+                                    readyPackages[0] ?? rolloutPackages[0] ?? null,
+                                  ),
+                                );
                                 setRolloutOpen(true);
                               }}
                             >
@@ -362,8 +439,8 @@ function DevicesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto rounded-b-surface">
+                <Table className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status</TableHead>
@@ -380,8 +457,15 @@ function DevicesPage() {
                   <TableBody>
                     {pendingDevices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
-                          No pending device approval requests.
+                        <TableCell
+                          colSpan={9}
+                          className="py-10 text-center text-sm text-muted-foreground"
+                        >
+                          {pendingLoading
+                            ? "Loading pending requests…"
+                            : pendingError
+                              ? "Could not load pending requests. Use Retry device data above."
+                              : "No pending device approval requests."}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -391,12 +475,18 @@ function DevicesPage() {
                             <StatusBadge status={request.requestStatus} />
                           </TableCell>
                           <TableCell className="font-medium">{request.hostname}</TableCell>
-                          <TableCell className="font-mono text-xs">{request.deviceIdentifier}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {request.deviceIdentifier}
+                          </TableCell>
                           <TableCell className="text-xs">{request.agentVersion ?? "-"}</TableCell>
-                          <TableCell className="text-sm">{request.activeUserIdentifier ?? "-"}</TableCell>
+                          <TableCell className="text-sm">
+                            {request.activeUserIdentifier ?? "-"}
+                          </TableCell>
                           <TableCell className="text-sm">{request.requestCount}</TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(request.firstSeenAt), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(request.firstSeenAt), {
+                              addSuffix: true,
+                            })}
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(request.lastSeenAt), { addSuffix: true })}
@@ -407,7 +497,12 @@ function DevicesPage() {
                                 size="sm"
                                 onClick={() => {
                                   setPendingSelection(request);
-                                  setPendingForm(createPendingApprovalFormFromRequest(request, organizationReference?.sites[0]?.id ?? ""));
+                                  setPendingForm(
+                                    createPendingApprovalFormFromRequest(
+                                      request,
+                                      organizationReference?.sites[0]?.id ?? "",
+                                    ),
+                                  );
                                   setPendingOpen(true);
                                 }}
                               >
@@ -451,8 +546,8 @@ function DevicesPage() {
           <DialogHeader>
             <DialogTitle>Trigger Device Rollout</DialogTitle>
             <DialogDescription>
-              Push a versioned MSI rollout to a single Windows Agent from the admin console. This uses
-              the same backend rollout path we already validated on the endpoint.
+              Push a versioned MSI rollout to a single Windows Agent from the admin console. This
+              uses the same backend rollout path we already validated on the endpoint.
             </DialogDescription>
           </DialogHeader>
 
@@ -484,7 +579,8 @@ function DevicesPage() {
                       <Select
                         value={form.selectedPackageUrl}
                         onValueChange={(value) => {
-                          const nextPackage = rolloutPackages.find((item) => item.packageUrl === value) ?? null;
+                          const nextPackage =
+                            rolloutPackages.find((item) => item.packageUrl === value) ?? null;
                           setForm(createRolloutFormFromPackage(nextPackage));
                           setPreviewResult(null);
                         }}
@@ -492,7 +588,9 @@ function DevicesPage() {
                         <SelectTrigger id="package-select">
                           <SelectValue
                             placeholder={
-                              packagesLoading ? "Loading local packages..." : "Select a published MSI package"
+                              packagesLoading
+                                ? "Loading local packages..."
+                                : "Select a published MSI package"
                             }
                           />
                         </SelectTrigger>
@@ -505,12 +603,12 @@ function DevicesPage() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Packages are discovered from `backend/local-packages` and inspected from the backend
-                        server before this dialog renders them.
+                        Packages are discovered from `backend/local-packages` and inspected from the
+                        backend server before this dialog renders them.
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Manage package uploads from {"Settings > Desktop Agent"}. This rollout dialog only
-                        applies packages that are already registered globally.
+                        Manage package uploads from {"Settings > Desktop Agent"}. This rollout
+                        dialog only applies packages that are already registered globally.
                       </p>
                     </div>
 
@@ -518,8 +616,16 @@ function DevicesPage() {
                       <div className="rounded-xl border bg-background/90 p-3 text-xs text-muted-foreground">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <InfoRow label="Version" value={selectedPackage.version ?? "-"} />
-                          <InfoRow label="Signature" value={selectedPackage.signatureStatus ?? "-"} badge />
-                          <InfoRow label="Thumbprint" value={selectedPackage.signature ?? "-"} mono />
+                          <InfoRow
+                            label="Signature"
+                            value={selectedPackage.signatureStatus ?? "-"}
+                            badge
+                          />
+                          <InfoRow
+                            label="Thumbprint"
+                            value={selectedPackage.signature ?? "-"}
+                            mono
+                          />
                           <InfoRow
                             label="Last Modified"
                             value={new Date(selectedPackage.lastModifiedAt).toLocaleString()}
@@ -527,8 +633,8 @@ function DevicesPage() {
                         </div>
                         {!selectedPackage.signature && (
                           <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-warning-foreground">
-                            Signature thumbprint could not be auto-read from the backend runtime. Fill the
-                            signer thumbprint manually before preview/apply.
+                            Signature thumbprint could not be auto-read from the backend runtime.
+                            Fill the signer thumbprint manually before preview/apply.
                           </p>
                         )}
                       </div>
@@ -540,7 +646,9 @@ function DevicesPage() {
                   <Field label="Action">
                     <Select
                       value={form.action}
-                      onValueChange={(value) => setForm((current) => ({ ...current, action: value as DeviceRolloutAction }))}
+                      onValueChange={(value) =>
+                        setForm((current) => ({ ...current, action: value as DeviceRolloutAction }))
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -596,7 +704,10 @@ function DevicesPage() {
                       <Input
                         value={form.sha256}
                         onChange={(event) =>
-                          setForm((current) => ({ ...current, sha256: event.target.value.toUpperCase() }))
+                          setForm((current) => ({
+                            ...current,
+                            sha256: event.target.value.toUpperCase(),
+                          }))
                         }
                         placeholder="Package SHA256"
                         className="font-mono text-xs"
@@ -606,7 +717,10 @@ function DevicesPage() {
                       <Input
                         value={form.signature}
                         onChange={(event) =>
-                          setForm((current) => ({ ...current, signature: event.target.value.toUpperCase() }))
+                          setForm((current) => ({
+                            ...current,
+                            signature: event.target.value.toUpperCase(),
+                          }))
                         }
                         placeholder="Signer certificate thumbprint"
                         className="font-mono text-xs"
@@ -618,6 +732,7 @@ function DevicesPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Operator Notes">
                     <Textarea
+                      className="resize-none"
                       value={form.notes}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, notes: event.target.value }))
@@ -628,6 +743,7 @@ function DevicesPage() {
                   </Field>
                   <Field label="Release Notes">
                     <Textarea
+                      className="resize-none"
                       value={form.releaseNotes}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, releaseNotes: event.target.value }))
@@ -678,19 +794,25 @@ function DevicesPage() {
                     {previewResult ? (
                       <>
                         <InfoRow label="Mode" value={previewResult.mode} badge />
-                        <InfoRow label="Current Active Rollouts" value={`${previewResult.currentlyActiveRollouts}`} />
+                        <InfoRow
+                          label="Current Active Rollouts"
+                          value={`${previewResult.currentlyActiveRollouts}`}
+                        />
                         <InfoRow label="Target Host" value={previewResult.target.hostname} />
-                        <InfoRow label="Target Version" value={previewResult.rollout.targetVersion} />
+                        <InfoRow
+                          label="Target Version"
+                          value={previewResult.rollout.targetVersion}
+                        />
                         <InfoRow label="Package Type" value={previewResult.package.packageType} />
                         <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          Dry run confirmed that the backend can resolve the target device and would create
-                          the rollout intent with the package metadata above.
+                          Dry run confirmed that the backend can resolve the target device and would
+                          create the rollout intent with the package metadata above.
                         </div>
                       </>
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        Run preview first so the backend validates the target device and rollout metadata before
-                        you apply it.
+                        Run preview first so the backend validates the target device and rollout
+                        metadata before you apply it.
                       </p>
                     )}
                   </CardContent>
@@ -704,22 +826,16 @@ function DevicesPage() {
               variant="outline"
               onClick={() => previewMutation.mutate()}
               disabled={
-                !isRolloutFormValid(form) ||
-                previewMutation.isPending ||
-                applyMutation.isPending
+                !isRolloutFormValid(form) || previewMutation.isPending || applyMutation.isPending
               }
             >
-              {previewMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              {previewMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Preview Rollout
             </Button>
             <Button
               onClick={() => applyMutation.mutate()}
               disabled={
-                !isRolloutFormValid(form) ||
-                previewMutation.isPending ||
-                applyMutation.isPending
+                !isRolloutFormValid(form) || previewMutation.isPending || applyMutation.isPending
               }
             >
               {applyMutation.isPending ? (
@@ -747,8 +863,9 @@ function DevicesPage() {
           <DialogHeader>
             <DialogTitle>Approve Pending Device</DialogTitle>
             <DialogDescription>
-              Approving this request moves the device into the trusted `public.devices` baseline. The existing
-              agent will retry automatically and should connect on the next session attempt.
+              Approving this request moves the device into the trusted `public.devices` baseline.
+              The existing agent will retry automatically and should connect on the next session
+              attempt.
             </DialogDescription>
           </DialogHeader>
 
@@ -761,8 +878,17 @@ function DevicesPage() {
                 <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
                   <InfoRow label="Hostname" value={pendingSelection.hostname} />
                   <InfoRow label="Version" value={pendingSelection.agentVersion ?? "-"} />
-                  <InfoRow label="Device Identifier" value={pendingSelection.deviceIdentifier} mono />
-                  <InfoRow label="Last Seen" value={formatDistanceToNow(new Date(pendingSelection.lastSeenAt), { addSuffix: true })} />
+                  <InfoRow
+                    label="Device Identifier"
+                    value={pendingSelection.deviceIdentifier}
+                    mono
+                  />
+                  <InfoRow
+                    label="Last Seen"
+                    value={formatDistanceToNow(new Date(pendingSelection.lastSeenAt), {
+                      addSuffix: true,
+                    })}
+                  />
                 </CardContent>
               </Card>
 
@@ -771,7 +897,11 @@ function DevicesPage() {
                   <Select
                     value={pendingForm.siteId}
                     onValueChange={(value) => {
-                      setPendingForm((current) => ({ ...current, siteId: value, areaId: NO_AREA_VALUE }));
+                      setPendingForm((current) => ({
+                        ...current,
+                        siteId: value,
+                        areaId: NO_AREA_VALUE,
+                      }));
                     }}
                   >
                     <SelectTrigger>
@@ -790,7 +920,9 @@ function DevicesPage() {
                 <Field label="Area">
                   <Select
                     value={pendingForm.areaId}
-                    onValueChange={(value) => setPendingForm((current) => ({ ...current, areaId: value }))}
+                    onValueChange={(value) =>
+                      setPendingForm((current) => ({ ...current, areaId: value }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Optional area" />
@@ -810,7 +942,10 @@ function DevicesPage() {
                   <Input
                     value={pendingForm.locationLabel}
                     onChange={(event) =>
-                      setPendingForm((current) => ({ ...current, locationLabel: event.target.value }))
+                      setPendingForm((current) => ({
+                        ...current,
+                        locationLabel: event.target.value,
+                      }))
                     }
                     placeholder="Example: Office Floor 2"
                   />
@@ -850,7 +985,9 @@ function DevicesPage() {
             </Button>
             <Button
               onClick={() => approvePendingMutation.mutate()}
-              disabled={!pendingSelection || !pendingForm.siteId || approvePendingMutation.isPending}
+              disabled={
+                !pendingSelection || !pendingForm.siteId || approvePendingMutation.isPending
+              }
             >
               {approvePendingMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -941,10 +1078,10 @@ function createPendingApprovalFormFromRequest(
 function isRolloutFormValid(form: RolloutFormState) {
   return Boolean(
     form.version.trim() &&
-      form.packageUrl.trim() &&
-      form.sha256.trim() &&
-      form.signature.trim() &&
-      form.rolloutChannel.trim(),
+    form.packageUrl.trim() &&
+    form.sha256.trim() &&
+    form.signature.trim() &&
+    form.rolloutChannel.trim(),
   );
 }
 
