@@ -75,7 +75,7 @@ export const whatsappMessages: WhatsAppMessage[] = Array.from({ length: 28 }).ma
     type: incoming ? "Incoming" : "Outgoing",
     content: incoming
       ? ["1", "2", "3", "Safe", "Need help at Unit 4"][i % 5]
-      : "🚨 MTI ALERT — Fire Alarm at Acid Plant. Evacuate to Assembly Point A. Reply 1=Safe, 2=Need Assistance, 3=Not in Area.",
+      : "🚨 MTI CONNECT — Fire Alarm at Acid Plant. Evacuate to Assembly Point A. Reply 1=Safe, 2=Need Assistance, 3=Not in Area.",
     status: i % 9 === 0 ? "Failed" : "Delivered",
   };
 });

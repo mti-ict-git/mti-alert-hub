@@ -77,14 +77,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MTI Alert — Emergency Notification System" },
-      { name: "description", content: "MTI Alert is an enterprise emergency and operational notification system for desktop agents, WhatsApp, email, and digital signage." },
-      { property: "og:title", content: "MTI Alert — Emergency Notification System" },
-      { property: "og:description", content: "Send emergency and operational notifications to officers and field teams across every site." },
+      { title: "MTI Connect — Emergency Notification System" },
+      {
+        name: "description",
+        content:
+          "MTI Connect is an enterprise emergency and operational notification system for desktop agents, WhatsApp, email, and digital signage.",
+      },
+      { property: "og:title", content: "MTI Connect — Emergency Notification System" },
+      {
+        property: "og:description",
+        content:
+          "Send emergency and operational notifications to officers and field teams across every site.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      { rel: "icon", type: "image/svg+xml", href: "/images/brand/mti-connect-logo/logo-icon.svg" },
       {
         rel: "stylesheet",
         href: appCss,

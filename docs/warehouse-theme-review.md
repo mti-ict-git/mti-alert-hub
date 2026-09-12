@@ -88,3 +88,10 @@ Replaced Gold Resources with Merdeka Tsingshan Indonesia as requested. Corporate
 Verification: targeted login ESLint passed; all 8 isolated login browser checks passed with zero uncaught exceptions and synthetic intercepted authentication requests. Desktop and 390px mobile screenshots reviewed. No authentication behavior changed.
 
 Production build passed for the logo integration; git diff --check passed.
+
+
+## MTI Connect rebrand - 2026-09-12
+
+User selected MTI Connect. Replaced the application logo with two open linked forms, graphite #303D49 and copper #B24F26. Added the approved Indonesian tagline to login, reused the square mark in the sidebar and favicon, and renamed web metadata, navigation, reports and notification previews. Corporate MTI/MCG/MBM logos remain separate. Deployment identifiers, backend contracts and installed Windows agent branding are outside this web identity change. SVG and transparent PNG exports plus ZIP are in public/images/brand/mti-connect-logo.
+
+Verification: production build and targeted ESLint passed. Eight isolated login checks and authenticated dashboard branding check passed with zero uncaught exceptions; desktop, 390px mobile and dashboard screenshots reviewed. An initial cold-load gallery check did not observe the selected state. The test now waits for module network activity to settle before interaction and waits for the selected attribute; the complete rerun passed. Strict UI audit still reports existing unrelated ownership/control findings, as documented in prior review; no whole-product audit clearance is claimed. Evidence: .tmp/live-theme/connect-build.txt, connect-lint.txt, connect-audit.json, connect-dashboard.png, login-results.json.

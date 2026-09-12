@@ -1,4 +1,4 @@
-// Shared domain types for MTI Alert.
+// Shared domain types for MTI Connect.
 // TODO(backend): keep these in sync with the Node/Express API schemas.
 
 export type Priority = "Info" | "Warning" | "Emergency" | "Critical";

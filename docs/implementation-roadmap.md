@@ -665,3 +665,10 @@ Prepare the platform for broader rollout and future channels.
 - [x] Replace Gold Resources with the official Merdeka Tsingshan Indonesia mark in the corporate login row.
 - [x] Create and integrate an original MTI Alert application logo; deliver SVG, transparent PNG and ZIP.
 - [x] Verify login desktop/mobile layout and eight isolated login regression checks. Evidence and provenance: docs/warehouse-theme-review.md and public/images/brand/README.md.
+
+
+### MTI Connect web identity - 2026-09-12
+
+- [x] Apply user-selected MTI Connect name, original logo and tagline to the web interface.
+- [x] Deliver SVG, transparent PNG and ZIP logo assets.
+- [x] Verify production build, targeted lint, isolated login and dashboard branding; review desktop/mobile screenshots. Evidence and scope: docs/warehouse-theme-review.md.

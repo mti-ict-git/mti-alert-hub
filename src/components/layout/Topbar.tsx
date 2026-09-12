@@ -37,7 +37,7 @@ export function Topbar() {
           to="/"
           className="rounded-sm text-muted-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
         >
-          MTI Alert
+          MTI Connect
         </Link>
         <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{sectionNames[section] ?? "Control Room"}</span>

@@ -249,7 +249,7 @@ export function DesktopPreview({
               <Icon className="h-4 w-4" />
             </div>
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              MTI Alert · {priority} · {presentation}
+              MTI Connect · {priority} · {presentation}
             </div>
           </div>
           <div className="mt-3 text-sm font-semibold">{title || "—"}</div>

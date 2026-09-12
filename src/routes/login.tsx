@@ -139,14 +139,17 @@ function LoginPage() {
                 className="h-12 w-full object-contain"
               />
             </div>
-            <div className="mb-6 flex justify-center rounded-lg bg-white px-4 py-2">
+            <div className="mb-6 flex flex-col items-center justify-center gap-3 rounded-lg bg-white px-4 py-2">
               <img
-                src="/images/brand/mti-alert-logo/logo.svg"
-                alt="MTI Alert - Emergency Notification System"
-                width={660}
-                height={176}
+                src="/images/brand/mti-connect-logo/logo.svg"
+                alt="MTI Connect"
+                width={640}
+                height={144}
                 className="h-auto w-full max-w-[300px]"
               />
+              <p className="text-center text-xs text-muted-foreground">
+                Terhubung. Terinformasi. Terlindungi.
+              </p>
             </div>
             <div className="border-t pt-6 text-center">
               <h1 id="login-title" className="text-lg font-semibold">

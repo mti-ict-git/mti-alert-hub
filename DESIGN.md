@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: "MTI Alert Hub"
+name: "MTI Connect"
 description: "A calm, operational command surface for communication delivery and employee wellness programs."
 colors:
   primary: "#2563eb"
@@ -34,7 +34,7 @@ components:
   dialog: {}
 ---
 
-# MTI Alert Hub Design System
+# MTI Connect Design System
 
 ## Overview
 
@@ -119,4 +119,7 @@ Copy is direct and operational. Wellness reporting distinguishes displayed, enga
 
 ### Login brand assets
 
-Corporate header order: Merdeka Tsingshan Indonesia, Merdeka Copper Gold, Merdeka Battery Materials. Preserve original corporate artwork and proportions. MTI uses the original vector paths from the official 2023 sustainability report. The separate MTI Alert application mark uses graphite #303D49 and copper #B24F26; these brand colors do not override semantic emergency status colors. Local SVG and transparent PNG sources are in public/images/brand/mti-alert-logo.
+Corporate header order: Merdeka Tsingshan Indonesia, Merdeka Copper Gold, Merdeka Battery Materials. Preserve original corporate artwork and proportions. MTI uses the original vector paths from the official 2023 sustainability report. The separate MTI Connect application mark uses graphite #303D49 and copper #B24F26; these brand colors do not override semantic emergency status colors. Local SVG and transparent PNG sources are in public/images/brand/mti-connect-logo.
+
+
+MTI Connect uses two open linked forms as its application mark. Login pairs the horizontal wordmark with the tagline "Terhubung. Terinformasi. Terlindungi." Sidebar and favicon reuse the square mark. Corporate marks remain independent; emergency semantic colors keep their established meanings. This release updates web display branding; deployment identifiers and installed agent software remain stable.

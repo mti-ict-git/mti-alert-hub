@@ -11,7 +11,6 @@ import {
   BarChart3,
   Settings,
   ScrollText,
-  Siren,
 } from "lucide-react";
 import {
   Sidebar,
@@ -91,13 +90,17 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-18 justify-center border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
-            <Siren className="h-4 w-4" />
-          </div>
+          <img
+            src="/images/brand/mti-connect-logo/logo-icon.svg"
+            alt=""
+            width={144}
+            height={144}
+            className="h-9 w-9 shrink-0 rounded-md bg-white"
+          />
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-base font-semibold text-foreground">MTI Alert</span>
+            <span className="text-base font-semibold text-foreground">MTI Connect</span>
             <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-              Emergency Notification
+              Employee Communications
             </span>
           </div>
         </div>

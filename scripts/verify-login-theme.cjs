@@ -55,7 +55,9 @@ fs.mkdirSync(out, { recursive: true });
       .locator('section[aria-label="Site photos"] > div > img')
       .evaluate((img) => img.decode());
     await page.screenshot({ path: out + "/services-login-desktop.png", fullPage: true });
+    await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Show operations", exact: true }).click();
+    await page.locator('button[aria-label="Show operations"][aria-pressed="true"]').waitFor();
     assert.equal(
       await page
         .getByRole("button", { name: "Show operations", exact: true })

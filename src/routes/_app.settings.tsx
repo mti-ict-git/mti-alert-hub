@@ -68,7 +68,7 @@ function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Configure MTI Alert channels, agents, and permissions." actions={<Button onClick={save}>Save Changes</Button>} />
+      <PageHeader title="Settings" description="Configure MTI Connect channels, agents, and permissions." actions={<Button onClick={save}>Save Changes</Button>} />
 
       <Tabs defaultValue="general">
         <TabsList className="flex-wrap">

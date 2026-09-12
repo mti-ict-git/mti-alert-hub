@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_app/reports")({
 
 function ReportsPage() {
   useEffect(() => {
-    document.title = "Reports | MTI Alert Hub";
+    document.title = "Reports | MTI Connect";
   }, []);
   const { data: deliveryByContentType = [] } = useQuery({
     queryKey: ["report-delivery-by-content-type"],

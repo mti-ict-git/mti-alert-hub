@@ -155,7 +155,7 @@ function NotificationCenter() {
     <div>
       <PageHeader
         title="Notification Center"
-        description="All standard notifications sent from MTI Alert. Wellness programs are managed separately."
+        description="All standard notifications sent from MTI Connect. Wellness programs are managed separately."
         actions={
           <Button asChild>
             <Link to="/notifications/new">
