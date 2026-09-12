@@ -35,3 +35,7 @@ Visual ownership: [DESIGN.md](DESIGN.md). This branch changes presentation in th
 ## Branch review
 
 The warehouse theme is developed on `feat/warehouse-theme`. Merge or push to main requires the user's later acceptance. Verification evidence and outstanding baseline findings live in `docs/warehouse-theme-review.md`.
+
+## Corporate login presentation
+
+The Services-inspired sign-in page uses one corporate credential form connected to the existing auth service. No provider, permissions, session persistence or successful-login destination changes. Required fields focus the first missing value; failed sign-in retains inputs and shows a generic inline message; password visibility is explicit; duplicate requests are guarded. Site photographs are selected manually with pressed-state buttons and no autoplay.

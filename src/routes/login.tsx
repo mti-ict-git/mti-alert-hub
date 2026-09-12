@@ -1,131 +1,223 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Siren, ShieldCheck } from "lucide-react";
+import { useRef, useState } from "react";
+import { Eye, EyeOff, Loader2, ShieldCheck, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
-});
+export const Route = createFileRoute("/login")({ component: LoginPage });
+
+const sitePhotos = [
+  { src: "/images/login/camp.jpg", label: "Camp facilities" },
+  { src: "/images/login/operations.jpeg", label: "Operations" },
+  { src: "/images/login/site.jpg", label: "Site overview" },
+];
 
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const usernameInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [imageFailed, setImageFailed] = useState(false);
+  const usernameMissing = submitted && !username.trim();
+  const passwordMissing = submitted && !password;
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!username || !password) return;
+    if (submitting.current) return;
+    setSubmitted(true);
+    setError("");
+    if (!username.trim() || !password) {
+      (!username.trim() ? usernameInput : passwordInput).current?.focus();
+      return;
+    }
+    submitting.current = true;
     setLoading(true);
     try {
-      await login(username, password);
-      toast.success("Signed in");
-      navigate({ to: "/" });
+      await login(username.trim(), password);
+      await navigate({ to: "/" });
     } catch {
-      toast.error("Login failed");
+      setError(
+        "Unable to sign in. Check your corporate credentials and connection, then try again.",
+      );
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-login-panel p-10 text-login-foreground md:flex">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
-            <Siren className="h-5 w-5" />
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-6 sm:p-8 lg:p-12">
+      <div className="grid w-full max-w-[1120px] overflow-hidden rounded-surface border bg-card shadow-login lg:min-h-[720px] lg:grid-cols-[1.15fr_1fr]">
+        <section
+          aria-label="Site photos"
+          className="flex min-w-0 flex-col border-b border-border lg:border-b-0 lg:border-r"
+        >
+          <div className="relative h-52 overflow-hidden bg-login-panel sm:h-72 lg:h-auto lg:min-h-[540px] lg:flex-1">
+            {imageFailed ? (
+              <div className="flex h-full min-h-52 items-center justify-center text-login-foreground">
+                <Siren aria-hidden="true" className="h-14 w-14" />
+              </div>
+            ) : (
+              <img
+                src={sitePhotos[photoIndex].src}
+                alt={sitePhotos[photoIndex].label}
+                width={900}
+                height={900}
+                fetchPriority="high"
+                className="h-full w-full object-cover lg:absolute lg:inset-0"
+                onError={() => setImageFailed(true)}
+              />
+            )}
           </div>
-          <div>
-            <div className="text-lg font-semibold">MTI Alert</div>
-            <div className="text-xs uppercase tracking-widest text-login-foreground/60">
-              Emergency Notification System
-            </div>
-          </div>
-        </div>
-        <div>
-          <h2 className="text-3xl font-semibold leading-tight">
-            Reach every officer,
-            <br /> every site, in seconds.
-          </h2>
-          <p className="mt-4 max-w-sm text-sm text-login-foreground/70">
-            Coordinate emergency and operational notifications across desktop agents, WhatsApp,
-            email, and digital signage from a single control room.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-2 text-xs text-login-foreground/70">
-            {["Acid Plant", "Pyrite", "Chloride", "CCP", "Makarti", "Labota"].map((s) => (
-              <span key={s} className="rounded-full border border-login-border px-3 py-1">
-                {s}
-              </span>
+          <div
+            className="flex items-center justify-center gap-3 bg-card px-6 py-4 lg:py-6"
+            role="group"
+            aria-label="Choose a site photo"
+          >
+            {sitePhotos.map((photo, index) => (
+              <button
+                key={photo.src}
+                type="button"
+                aria-label={`Show ${photo.label.toLowerCase()}`}
+                aria-pressed={photoIndex === index}
+                onClick={() => {
+                  setPhotoIndex(index);
+                  setImageFailed(false);
+                }}
+                className={`h-12 w-16 overflow-hidden rounded-md border-2 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${photoIndex === index ? "border-primary" : "border-transparent"}`}
+              >
+                <img
+                  src={photo.src}
+                  alt=""
+                  width={64}
+                  height={48}
+                  className="h-full w-full object-cover"
+                />
+              </button>
             ))}
           </div>
-        </div>
-        <div className="text-xs text-login-foreground/50">
-          © {new Date().getFullYear()} PT MTI. Internal use only.
-        </div>
-      </div>
+        </section>
 
-      <div className="flex items-center justify-center bg-background p-6">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8">
-            <div className="mb-6 flex items-center gap-2 md:hidden">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
-                <Siren className="h-4 w-4" />
+        <section
+          aria-labelledby="login-title"
+          className="flex min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-12 lg:py-10"
+        >
+          <div className="flex flex-1 flex-col justify-center">
+            <div className="mb-7 flex flex-col items-center text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emergency text-emergency-foreground">
+                <Siren aria-hidden="true" className="h-6 w-6" />
               </div>
-              <span className="font-semibold">MTI Alert</span>
+              <p className="text-2xl font-semibold tracking-tight">MTI Alert</p>
+              <p className="mt-1 text-xs text-muted-foreground">Emergency Notification System</p>
             </div>
-            <h1 className="text-xl font-semibold">Sign in</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Use your MTI corporate account to continue.
-            </p>
-
-            <form noValidate onSubmit={submit} className="mt-6 space-y-4">
+            <div className="border-t pt-6 text-center">
+              <h1 id="login-title" className="text-lg font-semibold">
+                Sign in
+              </h1>
+              <p id="login-help" className="mt-2 text-sm text-muted-foreground">
+                Use your MTI corporate account to continue.
+              </p>
+            </div>
+            <form
+              noValidate
+              onSubmit={submit}
+              aria-describedby="login-help"
+              aria-busy={loading}
+              className="mt-7 space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="u">Username</Label>
                 <Input
+                  ref={usernameInput}
                   id="u"
+                  name="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="Corporate username"
+                  className="h-11 bg-card shadow-none"
+                  aria-invalid={usernameMissing}
+                  aria-describedby={usernameMissing ? "username-error" : undefined}
                 />
+                {usernameMissing && (
+                  <p id="username-error" className="text-xs text-destructive">
+                    Enter your corporate username.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="p">Password</Label>
-                <Input
-                  id="p"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
+                <div className="relative">
+                  <Input
+                    ref={passwordInput}
+                    id="p"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Password"
+                    className="h-11 bg-card pr-12 shadow-none"
+                    aria-invalid={passwordMissing}
+                    aria-describedby={passwordMissing ? "password-error" : undefined}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0.5 top-0.5 h-10 w-10"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? (
+                      <EyeOff aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <Eye aria-hidden="true" className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {passwordMissing && (
+                  <p id="password-error" className="text-xs text-destructive">
+                    Enter your password.
+                  </p>
+                )}
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <div className="min-h-12 text-sm text-destructive" aria-live="polite">
+                {error}
+              </div>
+              <Button type="submit" className="h-11 w-full gap-2" disabled={loading}>
+                {loading ? (
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                )}
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
             </form>
-
-            <div className="my-6 flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">OR</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <Button variant="outline" className="w-full gap-2" onClick={submit}>
-              <ShieldCheck className="h-4 w-4" /> Login with AD Account
-            </Button>
-
-            <p className="mt-6 text-center text-xs text-muted-foreground">
-              Use your LDAP or Active Directory credentials to continue.
+            <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
+              Sign in with your Active Directory account.
+              <br />
+              For account access assistance, contact ICT.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} PT MTI. Internal use only.
+          </p>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

@@ -448,7 +448,9 @@ Prepare the platform for broader rollout and future channels.
 ### Checklist
 
 - `[x]` Warehouse theme: implement and verify the shared web shell, Control Room, and Devices on `feat/warehouse-theme`. Production build, 12 reporting tests and 9 isolated browser checks passed; no new TypeScript diagnostics versus baseline. Full-project lint/audit limitations and evidence: `docs/warehouse-theme-review.md`.
-- `[ ]` Warehouse theme acceptance: user reviews the feature branch before merge/push to main.
+- `[x]` Services-inspired login: centered photo/form layout and manual gallery implemented; build, targeted lint and 8 isolated login browser checks passed. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Warehouse theme visual acceptance: user approved the dashboard theme on 2026-09-12 and requested live testing.
+- `[ ]` Warehouse theme promotion: complete user live testing and review the Services-inspired login before merge/push to main.
 
 - `[ ]` Channel expansion: define and document the email connector contract.
 - `[x]` Wellness revisions: edit Scheduled/Active program assignments and configuration atomically with version conflicts, retained history, and agent policy replacement. Closed 2026-09-05: PostgreSQL rollback integration, 15 regression tests, backend typecheck, targeted lint, production build and isolated browser verification passed; evidence and release boundary in `docs/wellness-program-revisions.md`.

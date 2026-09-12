@@ -63,7 +63,7 @@ Inter is the application and data font, with system fallbacks for predictable Wi
 
 ## Layout
 
-The user-approved warehouse reference supplies a pale 246px sidebar, solid-blue active navigation, white 72px sticky header, 16px cards and 24px padding. The six Control Room metrics use a responsive 1/2/3-column grid so labels stay readable. Inter remains the declared application font with system fallbacks; no external font request is required. The login panel has independent dark tokens to avoid coupling its contrast to sidebar changes.
+The user-approved warehouse reference supplies a pale 246px sidebar, solid-blue active navigation, white 72px sticky header, 16px cards and 24px padding. The six Control Room metrics use a responsive 1/2/3-column grid so labels stay readable. Inter remains the declared application font with system fallbacks; no external font request is required. The Services-inspired login uses a centered white split card (1120px maximum), site photography and manual thumbnails on the left, and the MTI corporate login form on the right. On mobile the photograph becomes a compact banner above the form. The login card has its own restrained `--login-shadow`; the dark login-panel token is only an image-loading fallback. Authentication remains corporate AD; no unsupported SSO providers or password-reset route are presented.
 
 Pages use the existing application shell, a 1.5rem section rhythm, responsive one-to-three-column summaries, and horizontally scrollable semantic tables where comparison matters. Loading, empty, and error states retain stable table geometry. Forms keep natural document scrolling; table overflow remains owned by the table surface.
 

@@ -55,3 +55,13 @@ The Devices service still requests at most the first 200 approved/pending record
 ## Review and rollback
 
 Implementation is saved on the feature branch. Main and origin/main must remain at the base until the user approves the appearance. To return the checkout to the previous theme after committing any further work, use `git switch main`; the feature commit remains available. After acceptance, merge the reviewed feature branch through the team's normal workflow and push main. If later reverting a published merge, use a new revert commit rather than rewriting published history.
+
+## Services-inspired login follow-up � 2026-09-12
+
+User accepted the dashboard theme, requested live testing, then requested the Services login visual treatment. The local live frontend remains at port 4198 and uses the configured backend on port 4019.
+
+Replaced the full-width dark login split with a centered 1120px white card, left-hand site photography and manual thumbnails, and a right-hand corporate credential form. Mobile stacks a compact photo banner above the form. Uses locally stored photos from the user-selected Services reference; asset provenance is in `public/images/login/README.md`. Runtime token `--login-shadow` maps through Tailwind `shadow-login`; other surfaces keep their existing card shadow.
+
+There is one working AD login action. Removed the redundant button that previously submitted the same credentials under a second label. Required-field focus, inline generic failure, password visibility and duplicate-submit protection now belong to the form. Authentication service, session storage and backend permissions are unchanged. Successful navigation remains Control Room.
+
+Verification: production build passed; targeted login ESLint passed; 8 isolated Chrome checks passed (desktop, manual gallery, missing-field focus/no request, password masking, duplicate-submit guard, failure with retained inputs, 390px mobile without horizontal overflow, successful login redirect). All login test requests were intercepted with synthetic fixtures; no test credentials went to the live backend. Screenshots were visually reviewed. Repeat with `scripts/verify-login-theme.cjs`, with Playwright supplied through `PLAYWRIGHT_MODULE` if necessary. Local evidence: `.tmp/live-theme/login-results.json`, `services-login-desktop.png`, `services-login-mobile.png`, `login-build.txt`. The prior repository-wide lint/TypeScript/audit caveats remain; this is not a new whole-product certification.
