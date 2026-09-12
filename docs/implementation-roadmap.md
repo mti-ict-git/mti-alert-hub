@@ -672,3 +672,6 @@ Prepare the platform for broader rollout and future channels.
 - [x] Apply user-selected MTI Connect name, original logo and tagline to the web interface.
 - [x] Deliver SVG, transparent PNG and ZIP logo assets.
 - [x] Verify production build, targeted lint, isolated login and dashboard branding; review desktop/mobile screenshots. Evidence and scope: docs/warehouse-theme-review.md.
+
+
+- [x] Revise MTI Connect application mark into a two-person handshake with M silhouette; regenerate exports and verify live desktop/mobile display. Evidence: warehouse-theme-review.md, handshake revision.

@@ -95,3 +95,10 @@ Production build passed for the logo integration; git diff --check passed.
 User selected MTI Connect. Replaced the application logo with two open linked forms, graphite #303D49 and copper #B24F26. Added the approved Indonesian tagline to login, reused the square mark in the sidebar and favicon, and renamed web metadata, navigation, reports and notification previews. Corporate MTI/MCG/MBM logos remain separate. Deployment identifiers, backend contracts and installed Windows agent branding are outside this web identity change. SVG and transparent PNG exports plus ZIP are in public/images/brand/mti-connect-logo.
 
 Verification: production build and targeted ESLint passed. Eight isolated login checks and authenticated dashboard branding check passed with zero uncaught exceptions; desktop, 390px mobile and dashboard screenshots reviewed. An initial cold-load gallery check did not observe the selected state. The test now waits for module network activity to settle before interaction and waits for the selected attribute; the complete rerun passed. Strict UI audit still reports existing unrelated ownership/control findings, as documented in prior review; no whole-product audit clearance is claimed. Evidence: .tmp/live-theme/connect-build.txt, connect-lint.txt, connect-audit.json, connect-dashboard.png, login-results.json.
+
+
+## MTI Connect handshake logo revision - 2026-09-12
+
+User requested a clearer handshake symbol. Replaced the abstract paired arcs with two people whose arms meet at a central clasp; the body/arm silhouette suggests M. Regenerated both SVGs, transparent PNGs and ZIP in the existing mti-connect-logo paths, automatically updating login/sidebar/favicon. Corporate marks and application behavior are unchanged.
+
+Verification: canonical SVG PNG preview inspected; live logo decoded successfully at /login; 1440px desktop and 390px mobile captured, mobile visually reviewed with no horizontal overflow. Evidence: .tmp/live-theme/handshake-desktop.png and handshake-mobile.png. This asset-only revision does not rerun the previously passing application build/authentication suite.
