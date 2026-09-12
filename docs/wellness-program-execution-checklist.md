@@ -1,9 +1,9 @@
 # MTI Alert Wellness Program Execution Checklist
 
 ## Document Status
-- Version: `0.3`
+- Version: `0.4`
 - Status: `Open Execution Checklist`
-- Last Updated: `2026-07-17`
+- Last Updated: `2026-09-12`
 - Owner: `Product / Engineering`
 
 ## Purpose
@@ -247,6 +247,8 @@ Deliver one specialized recurring wellness flow that proves:
   - simple reminder
   - guided routine
   - local agent execution
+- `[ ]` Add explicit authoring guidance for eye-break copy so the popup explains the `20-20-20 Rule`, not only the program title.
+- `[ ]` Add richer authored instruction copy for stretching steps, especially neck and shoulder movements.
 
 ## Latest Admin Web Implementation Evidence
 - `2026-07-16`: the admin web now carries `wellnessProgram` through shared frontend types and notification-service mapping, so create, edit, detail, and publish flows can read and write the structured payload without separate endpoints.
@@ -308,6 +310,7 @@ Deliver one specialized recurring wellness flow that proves:
 - `[x]` Add compliance summary view suitable for operational review.
 - `[ ]` Add active-user-at-event visibility in monitoring when the backend exposes that audit metadata.
 - `[ ]` Add a dedicated deferred-versus-completed summary that treats `RemindMeLater` as defer or snooze rather than `skip`.
+- `[ ]` Add popup-visibility confirmation support for manual activation or troubleshooting flows, using `Displayed` evidence and a clear fallback path when explicit end-user confirmation is still needed.
 
 ### 9. Windows Agent Rendering
 - `[x]` Introduce a dedicated wellness rendering path separate from the generic notification surface.
@@ -322,6 +325,9 @@ Deliver one specialized recurring wellness flow that proves:
 - `[x]` Support configurable snooze actions.
 - `[ ]` Support optional hero asset display.
 - `[ ]` Support progress indicators for guided routines.
+- `[x]` Show a clearer `20-20-20 Rule` explanation in the eye-break popup copy so users know what action to take.
+- `[x]` Render richer stretching step instructions, especially for neck and shoulder movements, instead of relying mainly on titles and imagery.
+- `[x]` Support approved automatic post-`Start` progression for stretching steps, including local image and instruction changes without requiring manual `Next` on every step.
 - `[x]` Keep wellness surfaces visually distinct from operational alert surfaces.
 - `[ ]` Capture and report active-user-at-event metadata together with wellness activity evidence when the endpoint can supply it safely.
 - `[ ]` Implement a dedicated post-routine feedback prompt for usefulness or need rating after the survey contract is approved.
@@ -408,6 +414,7 @@ Deliver one specialized recurring wellness flow that proves:
 - `[ ]` Extend the local reminder executor to understand wellness payload variants.
 - `[ ]` Support countdown execution locally without live server dependency.
 - `[ ]` Support step advancement for guided routines.
+- `[ ]` Define and implement an activity-aware wellness scheduling mode so cadence can follow approved laptop-usage semantics instead of fixed wall-clock recurrence only.
 - `[ ]` Support completion flow and completion card.
 - `[ ]` Support timeout behavior where required.
 - `[x]` Support snooze and re-trigger behavior.
@@ -435,6 +442,10 @@ Deliver one specialized recurring wellness flow that proves:
 - `[ ]` Verify installed-agent policy replacement timing after deployment, including an offline device reconnect. Existing sync contract was source-reviewed; no new installed-device rollout test was performed in the revision feature slice.
 - `[ ]` Verify that unsupported audience or channel combinations are rejected cleanly.
 - `[ ]` Verify the UI theme and button labels against the approved mockup expectations.
+- `[ ]` Verify manual-activation popup confirmation on representative laptops, including one path proven by `Displayed` evidence and one fallback path requiring explicit user confirmation.
+- `[ ]` Verify eye-break explanatory copy is understandable to end users without additional operator explanation.
+- `[ ]` Verify stretching auto-progression, step image changes, and neck or shoulder instruction clarity on a real device.
+- `[ ]` Verify the approved activity-aware scheduling behavior across active use, idle periods, lock or sleep, and reconnect scenarios once the contract is frozen.
 - `[ ]` Verify no existing operational notification flows regress.
 
 ### 13. Rollout Control

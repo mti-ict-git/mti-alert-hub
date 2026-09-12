@@ -3,7 +3,7 @@
 ## Document Status
 - Version: `0.5`
 - Status: `Draft Baseline`
-- Last Updated: `2026-09-01`
+- Last Updated: `2026-09-08`
 
 ## Purpose
 This document defines the conceptual database schema for the `MTI Alert` server MVP.
@@ -413,6 +413,7 @@ Key columns:
 
 Current implementation note:
 - `GET /agent/messages` is device-centric and reads from persisted Windows Agent `delivery_jobs`, but it now omits jobs that are outside the active schedule window.
+- `AgentLocalRoutine` publication and revision retain `communication_recipients` snapshots but create no Windows Agent jobs, attempts or delivery events. Execution evidence uses `agent_reminder_events`. Existing local-routine jobs remain historical records and are excluded from pending-message/realtime delivery by their schedule execution mode; no data migration is required.
 - When a one-time `Immediate` or `Scheduled` communication has no explicit `valid_until`, backend configuration supplies a finite replay TTL so stale desktop jobs do not remain eligible for agent reconciliation forever.
 - Windows Agent jobs that have already advanced to `Read` or `Responded` are no longer treated as pending reconciliation items.
 - When a delivery job already has `Displayed`, `Read`, or `Responded` evidence stamped with `activeUserIdentifier`, the server omits that job from later pending-message sync for a different active user on the same device session.

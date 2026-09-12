@@ -1391,6 +1391,7 @@ paths:
         - Results come from `delivery_jobs` and `communication_recipients`, not placeholder memory state.
         - The response remains valid when no pending messages exist.
         - Only delivery jobs whose schedule is active and already inside the effective delivery window are returned.
+        - Schedules with `execution_mode = AgentLocalRoutine` are excluded, including legacy delivery jobs. Their Windows Agent execution uses `/agent/reminder-policies` only. This exclusion also applies to realtime `messages.snapshot` and `messages.available` payloads.
         - Recurring and explicitly bounded schedules stop syncing after `communication_schedules.valid_until`.
         - One-time `Immediate` or `Scheduled` Windows Agent messages also stop syncing after a bounded replay window derived from backend configuration when no explicit `valid_until` exists.
         - Already `Read` or `Responded` Windows Agent jobs are not returned as pending reconciliation items.
@@ -1425,6 +1426,7 @@ paths:
 
         Current Phase 2 note:
         - Policies are materialized from recurring `communication_schedules` into `agent_reminder_policies`.
+        - Publishing or revising `AgentLocalRoutine` preserves recipient snapshots but creates no Windows Agent delivery jobs or attempts; the policy carries the wellness template and local execution produces reminder events.
         - The sync response may include inactive policy rows so the Windows Agent can deactivate replaced or cancelled local policies without waiting for expiry.
         - Initial implementation currently syncs only device-bound Windows Agent reminder recipients.
       operationId: listAgentReminderPolicies

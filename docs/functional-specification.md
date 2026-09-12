@@ -2,9 +2,9 @@
 
 ## Document Status
 
-- Version: `0.4`
+- Version: `0.5`
 - Status: `Draft Baseline`
-- Last Updated: `2026-07-16`
+- Last Updated: `2026-09-12`
 
 ## Product Definition
 
@@ -240,8 +240,8 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 3. User selects the wellness family first, then chooses one or more approved visual variants plus the variant delivery strategy (`Fixed`, `Sequential`, or `Shuffle`) when multiple variants are enabled.
 4. User configures recurrence through an operator-friendly cadence UI, selects a fixed whole-hour UTC offset instead of entering a free-text timezone, confirms the local execution mode, chooses either a bounded validity window or `never expires until stopped`, assigns one or more device targets by operator-recognizable hostname while the system retains the internal device ID, and selects whether device rollout is synchronized or staggered across a bounded offset window.
 5. Server publishes a versioned reminder policy for eligible Windows Agent devices, materializing one policy per device and optionally offsetting the policy anchor when staggered delivery is selected.
-6. Windows Agent executes the reminder locally using the specialized wellness presentation template.
-7. For guided routines, the agent may continue into a multi-step local flow after the initial reminder card is acknowledged.
+6. Windows Agent executes the reminder locally using the specialized wellness presentation template, including authored explanatory copy for eye-break rules and authored movement guidance for stretching steps.
+7. For guided routines, the agent may continue into a multi-step local flow after the initial reminder card is acknowledged. When the approved routine flow is configured for automatic progression, later stretching steps may advance locally without requiring an extra `Next` click after `Start`, while still preserving explicit completion and defer controls.
 8. Agent reconciles activity such as `Triggered`, `Displayed`, `RemindMeLater`-driven defer or snooze, `Started`, `Completed`, or `GotIt`-confirmed completion back to the server, together with active user context when the endpoint can report it safely.
 9. Operators review program activity and compliance from the dedicated wellness monitoring surface, primarily by device and optionally by the captured active-user audit context.
 
@@ -270,6 +270,7 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 3. System creates and immediately publishes a one-time Windows Agent communication targeted only to that device.
 4. The test communication includes a separate instruction block so operators can validate the full Windows Agent popup layout without opening the full draft-authoring flow.
 5. The test communication becomes visible in Notification Center and the device can reconcile it through the standard Windows Agent message contract.
+6. For device-activation or manual-setup scenarios, operators should be able to determine whether the popup actually appeared from device evidence and, when needed, from explicit user confirmation.
 
 ### Workflow 6: Pending Device Approval
 
@@ -297,6 +298,7 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 - `FR-4` The system shall support recurring schedules for reminder-type communications.
 - `FR-4C` The system shall keep the recurring schedule definition, policy version, and cancellation state on the server as the authoritative source of truth.
 - `FR-4D` The system shall allow approved routine Windows Agent reminders to execute locally from a synchronized reminder policy with bounded validity.
+- `FR-4D-1` Publishing or revising an `AgentLocalRoutine` schedule shall not additionally deliver a standard Windows Agent message. Wellness presentation shall use the structured template from reminder-policy sync; legacy delivery jobs for local-routine schedules shall be excluded from pending-message and realtime message delivery.
 - `FR-4E` The system shall invalidate or replace locally stored reminder policies when the server updates, expires, or cancels the schedule.
 - `FR-4F` The admin authoring experience shall expose cadence, timezone, execution mode, first occurrence, and expiry policy explicitly when operators create or edit recurring reminders, and the draft shall persist that reminder definition before publish.
 - `FR-4G` The admin authoring experience shall explain the difference between `ServerGenerated` and `AgentLocalRoutine` so operators can predict whether a reminder is server-triggered or executed locally on Windows Agent.
@@ -310,6 +312,10 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 - `FR-4O` Wellness reporting shall expose normalized outcome metrics and detail views that distinguish `Completed`, `Deferred`, `Dismissed`, `TimedOut`, `InProgress`, `NoInteraction`, and temporary `AmbiguousCloseCompletion` compatibility cases without requiring direct database access.
 - `FR-4Q` Wellness effectiveness reporting shall support device-centric comparison by program family, cadence, distribution mode, site, and area; device-local hourly plus daily or weekly trends; and guided-routine start, step-advance, completion, and start-abandonment evidence. Step advancement shall not be labeled partial completion unless a future contract can prove completed steps against the routine total.
 - `FR-4P` Wellness terminal outcomes shall reserve `Completed` for explicit `GotIt` or `Done` actions, map `RemindMeLater` to defer or snooze, and map both the window close button and a `Close` CTA to `Dismissed`; legacy `Completed + Close` evidence shall remain visibly ambiguous rather than being rewritten.
+- `FR-4S` Eye-break wellness surfaces shall explain the practical meaning of the `20-20-20 Rule` in the popup copy so users understand the expected action instead of only seeing the rule name.
+- `FR-4T` Office Stretching guided routines shall support authored per-step movement guidance, including clearer neck and shoulder instructions, rather than relying only on imagery or short titles.
+- `FR-4U` Office Stretching guided routines shall support an approved automatic progression mode after `Start`, allowing subsequent step visuals and instructions to advance locally without requiring a manual `Next` click for every step unless the routine is paused or explicitly interrupted.
+- `FR-4V` Wellness local execution shall support an activity-aware eligibility mode so reminder timing can be based on actual laptop or computer usage semantics when that policy is approved, instead of relying only on fixed wall-clock intervals.
 - `FR-4L` A dedicated post-routine feedback prompt for rating wellness-program usefulness or need is deferred beyond the current MVP until the survey contract, trigger timing, and reporting expectations are separately approved.
 - `FR-4A` The system shall support both template-first authoring and free composition.
 - `FR-4B` The system shall enforce a strong preview and confirmation step before publication.
@@ -357,7 +363,8 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 - `FR-18` The system shall support workflow definition management for reusable response models.
 - `FR-19` The system shall record audit logs for administrative and communication lifecycle actions.
 - `FR-19E` The device-management experience shall support sending an immediate Windows Agent test notification to an online device without requiring operators to author a manual draft first.
-- `FR-19F` The device-management quick test flow shall preserve or synthesize a separate `instruction` value so the Windows Agent popup can validate the full body-versus-instruction layout during connectivity checks.
+- `FR-19F` The device-management and activation experience shall support popup-visibility confirmation for manually configured endpoints, using device-reported evidence first and a clear operator-visible fallback when explicit end-user confirmation is still required.
+- `FR-19H` The device-management quick test flow shall preserve or synthesize a separate `instruction` value so the Windows Agent popup can validate the full body-versus-instruction layout during connectivity checks.
 - `FR-19G` The device-management experience shall expose a pending-device approval queue so unknown Windows Agent endpoints can be reviewed and approved without manual database-side pre-registration.
 - `FR-19A` The system shall support imported or synchronized organization data with limited MTI-managed adjustment capability.
 - `FR-19B` The system shall use external HR synchronization as the primary source for MVP basic organization data.

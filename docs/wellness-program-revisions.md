@@ -12,6 +12,7 @@ Phase 4 hardening scope: editing existing device-bound wellness programs in Sche
 - Applying a revision restarts the cadence for all selected devices from application time or the selected future First Occurrence. An expired historical anchor is cleared in the editor. This is explicit in the review text, including for assignment-only changes.
 - Agent sync transmits inactive old policy rows and active replacements. Removed devices stop generating future occurrences after sync; offline devices may continue their previously cached policy until they reconnect. An already displayed routine is not recalled.
 - This slice uses the existing agent contract and does not require an agent package rebuild. Real endpoint timing is bounded by its next successful policy sync.
+- Correction `2026-09-08`: revisions no longer create an additional Windows Agent delivery job. Legacy local-routine jobs are excluded from normal message reconciliation; see `wellness-policy-only-delivery-fix.md` for regression evidence and release boundaries.
 
 ## Verification — closed 2026-09-05 (development scope)
 

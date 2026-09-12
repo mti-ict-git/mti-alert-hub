@@ -8,7 +8,7 @@ import { CommunicationTemplateService } from "../src/modules/communications/serv
 import { AudiencePreviewService } from "../src/modules/communications/service/audience-preview-service.js";
 import { AuditLogService } from "../src/modules/audit/service/audit-log-service.js";
 import { WorkflowDefinitionService } from "../src/modules/workflows/service/workflow-definition-service.js";
-import type { AgentService } from "../src/modules/agent/service/agent-service.js";
+import { AgentService } from "../src/modules/agent/service/agent-service.js";
 
 // Uses configured PostgreSQL, but all fixture writes are hidden in a transaction
 // and rolled back. Never starts a server or notifies an agent.
@@ -86,6 +86,19 @@ try {
   );
   const old = await service.getCommunicationReminderActivity(draft.id);
   assert.equal(old.policies.length, 1);
+  const assertPolicyOnly = async () => {
+    const jobs = await db.query(
+      "select id from public.delivery_jobs where communication_id::text=$1",
+      [draft.id],
+    );
+    assert.equal(jobs.length, 0, "Local routine publish/revision must not create delivery jobs");
+    const recipients = await db.query(
+      "select id from public.communication_recipients where communication_id::text=$1",
+      [draft.id],
+    );
+    assert.ok(recipients.length > 0, "Recipient snapshots must remain available");
+  };
+  await assertPolicyOnly();
   await db.query(
     "insert into public.agent_reminder_events (agent_reminder_policy_id, device_id, event_type, occurred_at) values ($1::uuid,$2::uuid,'Displayed',now())",
     [old.policies[0].policyId, devices[0].id],
@@ -102,6 +115,7 @@ try {
   await service.reviseWellnessProgram(draft.id, both, 1, actor);
   const second = await service.getCommunicationReminderActivity(draft.id);
   const secondDetail = await service.getCommunicationDetail(draft.id);
+  await assertPolicyOnly();
   assert.equal(second.policies.filter((p) => p.isActive).length, 2);
   assert.ok(
     second.policies
@@ -155,6 +169,7 @@ try {
     actor,
   );
   const third = await service.getCommunicationReminderActivity(draft.id);
+  await assertPolicyOnly();
   assert.equal(third.policies.filter((p) => p.isActive).length, 1);
   assert.equal(third.policies.find((p) => p.isActive)?.deviceId, devices[1].id);
   assert.equal(third.policies.find((p) => p.isActive)?.scheduleVersion, 3);
@@ -164,12 +179,109 @@ try {
     [draft.id],
   );
   assert.equal(audits.length, 2);
+
+  // Exercise the real pending-message SQL and policy serialization with only
+  // session/overdue dependencies isolated; all database writes still roll back.
+  const agent = new AgentService(
+    db,
+    {
+      renewSession: async (token: string) =>
+        token === "fixture"
+          ? { device: { id: devices[1].id }, activeUserIdentifier: null }
+          : undefined,
+    } as unknown as ConstructorParameters<typeof AgentService>[1],
+    new AuditLogService(db),
+    { evaluateRecipientOnlyOverdueForDevice: async () => {} } as unknown as ConstructorParameters<
+      typeof AgentService
+    >[3],
+    {} as ConstructorParameters<typeof AgentService>[4],
+    {} as ConstructorParameters<typeof AgentService>[5],
+    loadEnv(),
+    {} as ConstructorParameters<typeof AgentService>[7],
+  );
+  const synced = await agent.listReminderPolicies("fixture");
+  const active = synced.items.filter((p) => p.communicationId === draft.id && p.isActive);
+  assert.equal(active.length, 1);
+  assert.ok(active[0].wellnessProgram, "Template payload must survive policy sync");
+  assert.ok(
+    synced.items.some((p) => p.communicationId === draft.id && !p.isActive),
+    "Replacement tombstones must still sync",
+  );
+
+  // Model a job left by the old publisher, without modifying any real job.
+  const [legacy] = await db.query<{ id: string }>(
+    `insert into public.delivery_jobs
+      (communication_id, communication_schedule_id, communication_recipient_id, channel,
+       delivery_strategy, job_status, retry_limit, attempt_count, queued_at)
+     select cr.communication_id, cr.communication_schedule_id, cr.id, 'WindowsAgent',
+       c.delivery_strategy, 'Pending', 3, 0, now()
+     from public.communication_recipients cr
+     join public.communications c on c.id=cr.communication_id
+     join public.communication_schedules cs on cs.id=cr.communication_schedule_id
+     where cr.communication_id::text=$1 and cs.is_active=true
+     returning id::text`,
+    [draft.id],
+  );
+  assert.ok(legacy);
+
+  // Normal server-generated and one-time delivery must stay available.
+  const ordinary = await service.duplicateDraft(source.id);
+  await service.updateDraft(ordinary.id, {
+    ...changes,
+    wellnessProgram: null,
+    targets: [{ targetType: "Device", targetValue: devices[1].id }],
+    reminderSchedule: { ...schedule, executionMode: "ServerGenerated" },
+  });
+  await service.publishCommunication(
+    ordinary.id,
+    {
+      ...schedule,
+      executionMode: "ServerGenerated",
+      publishMode: "Recurring",
+      confirmedPreview: true,
+    },
+    actor,
+  );
+  // PostgreSQL now() stays at transaction start while publish uses wall time.
+  // Make both fixtures eligible so exclusion is tested by execution mode alone.
+  await db.query(
+    "update public.communication_schedules set valid_from=now()-interval '1 minute' where communication_id::text=any($1::text[]) and is_active=true",
+    [[draft.id, ordinary.id]],
+  );
+  for (const since of [null, "2026-01-01T00:00:00Z"]) {
+    const pending = await agent.listPendingMessages("fixture", since);
+    assert.ok(
+      !pending.items.some((m) => m.communicationId === draft.id),
+      "Legacy local-routine jobs must be excluded from full and incremental sync",
+    );
+    assert.ok(
+      pending.items.some((m) => m.communicationId === ordinary.id),
+      "Server-generated reminders must retain ordinary delivery",
+    );
+  }
+  await db.query(
+    "update public.communication_schedules set schedule_type='Immediate', execution_mode=null, recurrence_rule=null, timezone=null where communication_id::text=$1",
+    [ordinary.id],
+  );
+  assert.ok(
+    (await agent.listPendingMessages("fixture")).items.some(
+      (m) => m.communicationId === ordinary.id,
+    ),
+    "One-time schedules with null execution mode must remain deliverable",
+  );
+  await assert.rejects(agent.listPendingMessages("invalid"), { code: "UNAUTHORIZED" });
+  assert.equal(
+    (await db.query("select id from public.delivery_jobs where id::text=$1", [legacy.id])).length,
+    1,
+    "Legacy history must remain stored",
+  );
+
   await service.cancelCommunication(draft.id, actor);
   await assert.rejects(service.reviseWellnessProgram(draft.id, both, 3, actor), {
     code: "WELLNESS_NOT_EDITABLE",
   });
   console.log(
-    "PASS: add/remove devices, Scheduled/Active revisions, versions 1→2→3, historical events, audit, stale/invalid/empty rollback, stopped-program rejection; fixture rolled back.",
+    "PASS: policy-only publish/revisions, legacy job exclusion (full/incremental), template/tombstone sync, server-generated/one-time delivery, auth rejection, add/remove devices, versions, history, audit and rollback; fixture rolled back.",
   );
 } finally {
   await client.query("rollback");

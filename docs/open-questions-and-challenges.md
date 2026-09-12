@@ -2,9 +2,9 @@
 
 ## Document Status
 
-- Version: `0.4`
+- Version: `0.5`
 - Status: `Open`
-- Last Updated: `2026-09-04`
+- Last Updated: `2026-09-12`
 
 ## Purpose
 
@@ -115,6 +115,22 @@ This document records unresolved product and technical questions. No implementat
 - Why it matters: OHIH effectiveness reporting depends on a stable distinction between `Completed`, `Deferred`, `Dismissed`, and `TimedOut`. If close behavior is ambiguous, completion rate and defer-vs-ignore analytics become misleading.
 - Decision (`2026-09-04`): `GotIt` and `Done` count as `Completed`; `RemindMeLater` counts as defer or snooze; `Start` and `Next` remain non-terminal progress events; both the window close button and any CTA with `actionKind = Close` count as `Dismissed`. No separate `Skipped` outcome is added.
 - Compatibility boundary: historical `eventType = Completed` plus `actionKind = Close` evidence from older agents remains `AmbiguousCloseCompletion` and must not be rewritten or included in confirmed completion KPI. New agents must emit `Dismissed` for that CTA path.
+
+### OQ-17. Activity-Aware Wellness Scheduling Semantics
+
+- Question: What exact `activity-based` timing rule should replace or augment the current fixed wall-clock recurrence for `Wellness Programs`?
+- Why it matters: `every 2 hours` can mean very different behavior depending on whether the business wants elapsed wall-clock time, accumulated active keyboard or mouse usage, idle-aware suppression, or a hybrid rule after sleep, reconnect, and user switching.
+- Current safe assumption: keep the existing recurrence anchor behavior until product approves the precise activity model, because an imprecise implementation could either spam active users or starve reminders on intermittently used laptops.
+- Minimum clarification needed:
+  - whether `2 hours` means cumulative active usage or simply `do not show while idle`
+  - how sleep, lock-screen time, and remote-session idle periods count
+  - whether the timer resets on `Completed`, `Dismissed`, or only on the underlying anchored schedule
+
+### OQ-18. Manual Activation Popup Confirmation Boundary
+
+- Question: For devices that require manual setup during activation, should popup confirmation rely on existing `Displayed` device evidence, an explicit user-facing `popup terlihat / tidak terlihat` confirmation step, or both?
+- Why it matters: operations needs a reliable activation checklist for problem laptops, but product and engineering should avoid duplicating confirmation semantics if `Displayed` already proves render success.
+- Current safe assumption: prefer device-reported `Displayed` evidence as the authoritative technical signal and use explicit end-user confirmation only as an operational fallback when troubleshooting manual activation or setup drift.
 
 ## Challenges
 

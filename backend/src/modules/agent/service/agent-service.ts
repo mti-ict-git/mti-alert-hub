@@ -1451,6 +1451,7 @@ export class AgentService {
         where dj.channel = 'WindowsAgent'
           and cr.device_id = $1::uuid
           and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed')
+          and cs.execution_mode is distinct from 'AgentLocalRoutine'
           and cs.is_active = true
           and cs.cancelled_at is null
           and coalesce(

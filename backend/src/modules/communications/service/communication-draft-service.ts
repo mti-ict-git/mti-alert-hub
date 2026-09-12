@@ -1650,6 +1650,7 @@ export class CommunicationDraftService {
         communication: existing,
         workflowSnapshot,
         templatePolicySnapshot,
+        executionMode: effectivePublishInput.executionMode,
       });
 
       await materializeAgentReminderPolicies(transaction, {
@@ -3402,6 +3403,7 @@ async function persistPublishExecutionFoundation(
     communication: CommunicationDetailRow;
     workflowSnapshot: WorkflowSummary | null;
     templatePolicySnapshot: ReturnType<typeof buildTemplatePolicySnapshot>;
+    executionMode?: ScheduleExecutionMode | null;
   },
 ) {
   const recipientSeeds = buildRecipientSeeds({
@@ -3498,6 +3500,11 @@ async function persistPublishExecutionFoundation(
     }
 
     for (const job of recipient.jobs) {
+      // Local Windows routines execute from reminder policies, not delivery jobs.
+      // Keep recipient snapshots and any other channel's execution intact.
+      if (options.executionMode === "AgentLocalRoutine" && job.channel === "WindowsAgent") {
+        continue;
+      }
       const jobSnapshot = {
         ...options.templatePolicySnapshot,
         channel: job.channel,

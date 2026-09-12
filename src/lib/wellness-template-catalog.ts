@@ -31,7 +31,7 @@ const STRETCHING_STEPS = [
   {
     stepKey: "neck",
     title: "Leher (Neck Stretch)",
-    description: "Miringkan kepala ke samping. Tahan perlahan dan rasakan peregangan.",
+    description: "Miringkan kepala perlahan ke kanan dan kiri. Tahan tiap sisi sampai leher terasa meregang nyaman.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 1,
@@ -39,7 +39,7 @@ const STRETCHING_STEPS = [
   {
     stepKey: "shoulders",
     title: "Bahu",
-    description: "Angkat siku dan rilekskan area bahu perlahan.",
+    description: "Angkat bahu ke arah telinga, tahan sebentar, lalu turunkan perlahan sambil rileks.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 2,

@@ -4,7 +4,7 @@
 
 - Version: `0.2`
 - Status: `Draft Baseline`
-- Last Updated: `2026-09-01`
+- Last Updated: `2026-09-08`
 
 ## Purpose
 
@@ -176,6 +176,7 @@ The current repository already leans toward TypeScript for the admin application
   - `ServerGenerated` for normal scheduled execution
   - `AgentLocalRoutine` for approved Windows Agent reminder policies that must remain reliable during temporary disconnection
 - For `AgentLocalRoutine`, the server materializes a versioned reminder policy with a bounded validity window for eligible devices.
+- `AgentLocalRoutine` does not also create Windows Agent delivery jobs or attempts. Recipient snapshots remain stored; other selected channels retain their own delivery path. Pending-message reconciliation and realtime message payloads exclude legacy jobs owned by local-routine schedules, preserving history without replaying a generic toast.
 - The agent executes only the synchronized policy window and must stop using a policy when it is expired, replaced, or cancelled by the server.
 - Scheduled/Active wellness revisions use `POST /communications/{communicationId}/revise-wellness`, a communication row lock and optimistic schedule-version check. Draft/template/audience/publish validation is reused inside one transaction, which replaces active schedules and policies, increments the version, cancels unfinished jobs and records an audit entry without deleting history. The temporary draft validation state is never committed. See `docs/wellness-program-revisions.md` for cadence reset, offline sync and verification evidence.
 
