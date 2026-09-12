@@ -448,6 +448,7 @@ Prepare the platform for broader rollout and future channels.
 ### Checklist
 
 - `[x]` Warehouse theme: implement and verify the shared web shell, Control Room, and Devices on `feat/warehouse-theme`. Production build, 12 reporting tests and 9 isolated browser checks passed; no new TypeScript diagnostics versus baseline. Full-project lint/audit limitations and evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Live login connectivity: route local browser API calls through the same-origin Vite proxy; health and login-validation responses verified in a real browser. Evidence: `docs/warehouse-theme-review.md`.
 - `[x]` Login background: generate and apply an original oil-painted landscape behind the card. Build, login lint and desktop/mobile visual checks passed; evidence in `docs/warehouse-theme-review.md`.
 - `[x]` Services-inspired login: centered photo/form layout and manual gallery implemented; build, targeted lint and 8 isolated login browser checks passed. Evidence: `docs/warehouse-theme-review.md`.
 - `[x]` Warehouse theme visual acceptance: user approved the dashboard theme on 2026-09-12 and requested live testing.

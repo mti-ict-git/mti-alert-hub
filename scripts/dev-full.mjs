@@ -1,17 +1,20 @@
 import { spawn } from "node:child_process";
 
-function spawnShell(command) {
+function spawnShell(command, env = process.env) {
   if (process.platform === "win32") {
     const comspec = process.env.ComSpec || "cmd.exe";
-    return spawn(comspec, ["/d", "/s", "/c", command], { stdio: "inherit" });
+    return spawn(comspec, ["/d", "/s", "/c", command], { stdio: "inherit", env });
   }
 
-  return spawn("sh", ["-lc", command], { stdio: "inherit" });
+  return spawn("sh", ["-lc", command], { stdio: "inherit", env });
 }
 
 const processes = [
   spawnShell("npm run backend:dev"),
-  spawnShell("npm run dev"),
+  spawnShell("npm run dev", {
+    ...process.env,
+    VITE_API_URL: process.env.VITE_API_URL ?? "/api",
+  }),
 ];
 
 let shuttingDown = false;

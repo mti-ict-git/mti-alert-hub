@@ -11,11 +11,12 @@ fs.mkdirSync(out, { recursive: true });
       requests = 0;
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.route("http://127.0.0.1:4019/**", async (route) => {
+    await page.route(/(?:\/api\/|^http:\/\/127\.0\.0\.1:4019\/)/, async (route) => {
       const url = new URL(route.request().url());
+      const endpoint = url.pathname.replace(/^\/api(?=\/|$)/, "");
       let body = { items: [] },
         status = 200;
-      if (url.pathname === "/auth/login") {
+      if (endpoint === "/auth/login") {
         requests++;
         await new Promise((r) => setTimeout(r, 800));
         if (mode === "error") {
@@ -32,7 +33,7 @@ fs.mkdirSync(out, { recursive: true });
             },
           };
       }
-      if (url.pathname === "/dashboard/overview")
+      if (endpoint === "/dashboard/overview")
         body = {
           activeCommunications: 0,
           recipientsPending: 0,

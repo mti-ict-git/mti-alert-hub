@@ -69,3 +69,13 @@ Verification: production build passed; targeted login ESLint passed; 8 isolated 
 ## Oil-painted outer background � 2026-09-12
 
 Generated an original fictional tropical industrial landscape with the built-in image generation tool, following the user request for an oil-painting style. Saved the original output as `public/images/login/oil-landscape-background.png`; exact prompt and provenance are in the adjacent README. The login-only CSS background uses cover/center and a 42% dark overlay behind the white card. Interior photos, authentication and all dashboard surfaces are unchanged. Production build and targeted login lint passed. Desktop (1440px) and mobile (390px) browser checks confirmed the asset is applied and no horizontal document overflow occurs; screenshots in `.tmp/live-theme/oil-login-desktop.png` and `oil-login-mobile.png`.
+
+## Live login connectivity correction � 2026-09-12
+
+The live browser on 127.0.0.1:4198 sent preflight requests to port 4019, but the backend returned Access-Control-Allow-Origin http://localhost:3000. The browser consequently never sent POST /auth/login. This was a connectivity setup error, not evidence of an invalid AD password. Earlier fixture tests intercepted CORS headers and did not detect this real-backend mismatch.
+
+Vite now proxies /api to DEV_API_TARGET (default http://127.0.0.1:4019) and strips only the /api prefix. The local frontend was restarted with VITE_API_URL=/api; the existing backend stayed running. `npm run dev:full` now defaults the frontend process to /api while honoring an explicit VITE_API_URL process override. Production gateway/API/auth policies are unchanged.
+
+Real browser verification: /api/health returned 200/ok; the actual frontend apiClient sent an empty login payload to same-origin /api/auth/login and received backend validation 422. The validation rejects missing fields before LDAP, so no actual credentials or account attempts were required. This confirms the prior CORS barrier is removed; the user must retry their own credentials to verify their account login. No successful real-user login is claimed.
+
+Follow-up verification: production build and targeted config/script lint passed; all 8 isolated login regression checks passed after updating the fixture interceptor to cover both direct and same-origin API paths.
