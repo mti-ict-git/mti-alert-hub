@@ -56,7 +56,7 @@ function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-6 sm:p-8 lg:p-12">
+    <main className="login-backdrop flex min-h-svh items-center justify-center bg-background px-4 py-6 sm:p-8 lg:p-12">
       <div className="grid w-full max-w-[1120px] overflow-hidden rounded-surface border bg-card shadow-login lg:min-h-[720px] lg:grid-cols-[1.15fr_1fr]">
         <section
           aria-label="Site photos"

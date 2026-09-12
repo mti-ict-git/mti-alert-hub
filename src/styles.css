@@ -203,3 +203,14 @@
     box-shadow: 0 0 0 10px color-mix(in oklab, var(--color-emergency) 0%, transparent);
   }
 }
+
+@layer components {
+  .login-backdrop {
+    background-image:
+      linear-gradient(rgb(12 22 25 / 42%), rgb(12 22 25 / 42%)),
+      url("/images/login/oil-landscape-background.png");
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+}
