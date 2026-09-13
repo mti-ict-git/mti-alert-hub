@@ -1,3 +1,4 @@
+import { placementUpdate } from "../service/device-placement-service.js";
 import { z } from "zod";
 import type { AppRoute, AppRouteHandlerContext } from "../../../app/http/create-server.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
@@ -70,6 +71,36 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
   return [
     {
       method: "GET",
+      path: "/devices/{deviceId}/placement",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler({ params }) {
+        return {
+          statusCode: 200,
+          body: await options.deviceActionService.getPlacement(
+            validateWithSchema(z.string().uuid(), params.deviceId),
+          ),
+        };
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/devices/{deviceId}/placement",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler({ params, json, auth }) {
+        return {
+          statusCode: 200,
+          body: await options.deviceActionService.updatePlacement(
+            validateWithSchema(z.string().uuid(), params.deviceId),
+            validateWithSchema(placementUpdate, await json()),
+            auth!.session.user.username,
+          ),
+        };
+      },
+    },
+    {
+      method: "GET",
       path: "/devices",
       requiresAuth: true,
       async handler({ url }) {
@@ -139,14 +170,11 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
       async handler({ params, auth, request }) {
         return {
           statusCode: 200,
-          body: await options.deviceActionService.deleteLocalPackage(
-            params.fileName ?? "",
-            {
-              userIdentifier: auth?.session.user.id ?? "anonymous",
-              username: auth?.session.user.username ?? "anonymous",
-              ipAddress: request.socket.remoteAddress ?? null,
-            },
-          ),
+          body: await options.deviceActionService.deleteLocalPackage(params.fileName ?? "", {
+            userIdentifier: auth?.session.user.id ?? "anonymous",
+            username: auth?.session.user.username ?? "anonymous",
+            ipAddress: request.socket.remoteAddress ?? null,
+          }),
         };
       },
     },
@@ -198,11 +226,15 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
         const payload = validateWithSchema(deviceTestNotificationSchema, await json());
         return {
           statusCode: 201,
-          body: await options.deviceActionService.sendTestNotification(params.deviceId ?? "", payload, {
-            userIdentifier: auth?.session.user.id ?? "anonymous",
-            username: auth?.session.user.username ?? "anonymous",
-            ipAddress: request.socket.remoteAddress ?? null,
-          }),
+          body: await options.deviceActionService.sendTestNotification(
+            params.deviceId ?? "",
+            payload,
+            {
+              userIdentifier: auth?.session.user.id ?? "anonymous",
+              username: auth?.session.user.username ?? "anonymous",
+              ipAddress: request.socket.remoteAddress ?? null,
+            },
+          ),
         };
       },
     },
@@ -249,8 +281,7 @@ function resolveBackendBaseUrl(request: AppRouteHandlerContext["request"]) {
     "127.0.0.1:4019"
   ).trim();
   const protocol = (
-    (typeof forwardedProto === "string" ? forwardedProto : undefined) ??
-    "http"
+    (typeof forwardedProto === "string" ? forwardedProto : undefined) ?? "http"
   ).replace(/:$/, "");
 
   return `${protocol}://${host}`;
@@ -284,7 +315,9 @@ function resolveUploadedPackageMetadata(request: AppRouteHandlerContext["request
       statusCode: 422,
       code: "VALIDATION_ERROR",
       message: "The request payload failed validation.",
-      details: [{ field: "metadata", message: "X-Package-Metadata header is not valid base64 JSON." }],
+      details: [
+        { field: "metadata", message: "X-Package-Metadata header is not valid base64 JSON." },
+      ],
     });
   }
 }

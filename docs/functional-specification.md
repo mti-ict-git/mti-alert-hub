@@ -425,3 +425,21 @@ Approved Devices supports combined local search, Online/Offline status, Site, Ar
 ### Bulk rollout from Devices
 
 Operators can select approved devices on the displayed page and choose Rollout selected. Search, filters, pagination, or changing visible device IDs clears selection. The existing single-device rollout action uses the same dialog. Preview validates each frozen target through the existing device-scoped rollout endpoint with apply=false. Any setting change invalidates preview; all targets must pass before apply=true requests run sequentially. Results remain visible per hostname and distinguish created requests from actual agent installation. Closing is blocked during a batch. Unconfirmed requests are not automatically retried: operators must inspect rollout history before starting another request because a lost response may already have committed. Successful requests cannot be reapplied within the same dialog session. No API/schema changes.
+
+Approved Devices advanced filters are collapsed by default behind Filters. Active counts/chips stay visible when collapsed. Bulk rollout and selection feedback share the table toolbar with Comfortable/Columns; selection scope and rollout validation remain unchanged.
+
+### Organization management — direction approved 13 September 2026
+
+Add Organization under Management before Employees and Devices. Master sites/areas and departments/sections belong here; people assignment stays in Employees and device placement stays in Devices. Two tab groups expose parent lists and filtered children, with search/status filters and usage counts.
+
+CentralAdmin can create local entries, edit name/code, deactivate and reactivate. Parent reassignment is intentionally unavailable to avoid inconsistent existing employee/device placement. Existing assignments/history remain when inactive; reference choices already omit inactive rows. A parent with active children cannot be deactivated. Departments may be global and sections may be unassigned, reflecting the existing nullable schema.
+
+Rows whose source is null/empty, Local or Manual are editable; other source labels are read-only and must be changed upstream. This is an ownership marker, not a claim of an active sync connection. All changes require optimistic version checking and transactional audit. No delete action or endpoint. Usage for department/section devices counts primary employee assignments, not current logged-in user.
+
+### Device placement and AD departments — direction updated 13 September 2026
+
+Section is not used operationally: hide Section navigation in Organization and do not expose it in device placement. Retain legacy schema and historical relationships. Department in Devices placement is read-only from last_directory_department, gathered by the existing agent AD lookup; this is the last reported login snapshot, not a new department-master synchronization service.
+
+Devices offers Edit placement per row and Change placement for selected visible-page devices. A right-side review panel shows current hostname, Site, Area, location label, ownership and AD department. Bulk fields default to Do not change. Changing Site explicitly clears Area until a compatible area is selected. Review shows per-device before/after. Saving runs device-scoped transactions sequentially, displays partial results, and never retries automatically. Close/edit are blocked while saving; unsaved cancellation requires discard confirmation.
+
+CentralAdmin only: changes may update Site, Area, Location Label and Ownership; assigned employee/AD profile are preserved. Placement-specific expected values prevent stale writes without heartbeat updates causing false conflicts. Validate active site/area membership; audit before/after atomically. Existing recipients, delivery history and active reminder policies are not rewritten. Audience resolution at future publication uses current placement (including drafts not yet published); previously published recipient snapshots remain unchanged.

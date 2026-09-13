@@ -1,3 +1,9 @@
+import {
+  OrganizationManagementService,
+  organizationInput,
+  organizationKind,
+} from "../service/organization-management-service.js";
+import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import { z } from "zod";
 
 import type { AppRoute } from "../../../app/http/create-server.js";
@@ -25,12 +31,40 @@ const employeeListQuerySchema = baseListQuerySchema.extend({
 
 type RegisterOrganizationRoutesOptions = {
   organizationReadService: OrganizationReadService;
+  organizationManagementService: OrganizationManagementService;
 };
 
-export function registerOrganizationRoutes(
-  options: RegisterOrganizationRoutesOptions,
-): AppRoute[] {
+export function registerOrganizationRoutes(options: RegisterOrganizationRoutesOptions): AppRoute[] {
   return [
+    {
+      method: "GET",
+      path: "/organization",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler() {
+        return { statusCode: 200, body: await options.organizationManagementService.list() };
+      },
+    },
+    ...(["POST", "PATCH"] as const).map((method): AppRoute => ({
+      method,
+      path: method === "POST" ? "/organization/{kind}" : "/organization/{kind}/{id}",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler({ params, json, auth }) {
+        const kind = validateWithSchema(organizationKind, params.kind);
+        const id = method === "PATCH" ? validateWithSchema(z.string().uuid(), params.id) : null;
+        const input = validateWithSchema(organizationInput, await json());
+        return {
+          statusCode: method === "POST" ? 201 : 200,
+          body: await options.organizationManagementService.save(
+            kind,
+            id,
+            input,
+            auth!.session.user.username,
+          ),
+        };
+      },
+    })),
     {
       method: "GET",
       path: "/reference/organization",

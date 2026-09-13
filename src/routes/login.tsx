@@ -85,7 +85,7 @@ function LoginPage() {
         <section
           aria-label="Site photos"
           aria-roledescription="carousel"
-          className="relative h-72 min-w-0 overflow-hidden border-b border-border bg-login-panel sm:h-96 lg:h-auto lg:min-h-[720px] lg:border-b-0 lg:border-r"
+          className="login-carousel relative h-72 min-w-0 overflow-hidden border-b border-border bg-login-panel sm:h-96 lg:h-auto lg:min-h-[720px] lg:border-b-0 lg:border-r"
         >
           <div
             className="absolute inset-0 flex transition-transform duration-700 ease-in-out motion-reduce:transition-none"
@@ -125,7 +125,7 @@ function LoginPage() {
             type="button"
             aria-label="Previous image"
             onClick={() => selectPhoto(photoIndex - 1)}
-            className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="login-carousel-arrow absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <ChevronLeft aria-hidden="true" className="h-6 w-6" />
           </button>
@@ -133,7 +133,7 @@ function LoginPage() {
             type="button"
             aria-label="Next image"
             onClick={() => selectPhoto(photoIndex + 1)}
-            className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="login-carousel-arrow absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <ChevronRight aria-hidden="true" className="h-6 w-6" />
           </button>

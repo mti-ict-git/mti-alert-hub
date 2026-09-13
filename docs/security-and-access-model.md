@@ -46,3 +46,7 @@ This document captures the current security posture for the desktop-first releas
 ## Remaining Hardening Work
 - Admin session persistence beyond the current in-memory baseline.
 - Production review of log retention and audit-log access boundaries.
+
+### Organization master edits
+
+GET /organization and POST/PATCH /organization/{kind}[/{id}] require CentralAdmin through the server role guard. Reference endpoints keep existing read contracts. External-owned entries cannot be modified through organization management, even by CentralAdmin. Edit requests require matching updatedAt and audit writes are transactional.

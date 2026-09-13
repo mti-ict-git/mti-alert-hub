@@ -17,6 +17,7 @@ import { Route as AppWellnessProgramsRouteImport } from './routes/_app.wellness-
 import { Route as AppTemplatesRouteImport } from './routes/_app.templates'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppReportsRouteImport } from './routes/_app.reports'
+import { Route as AppOrganizationRouteImport } from './routes/_app.organization'
 import { Route as AppEmployeesRouteImport } from './routes/_app.employees'
 import { Route as AppDevicesRouteImport } from './routes/_app.devices'
 import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
@@ -63,6 +64,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
 const AppReportsRoute = AppReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrganizationRoute = AppOrganizationRouteImport.update({
+  id: '/organization',
+  path: '/organization',
   getParentRoute: () => AppRoute,
 } as any)
 const AppEmployeesRoute = AppEmployeesRouteImport.update({
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/audit-logs': typeof AppAuditLogsRoute
   '/devices': typeof AppDevicesRoute
   '/employees': typeof AppEmployeesRoute
+  '/organization': typeof AppOrganizationRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/audit-logs': typeof AppAuditLogsRoute
   '/devices': typeof AppDevicesRoute
   '/employees': typeof AppEmployeesRoute
+  '/organization': typeof AppOrganizationRoute
   '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/templates': typeof AppTemplatesRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/_app/audit-logs': typeof AppAuditLogsRoute
   '/_app/devices': typeof AppDevicesRoute
   '/_app/employees': typeof AppEmployeesRoute
+  '/_app/organization': typeof AppOrganizationRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/templates': typeof AppTemplatesRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/devices'
     | '/employees'
+    | '/organization'
     | '/reports'
     | '/settings'
     | '/templates'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/devices'
     | '/employees'
+    | '/organization'
     | '/reports'
     | '/settings'
     | '/templates'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/_app/audit-logs'
     | '/_app/devices'
     | '/_app/employees'
+    | '/_app/organization'
     | '/_app/reports'
     | '/_app/settings'
     | '/_app/templates'
@@ -275,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/organization': {
+      id: '/_app/organization'
+      path: '/organization'
+      fullPath: '/organization'
+      preLoaderRoute: typeof AppOrganizationRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/employees': {
@@ -353,6 +372,7 @@ interface AppRouteChildren {
   AppAuditLogsRoute: typeof AppAuditLogsRoute
   AppDevicesRoute: typeof AppDevicesRoute
   AppEmployeesRoute: typeof AppEmployeesRoute
+  AppOrganizationRoute: typeof AppOrganizationRoute
   AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
@@ -368,6 +388,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAuditLogsRoute: AppAuditLogsRoute,
   AppDevicesRoute: AppDevicesRoute,
   AppEmployeesRoute: AppEmployeesRoute,
+  AppOrganizationRoute: AppOrganizationRoute,
   AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTemplatesRoute: AppTemplatesRoute,

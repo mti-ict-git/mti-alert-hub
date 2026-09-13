@@ -1683,6 +1683,147 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /organization:
+    get:
+      summary: List organization master data with usage and source ownership
+      description: CentralAdmin only. Returns active and inactive entries. Usage counts include direct employees and devices (department/section devices use primary employee assignment).
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Master collections keyed by sites, areas, departments and sections
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrganizationManagedEntry'
+        '401':
+          description: Authentication required
+        '403':
+          description: CentralAdmin required
+  /organization/{kind}:
+    post:
+      summary: Create locally managed organization entry
+      security:
+        - AdminSessionAuth: []
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [sites, areas, departments, sections]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationManagedInput'
+      responses:
+        '201':
+          description: Entry created; returns object with UUID id
+        '400':
+          description: Invalid input or missing required parent/site code
+        '401':
+          description: Authentication required
+        '403':
+          description: CentralAdmin required
+        '409':
+          description: Duplicate entry or inactive parent
+  /organization/{kind}/{id}:
+    patch:
+      summary: Update local name/code/status without changing parent or assignments
+      description: CentralAdmin only. Requires the exact updatedAt from GET. External sources are read-only. Deactivate active children before their parent. Writes and audit are transactional; no deletion endpoint exists.
+      security:
+        - AdminSessionAuth: []
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [sites, areas, departments, sections]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationManagedInput'
+      responses:
+        '200':
+          description: Entry updated; returns object with UUID id
+        '400':
+          description: Invalid input
+        '401':
+          description: Authentication required
+        '403':
+          description: CentralAdmin required or external source is read-only
+        '404':
+          description: Entry no longer exists
+        '409':
+          description: Stale version, duplicate, active children, inactive parent or attempted parent reassignment
+  /devices/{deviceId}/placement:
+    parameters:
+      - name: deviceId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      summary: Get current placement and read-only AD department
+      security:
+        - AdminSessionAuth: []
+      description: CentralAdmin only. Returns id, hostname, department and the four placement fields. Department is the last reported AD login snapshot.
+      responses:
+        '200':
+          description: Current placement
+        '401':
+          description: Authentication required
+        '403':
+          description: CentralAdmin required
+        '404':
+          description: Device not found
+    patch:
+      summary: Update device placement with optimistic concurrency and transactional audit
+      security:
+        - AdminSessionAuth: []
+      description: CentralAdmin only. Changes must be nonempty. Site changes require an explicit areaId (nullable). Validates active Site/Area membership. Preserves assigned employee, AD snapshot, recipients and reminder policies. Clients orchestrate bulk requests per device and do not automatically retry unconfirmed responses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected, changes]
+              properties:
+                expected:
+                  allOf:
+                    - $ref: '#/components/schemas/DevicePlacementFields'
+                    - required: [siteId, areaId, locationLabel, ownershipMode]
+                changes:
+                  $ref: '#/components/schemas/DevicePlacementFields'
+      responses:
+        '200':
+          description: Saved id and resulting placement
+        '400':
+          description: Invalid fields or Site/Area combination
+        '401':
+          description: Authentication required
+        '403':
+          description: CentralAdmin required
+        '404':
+          description: Device not found
+        '409':
+          description: Placement changed since review; refresh and review again
 components:
   headers:
     RequestId:
@@ -1849,6 +1990,62 @@ components:
             $ref: "#/components/schemas/ValidationErrorResponse"
 
   schemas:
+    DevicePlacementFields:
+      type: object
+      additionalProperties: false
+      properties:
+        siteId: {type: string, format: uuid}
+        areaId: {type: [string, 'null'], format: uuid}
+        locationLabel: {type: [string, 'null'], maxLength: 160}
+        ownershipMode: {type: string, enum: [LocationOwned, EmployeeAssigned, Mixed]}
+    OrganizationManagedInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        code:
+          type: string
+          maxLength: 64
+          description: Required and nonempty for sites
+        parentId:
+          type: [string, 'null']
+          format: uuid
+          description: Site for areas/departments, department for sections; areas require a site. Fixed on edit.
+        status:
+          type: string
+          enum: [Active, Inactive]
+          default: Active
+        updatedAt:
+          type: string
+          description: Exact version token from GET; mandatory when editing
+    OrganizationManagedEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: [string, 'null']
+        parentId:
+          type: [string, 'null']
+        status:
+          type: string
+        sourceSystem:
+          type: [string, 'null']
+        editable:
+          type: boolean
+        updatedAt:
+          type: string
+        employeeCount:
+          type: integer
+        deviceCount:
+          type: integer
     CommunicationType:
       type: string
       enum: [Alert, Reminder, OperationalNotice, News, Article, KnowledgeUpdate]

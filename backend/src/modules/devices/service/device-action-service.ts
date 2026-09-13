@@ -1,3 +1,5 @@
+import { DevicePlacementService, placementUpdate } from "./device-placement-service.js";
+import type { z } from "zod";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promises as fs, type Dirent } from "node:fs";
@@ -15,7 +17,14 @@ import { buildDeviceHealthStatusSql } from "./device-health-sql.js";
 
 const execFileAsync = promisify(execFile);
 const deviceActionServiceDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRootDirectory = path.resolve(deviceActionServiceDirectory, "..", "..", "..", "..", "..");
+const repositoryRootDirectory = path.resolve(
+  deviceActionServiceDirectory,
+  "..",
+  "..",
+  "..",
+  "..",
+  "..",
+);
 const localPackagesDirectory = path.join(repositoryRootDirectory, "backend", "local-packages");
 const maxUploadedPackageBytes = 1024 * 1024 * 512;
 const prepareRolloutScriptPath = path.join(
@@ -133,6 +142,13 @@ export class DeviceActionService {
     this.statusSql = buildDeviceHealthStatusSql(thresholds);
   }
 
+  getPlacement(id: string) {
+    return new DevicePlacementService(this.database).get(id);
+  }
+  updatePlacement(id: string, input: z.infer<typeof placementUpdate>, actor: string) {
+    return new DevicePlacementService(this.database).update(id, input, actor);
+  }
+
   async listLocalPackages(baseUrl: string): Promise<LocalRolloutPackageSummary[]> {
     let entries: Dirent<string>[] = [];
     try {
@@ -147,7 +163,9 @@ export class DeviceActionService {
     }
 
     const files = entries
-      .filter((entry: Dirent<string>) => entry.isFile() && entry.name.toLowerCase().endsWith(".msi"))
+      .filter(
+        (entry: Dirent<string>) => entry.isFile() && entry.name.toLowerCase().endsWith(".msi"),
+      )
       .map((entry: Dirent<string>) => entry.name)
       .sort((left: string, right: string) => right.localeCompare(left));
 
@@ -223,7 +241,10 @@ export class DeviceActionService {
         }
       }
 
-      const persistedInspection = mergeUploadedPackageMetadata(initialInspection, normalizedMetadata);
+      const persistedInspection = mergeUploadedPackageMetadata(
+        initialInspection,
+        normalizedMetadata,
+      );
       await writePackageInspectionManifest(publishedPath, persistedInspection);
 
       const summary = await this.buildLocalPackageSummary(publishedFileName, baseUrl);
@@ -288,7 +309,10 @@ export class DeviceActionService {
     }
   }
 
-  async deleteLocalPackage(fileName: string, actor: DeviceActionActor): Promise<DeleteLocalPackageResult> {
+  async deleteLocalPackage(
+    fileName: string,
+    actor: DeviceActionActor,
+  ): Promise<DeleteLocalPackageResult> {
     const sanitizedFileName = sanitizeUploadedMsiFileName(fileName);
     const fullPath = path.join(localPackagesDirectory, sanitizedFileName);
 
@@ -331,11 +355,7 @@ export class DeviceActionService {
     };
   }
 
-  async createRollout(
-    deviceId: string,
-    input: CreateDeviceRolloutInput,
-    actor: DeviceActionActor,
-  ) {
+  async createRollout(deviceId: string, input: CreateDeviceRolloutInput, actor: DeviceActionActor) {
     const device = await this.getDeviceById(deviceId);
     if (!device) {
       throw new AppError({
@@ -675,11 +695,7 @@ export class DeviceActionService {
     return rows[0] ?? null;
   }
 
-  private async inspectLocalPackage(
-    msiPath: string,
-    packageUrl: string,
-    baseUrl: string,
-  ) {
+  private async inspectLocalPackage(msiPath: string, packageUrl: string, baseUrl: string) {
     const backendBaseUrl = ensureTrailingSlash(baseUrl).replace(/\/$/, "");
     try {
       const { stdout, stderr } = await execFileAsync(
@@ -762,9 +778,7 @@ export class DeviceActionService {
 }
 
 function extractJsonPayload(output: string) {
-  const lines = output
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd());
+  const lines = output.split(/\r?\n/).map((line) => line.trimEnd());
   const startIndex = lines.findIndex((line) => line.trimStart().startsWith("{"));
   if (startIndex < 0) {
     return null;
@@ -834,10 +848,15 @@ async function buildMinimalPackageInspection(msiPath: string) {
   };
 }
 
-async function tryReadPackageInspectionManifest(msiPath: string): Promise<LocalPackageInspection | null> {
+async function tryReadPackageInspectionManifest(
+  msiPath: string,
+): Promise<LocalPackageInspection | null> {
   const manifestCandidates = [
     `${msiPath}.rollout.json`,
-    path.join(path.dirname(msiPath), `${path.basename(msiPath, path.extname(msiPath))}.rollout.json`),
+    path.join(
+      path.dirname(msiPath),
+      `${path.basename(msiPath, path.extname(msiPath))}.rollout.json`,
+    ),
   ];
 
   for (const manifestPath of manifestCandidates) {
@@ -914,10 +933,7 @@ function sanitizeUploadedMsiFileName(fileName: string) {
   return normalized;
 }
 
-async function writePackageInspectionManifest(
-  msiPath: string,
-  inspection: LocalPackageInspection,
-) {
+async function writePackageInspectionManifest(msiPath: string, inspection: LocalPackageInspection) {
   const manifestPath = `${msiPath}.rollout.json`;
   const manifest = {
     MsiPath: msiPath,

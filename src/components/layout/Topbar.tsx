@@ -20,6 +20,7 @@ export function Topbar() {
   const sectionNames: Record<string, string> = {
     notifications: "Notification Center",
     "wellness-programs": "Wellness Programs",
+    organization: "Organization",
     employees: "Employees",
     devices: "Devices",
     whatsapp: "WhatsApp Gateway",

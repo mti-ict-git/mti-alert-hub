@@ -1,3 +1,4 @@
+import { OrganizationManagementService } from "../../modules/organization/service/organization-management-service.js";
 import {
   loadEnv,
   resolveDeviceHealthThresholds,
@@ -114,6 +115,7 @@ export async function createBackendApp() {
         authService,
       }),
       ...registerOrganizationRoutes({
+        organizationManagementService: new OrganizationManagementService(database.client),
         organizationReadService,
       }),
       ...registerDeviceRoutes({

@@ -1,3 +1,4 @@
+import { DevicePlacementEditor } from "@/components/devices/DevicePlacementEditor";
 import { runDeviceRolloutBatch, type RolloutBatchResult } from "@/lib/device-bulk-rollout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { approveDeviceRequests, type DeviceApprovalResult } from "@/lib/device-bulk-approval";
@@ -9,7 +10,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Check, Loader2, Package, Rocket, Send, ShieldAlert, X } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  Package,
+  Rocket,
+  Send,
+  ShieldAlert,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -83,6 +93,7 @@ const NO_AREA_VALUE = "__none__";
 
 function DevicesPage() {
   const qc = useQueryClient();
+  const [placementTargets, setPlacementTargets] = useState<Device[]>([]);
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
   const [rolloutTargets, setRolloutTargets] = useState<Device[]>([]);
   const [checkedDevices, setCheckedDevices] = useState<{ page: string; ids: string[] }>({
@@ -92,6 +103,7 @@ function DevicesPage() {
   const [rolloutResults, setRolloutResults] = useState<RolloutBatchResult[]>([]);
   const [rolloutProgress, setRolloutProgress] = useState(0);
   const [previewKey, setPreviewKey] = useState("");
+  const [deviceFiltersOpen, setDeviceFiltersOpen] = useState(false);
   const [deviceQuery, setDeviceQuery] = useState("");
   const [deviceFilters, setDeviceFilters] = useState({
     status: "all",
@@ -415,7 +427,7 @@ function DevicesPage() {
       />
 
       <div
-        className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-surface border bg-card px-6 py-4 text-sm"
+        className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-surface border bg-card px-4 py-3 text-sm"
         role="status"
       >
         <span>
@@ -457,102 +469,134 @@ function DevicesPage() {
 
         <TabsContent value="approved">
           <Card>
-            <CardHeader className="border-b">
-              <CardTitle className="text-base">Approved Devices</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Registered desktop agents and their latest connection details.
-              </p>
-            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto rounded-b-surface">
                 <div className="px-4 pt-4">
-                  <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    <SearchInput
-                      value={deviceQuery}
-                      onValueChange={setDeviceQuery}
-                      placeholder="Search devices…"
-                    />
-                    {deviceFilterOptions.map((filter) => (
-                      <Select
-                        key={filter.key}
-                        value={deviceFilters[filter.key]}
-                        onValueChange={(value) => updateDeviceFilter(filter.key, value)}
-                      >
-                        <SelectTrigger
-                          aria-label={`Filter approved devices by ${filter.label}`}
-                          className="w-full"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">
-                            All {filter.label.toLowerCase()}
-                            {filter.key === "status"
-                              ? "es"
-                              : filter.key === "site" ||
-                                  filter.key === "area" ||
-                                  filter.key === "version"
-                                ? "s"
-                                : " types"}
-                          </SelectItem>
-                          {filter.options.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ))}
-                  </div>
-                  <FilterChips
-                    count={filteredDevices.length}
-                    busy={devicesLoading}
-                    filters={[
-                      {
-                        label: "Search",
-                        value: deviceQuery,
-                        active: Boolean(deviceQuery),
-                        onRemove: () => setDeviceQuery(""),
-                      },
-                      ...deviceFilterOptions.map((filter) => ({
-                        label: filter.label,
-                        value:
-                          filter.options.find(
-                            (option) => option.value === deviceFilters[filter.key],
-                          )?.label ?? deviceFilters[filter.key],
-                        active: deviceFilters[filter.key] !== "all",
-                        onRemove: () => updateDeviceFilter(filter.key, "all"),
-                      })),
-                    ]}
-                  />
-                </div>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm text-muted-foreground" role="status">
-                    {selectedDevices.length} selected on this page
-                  </span>
-                  <div className="flex gap-2">
-                    {selectedDevices.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCheckedDevices({ page: approvedPageKey, ids: [] })}
-                      >
-                        Clear selection
-                      </Button>
-                    )}
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="min-w-0 flex-1 sm:max-w-sm">
+                      <SearchInput
+                        value={deviceQuery}
+                        onValueChange={setDeviceQuery}
+                        placeholder="Search devices…"
+                      />
+                    </div>
                     <Button
+                      variant="outline"
                       size="sm"
-                      disabled={!selectedDevices.length}
-                      onClick={() => openRollout(selectedDevices)}
+                      aria-expanded={deviceFiltersOpen}
+                      aria-controls="approved-device-filters"
+                      onClick={() => setDeviceFiltersOpen((open) => !open)}
                     >
-                      <Rocket className="mr-2 h-4 w-4" />
-                      Rollout selected ({selectedDevices.length})
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      Filters
+                      {Object.values(deviceFilters).some((v) => v !== "all")
+                        ? ` (${Object.values(deviceFilters).filter((v) => v !== "all").length})`
+                        : ""}
                     </Button>
                   </div>
+                  {deviceFiltersOpen && (
+                    <div
+                      id="approved-device-filters"
+                      className="mb-3 grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2 xl:grid-cols-3"
+                    >
+                      {deviceFilterOptions.map((filter) => (
+                        <Select
+                          key={filter.key}
+                          value={deviceFilters[filter.key]}
+                          onValueChange={(value) => updateDeviceFilter(filter.key, value)}
+                        >
+                          <SelectTrigger
+                            aria-label={`Filter approved devices by ${filter.label}`}
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">
+                              All {filter.label.toLowerCase()}
+                              {filter.key === "status"
+                                ? "es"
+                                : filter.key === "site" ||
+                                    filter.key === "area" ||
+                                    filter.key === "version"
+                                  ? "s"
+                                  : " types"}
+                            </SelectItem>
+                            {filter.options.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ))}
+                    </div>
+                  )}
+                  {(deviceQuery || Object.values(deviceFilters).some((v) => v !== "all")) && (
+                    <FilterChips
+                      count={filteredDevices.length}
+                      busy={devicesLoading}
+                      filters={[
+                        {
+                          label: "Search",
+                          value: deviceQuery,
+                          active: Boolean(deviceQuery),
+                          onRemove: () => setDeviceQuery(""),
+                        },
+                        ...deviceFilterOptions.map((filter) => ({
+                          label: filter.label,
+                          value:
+                            filter.options.find(
+                              (option) => option.value === deviceFilters[filter.key],
+                            )?.label ?? deviceFilters[filter.key],
+                          active: deviceFilters[filter.key] !== "all",
+                          onRemove: () => updateDeviceFilter(filter.key, "all"),
+                        })),
+                      ]}
+                    />
+                  )}
                 </div>
                 <Table
                   workspace={{
                     label: "Approved devices",
+                    summary: (
+                      <span role="status">
+                        {selectedDevices.length
+                          ? `${selectedDevices.length} selected on this page`
+                          : `${filteredDevices.length} devices · Select rows to roll out`}
+                      </span>
+                    ),
+                    actions: (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!selectedDevices.length}
+                          onClick={() => setPlacementTargets([...selectedDevices])}
+                        >
+                          Change placement
+                        </Button>
+                        {selectedDevices.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCheckedDevices({ page: approvedPageKey, ids: [] })}
+                          >
+                            Clear selection
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          disabled={!selectedDevices.length}
+                          onClick={() => openRollout(selectedDevices)}
+                        >
+                          <Rocket className="mr-2 h-4 w-4" />
+                          {selectedDevices.length
+                            ? `Rollout selected (${selectedDevices.length})`
+                            : "Rollout selected"}
+                        </Button>
+                      </>
+                    ),
                     columns: [
                       "Select",
                       "Hostname",
@@ -735,6 +779,13 @@ function DevicesPage() {
                                 <Send className="mr-1 h-3 w-3" />
                               )}
                               Test
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPlacementTargets([device])}
+                            >
+                              Edit placement
                             </Button>
                             <Button size="sm" onClick={() => openRollout([device])}>
                               <Rocket className="mr-1 h-3 w-3" />
@@ -943,6 +994,9 @@ function DevicesPage() {
         </TabsContent>
       </Tabs>
 
+      {placementTargets.length > 0 && (
+        <DevicePlacementEditor targets={placementTargets} onClose={() => setPlacementTargets([])} />
+      )}
       <Dialog
         open={rolloutOpen}
         onOpenChange={(nextOpen) => {

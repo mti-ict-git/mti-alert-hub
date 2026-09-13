@@ -163,3 +163,15 @@ Approved Devices filter toolbar uses the shared Select and SearchInput controls 
 ### Bulk device rollout — 2026-09-13
 
 Approved-device selection uses the existing Checkbox/Table and page-scoped selection pattern. Selection and Hostname are pinned, followed by Status. Rollout selected reuses the individual rollout dialog with a frozen hostname list and shared package settings. Preview must succeed for all targets and match the current settings before Apply is enabled. During processing, editing and closing are disabled. Per-device results distinguish request creation from completed installation. No automatic retry occurs for ambiguous responses.
+
+Login slideshow arrows fade in on photo-panel hover or keyboard focus for fine-pointer devices. Touch devices retain visible arrows; reduced motion disables the fade. Dots, pause control and slideshow timing remain unchanged.
+
+Approved Devices uses search plus a Filters disclosure (active count) instead of an always-open filter grid. Active filter chips remain visible while collapsed. Shared TableWorkspace accepts optional summary/actions slots; Devices puts selection summary and rollout beside density/column controls. Remove the redundant approved-card heading. Toolbar actions wrap on narrow screens.
+
+### Organization master ownership — 13 September 2026
+
+Organization precedes Employees and Devices in Management. Reuse PageHeader, Tabs, SearchInput, Select, Table, ListPagination and Dialog. Sites & Areas and Departments & Sections separate location from structure; child navigation preserves parent context. Tables show usage, source and status; forms preserve unsaved edits on cancellation. Source-owned entries are read-only. No deletion or reassignment flow in this slice.
+
+### Device placement follow-up
+
+Use the existing Sheet for single/bulk placement review and Dialog for discard confirmation. Reuse Select, Label, Input and Button. Change placement sits beside rollout/density actions; Edit placement is available per row. Defaults preserve existing values and review makes clearing Area explicit. Section is hidden in Organization; Department is the read-only AD login snapshot in device placement. This supersedes the earlier Departments & Sections menu direction.

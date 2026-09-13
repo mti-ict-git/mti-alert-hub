@@ -613,3 +613,11 @@ Key columns:
 - Any backend change affecting the domain or contract must also update `docs/openapi.yaml`.
 - Device records should stay operationally flat in MVP even if areas are backed by a simple reference table.
 - `Wellness Programs` MVP intentionally reuses the communication aggregate, recurring schedule model, and agent reminder policy sync boundary before any future decision to introduce a standalone relational wellness catalog.
+
+### Organization management UI extension — 13 September 2026
+
+Uses existing sites/areas/departments/sections status, source_system, parent foreign keys and updated_at columns; no migration. New records use source_system=Local. Updates preserve IDs and parent links. Existing foreign-key assignments are never deleted or moved. updated_at text serves as an optimistic version token. Organization changes and audit_logs entries commit in one transaction. Parent/child management writes serialize through a transaction advisory lock; external import writers retain their existing behavior.
+
+### Device placement management
+
+No new columns or migration. PATCH updates devices.site_id, area_id, location_label, ownership_mode and updated_at only. primary_employee_id and last_directory_department remain unchanged. Placement optimistic concurrency compares the four placement values rather than updated_at, which also changes on heartbeat. Audit writes share the device transaction. No communication-recipient or reminder-policy table is modified.

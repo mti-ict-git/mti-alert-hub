@@ -300,3 +300,22 @@ table[data-workspace="true"][data-identity="1"] tr > :first-child:not([colspan])
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
+
+/* Keep slideshow navigation discoverable on touch and when using a keyboard. */
+@media (hover: hover) and (pointer: fine) {
+  .login-carousel-arrow {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+  .login-carousel:hover .login-carousel-arrow,
+  .login-carousel:focus-within .login-carousel-arrow {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-carousel-arrow {
+    transition: none;
+  }
+}
