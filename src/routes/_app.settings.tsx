@@ -1,3 +1,4 @@
+import { SitesAreasSettings } from "@/components/settings/SitesAreasSettings";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -14,10 +15,21 @@ import { Download, Loader2, Package, RefreshCw, Trash2, Upload } from "lucide-re
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/settings")({
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab:
+      typeof search.tab === "string" &&
+      ["general", "locations", "channels", "agent", "whatsapp", "roles", "audit"].includes(
+        search.tab,
+      )
+        ? search.tab
+        : undefined,
+  }),
   component: SettingsPage,
 });
 
 function SettingsPage() {
+  const { tab = "general" } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [s, setS] = useState<AppSettings | null>(null);
@@ -76,13 +88,19 @@ function SettingsPage() {
     <div>
       <PageHeader
         title="Settings"
-        description="Configure MTI Connect channels, agents, and permissions."
-        actions={<Button onClick={save}>Save Changes</Button>}
+        description="Configure MTI Connect locations, channels, agents, and permissions."
+        actions={tab !== "locations" ? <Button onClick={save}>Save Changes</Button> : undefined}
       />
 
-      <Tabs defaultValue="general">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          void navigate({ search: { tab: value }, replace: true });
+        }}
+      >
         <TabsList className="flex-wrap">
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="locations">Sites & Areas</TabsTrigger>
           <TabsTrigger value="channels">Channels</TabsTrigger>
           <TabsTrigger value="agent">Desktop Agent</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp Gateway</TabsTrigger>
@@ -90,6 +108,9 @@ function SettingsPage() {
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="locations" className="mt-4">
+          <SitesAreasSettings />
+        </TabsContent>
         <TabsContent value="general" className="mt-4">
           <Card>
             <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">

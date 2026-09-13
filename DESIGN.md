@@ -175,3 +175,7 @@ Organization precedes Employees and Devices in Management. Reuse PageHeader, Tab
 ### Device placement follow-up
 
 Use the existing Sheet for single/bulk placement review and Dialog for discard confirmation. Reuse Select, Label, Input and Button. Change placement sits beside rollout/density actions; Edit placement is available per row. Defaults preserve existing values and review makes clearing Area explicit. Section is hidden in Organization; Department is the read-only AD login snapshot in device placement. This supersedes the earlier Departments & Sections menu direction.
+
+### Direction update — Sites & Areas in Settings
+
+The user requested removal of the remaining Departments menu and relocation of master locations to Settings. The canonical UI is now Settings → Sites & Areas, with Sites and Areas subtabs only. Organization no longer appears in Management. The old /organization URL redirects to /settings?tab=locations. Department/Section storage and backend contracts are retained for compatibility; they have no management tab here. Sites/Areas use their own Save changes action in the entry editor, not the general Settings save button. This supersedes the earlier standalone Organization menu direction.

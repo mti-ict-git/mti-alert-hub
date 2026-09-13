@@ -5,7 +5,6 @@ import {
   PlusCircle,
   HeartPulse,
   Users,
-  Building2,
   MonitorSmartphone,
   MessageCircle,
   FileText,
@@ -34,7 +33,6 @@ const primaryItems = [
 ];
 
 const manageItems = [
-  { title: "Organization", url: "/organization", icon: Building2 },
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Devices", url: "/devices", icon: MonitorSmartphone },
   { title: "WhatsApp Gateway", url: "/whatsapp", icon: MessageCircle },

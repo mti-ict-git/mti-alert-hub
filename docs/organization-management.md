@@ -21,3 +21,7 @@ Use Sites & Areas or Departments & Sections. Select View areas / View sections t
 ## Direction change: Section and AD department
 
 The user clarified that Section is not used and Department is available from the agent AD login lookup. Organization now shows Departments without Section navigation. Legacy sections remain stored for compatibility; this is not a destructive migration. Device placement displays the latest AD department read-only. No new AD-to-department-master synchronization or automatic employee reassignment is introduced.
+
+### Direction update — Sites & Areas in Settings
+
+The user requested removal of the remaining Departments menu and relocation of master locations to Settings. The canonical UI is now Settings → Sites & Areas, with Sites and Areas subtabs only. Organization no longer appears in Management. The old /organization URL redirects to /settings?tab=locations. Department/Section storage and backend contracts are retained for compatibility; they have no management tab here. Sites/Areas use their own Save changes action in the entry editor, not the general Settings save button. This supersedes the earlier standalone Organization menu direction.
