@@ -11,7 +11,6 @@ import {
   BarChart3,
   Settings,
   ScrollText,
-  Siren,
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,6 +22,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const primaryItems = [
@@ -47,18 +47,36 @@ const systemItems = [
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isActive = (url: string) => (url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/"));
+  const { setOpenMobile } = useSidebar();
+  const activeItem = [...primaryItems, ...manageItems, ...systemItems]
+    .filter(({ url }) =>
+      url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/"),
+    )
+    .sort((a, b) => b.url.length - a.url.length)[0];
+  const isActive = (url: string) => activeItem?.url === url;
 
   const renderGroup = (label: string, items: typeof primaryItems) => (
-    <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+    <SidebarGroup className="px-2 py-3 group-data-[collapsible=icon]:px-2">
+      <SidebarGroupLabel className="mb-1 px-4 text-[11px] font-normal tracking-wide text-sidebar-foreground/75">
+        {label}
+      </SidebarGroupLabel>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-0.5">
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                <Link to={item.url}>
-                  <item.icon className="h-4 w-4" />
+              <SidebarMenuButton
+                asChild
+                isActive={isActive(item.url)}
+                tooltip={item.title}
+                className="h-11 gap-3 rounded-sm px-4 text-[13px] font-normal md:h-9 data-[active=true]:font-medium"
+              >
+                <Link
+                  to={item.url}
+                  activeOptions={{ exact: true }}
+                  aria-current={isActive(item.url) ? "page" : undefined}
+                  onClick={() => setOpenMobile(false)}
+                >
+                  <item.icon aria-hidden="true" strokeWidth={1.5} className="h-4 w-4" />
                   <span>{item.title}</span>
                 </Link>
               </SidebarMenuButton>
@@ -70,25 +88,40 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emergency text-emergency-foreground">
-            <Siren className="h-4 w-4" />
+    <Sidebar collapsible="icon" aria-label="Main navigation">
+      <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden">
+        <img
+          src="/images/sidebar/services-sidebar-background.png"
+          alt=""
+          aria-hidden="true"
+          width={212}
+          height={223}
+          draggable={false}
+          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full select-none group-data-[collapsible=icon]:hidden"
+        />
+        <SidebarHeader className="h-22 justify-center px-4 group-data-[collapsible=icon]:px-0">
+          <div className="flex items-center gap-2 px-2 py-3">
+            <img
+              src="/images/brand/mti-connect-logo/logo-icon.svg"
+              alt=""
+              width={144}
+              height={144}
+              className="h-9 w-9 shrink-0 rounded-md bg-white"
+            />
+            <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="text-base font-semibold text-foreground">MTI Connect</span>
+              <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/75">
+                Employee Communications
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold text-sidebar-foreground">MTI Alert</span>
-            <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-              Emergency Notification
-            </span>
-          </div>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        {renderGroup("Operations", primaryItems)}
-        {renderGroup("Management", manageItems)}
-        {renderGroup("System", systemItems)}
-      </SidebarContent>
+        </SidebarHeader>
+        <SidebarContent className="gap-0">
+          {renderGroup("Operations", primaryItems)}
+          {renderGroup("Management", manageItems)}
+          {renderGroup("System", systemItems)}
+        </SidebarContent>
+      </div>
     </Sidebar>
   );
 }

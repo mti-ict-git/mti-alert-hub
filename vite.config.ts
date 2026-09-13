@@ -7,6 +7,20 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  vite: {
+    // Keep app dependency prebundles separate from isolated preview/test servers.
+    cacheDir: "node_modules/.vite-mti-app",
+    optimizeDeps: { force: process.env.VITE_FORCE_OPTIMIZE === "1" },
+    server: {
+      proxy: {
+        "/api": {
+          target: process.env.DEV_API_TARGET ?? "http://127.0.0.1:4019",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api(?=\/|$)/, ""),
+        },
+      },
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

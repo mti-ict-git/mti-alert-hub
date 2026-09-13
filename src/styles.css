@@ -9,6 +9,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-surface: var(--surface-radius);
+  --shadow-card: var(--surface-shadow);
+  --shadow-login: var(--login-shadow);
+  --color-login-panel: var(--login-panel);
+  --color-login-foreground: var(--login-foreground);
+  --color-login-border: var(--login-border);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -48,14 +54,22 @@
 }
 
 :root {
+  --surface-radius: 0.5rem;
+  --surface-shadow: 0 2px 8px rgb(24 36 51 / 4%);
+  --login-shadow:
+    0 40px 100px -20px rgb(3 10 18 / 65%), 0 16px 36px -12px rgb(3 10 18 / 55%),
+    0 0 0 1px rgb(255 255 255 / 28%);
+  --login-panel: #182433;
+  --login-foreground: #f6f8fb;
+  --login-border: #374456;
   --radius: 0.5rem;
-  --background: oklch(0.985 0.005 240);
-  --foreground: oklch(0.18 0.03 250);
+  --background: #f6f8fb;
+  --foreground: #182433;
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.03 250);
+  --card-foreground: #182433;
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.03 250);
-  --primary: oklch(0.42 0.15 255);
+  --primary: #2563eb;
   --primary-foreground: oklch(0.985 0.005 240);
   --secondary: oklch(0.955 0.01 245);
   --secondary-foreground: oklch(0.22 0.03 250);
@@ -65,9 +79,9 @@
   --accent-foreground: oklch(0.22 0.03 250);
   --destructive: oklch(0.55 0.24 27);
   --destructive-foreground: oklch(0.985 0.005 240);
-  --border: oklch(0.9 0.01 250);
-  --input: oklch(0.9 0.01 250);
-  --ring: oklch(0.42 0.15 255);
+  --border: #e5e9ef;
+  --input: #d5dce5;
+  --ring: #2563eb;
   --info: oklch(0.62 0.14 235);
   --info-foreground: oklch(0.99 0 0);
   --warning: oklch(0.76 0.16 75);
@@ -76,17 +90,18 @@
   --emergency-foreground: oklch(0.99 0 0);
   --success: oklch(0.62 0.16 155);
   --success-foreground: oklch(0.99 0 0);
-  --sidebar: oklch(0.22 0.03 255);
-  --sidebar-foreground: oklch(0.92 0.01 250);
-  --sidebar-primary: oklch(0.55 0.18 255);
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #182433;
+  --sidebar-primary: #2563eb;
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.28 0.03 255);
-  --sidebar-accent-foreground: oklch(0.98 0.005 250);
-  --sidebar-border: oklch(0.3 0.03 255);
-  --sidebar-ring: oklch(0.55 0.18 255);
+  --sidebar-accent: #edf2f9;
+  --sidebar-accent-foreground: #182433;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
 }
 
 .dark {
+  --surface-shadow: 0 2px 8px rgb(0 0 0 / 16%);
   --background: oklch(0.15 0.02 250);
   --foreground: oklch(0.96 0.005 245);
   --card: oklch(0.2 0.025 250);
@@ -146,6 +161,14 @@
   *::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--color-muted-foreground) 75%, transparent);
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
+  }
+  *::-webkit-scrollbar-thumb:active {
+    background: var(--color-muted-foreground);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -181,4 +204,99 @@
   50% {
     box-shadow: 0 0 0 10px color-mix(in oklab, var(--color-emergency) 0%, transparent);
   }
+}
+
+@layer components {
+  .login-backdrop {
+    position: relative;
+    isolation: isolate;
+    background-color: #14212b;
+  }
+
+  .login-backdrop::before {
+    content: "";
+    position: fixed;
+    inset: -24px;
+    z-index: -2;
+    pointer-events: none;
+    filter: blur(6px);
+    background-image:
+      linear-gradient(rgb(12 22 25 / 42%), rgb(12 22 25 / 42%)),
+      url("/images/login/imip-morowali-oil-painting.png");
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+
+  .login-backdrop::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at 50% 40%,
+      rgb(220 235 245 / 8%) 0%,
+      rgb(3 10 18 / 12%) 55%,
+      rgb(3 10 18 / 48%) 100%
+    );
+  }
+}
+
+/* Opt-in operational tables own scrolling; surrounding forms keep natural height. */
+table[data-workspace="true"] {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table[data-workspace="true"] thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--card);
+}
+table[data-workspace="true"] th {
+  border-bottom: 1px solid var(--border);
+}
+table[data-workspace="true"] td {
+  border-bottom: 1px solid var(--border);
+}
+table[data-workspace="true"][data-density="comfortable"] td {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  font-size: 0.875rem;
+}
+table[data-workspace="true"][data-density="compact"] td {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.8125rem;
+}
+@media (min-width: 768px) {
+  table[data-workspace="true"] tr > :first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--card);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  table[data-workspace="true"][data-identity="1"] tr > :first-child:not([colspan]) {
+    width: var(--table-leading-width);
+    min-width: var(--table-leading-width);
+    max-width: var(--table-leading-width);
+  }
+  table[data-workspace="true"][data-identity="1"] tr > :nth-child(2):not([colspan]) {
+    position: sticky;
+    left: var(--table-leading-width);
+    z-index: 10;
+    background: var(--card);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  table[data-workspace="true"] tbody tr:hover > :first-child:not([colspan]),
+  table[data-workspace="true"][data-identity="1"] tbody tr:hover > :nth-child(2):not([colspan]) {
+    background: var(--muted);
+  }
+}
+
+table[data-workspace="true"][data-identity="1"] tr > :first-child:not([colspan]) {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }

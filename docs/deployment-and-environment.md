@@ -1,21 +1,26 @@
 # MTI Alert Deployment And Environment
 
 ## Document Status
+
 - Version: `0.2`
 - Status: `Draft Baseline`
 - Last Updated: `2026-09-02`
 - Owner: `Engineering / Operations`
 
 ## Purpose
+
 This document defines the baseline deployment assumptions, environment boundaries, configuration responsibilities, and release expectations for `MTI Alert`.
 
 ## Deployment Goals
+
 - Keep environment expectations explicit before backend implementation accelerates.
 - Prevent hidden assumptions around secrets, migrations, connector dependencies, and release order.
 - Provide a stable handoff reference for setup, deployment, and operations work.
 
 ## Baseline System Components
+
 The MVP deployment is expected to include:
+
 - `Admin API`
 - `Agent API`
 - `Realtime Hub` or equivalent realtime delivery service boundary
@@ -25,13 +30,16 @@ The MVP deployment is expected to include:
 - future connector boundaries for `Email` and `Digital Signage`
 
 ## Windows Agent Rollout Baseline
+
 The Windows Agent rollout model is hybrid:
+
 - initial install and break-glass recovery should remain compatible with enterprise endpoint-management tooling such as `GPO`, `Intune`, `SCCM`, or `PDQ`
 - routine update and uninstall may be orchestrated by the running agent when the endpoint is healthy
 - agent-driven lifecycle execution must still pass through a dedicated updater component rather than direct self-replacement by the tray app
 - endpoint-management tooling remains the fallback path when the agent is offline, unhealthy, or no longer trusted
 
 Operational consequences:
+
 - the preferred package format is `MSI` with silent install, silent uninstall, and upgrade support
 - managed bootstrap may stage the `MSI` onto local disk first and then execute a local silent install during computer startup when direct network-share execution would create too much simultaneous load
 - startup at user logon should be enforced by the updater-owned startup registration, currently a `Scheduled Task` targeted at the built-in `Users` group
@@ -41,60 +49,76 @@ Operational consequences:
 - the current Docker baseline persists uploaded rollout packages through the named volume `backend_local_packages`, mounted into the backend container at `/app/backend/local-packages`
 
 ## Environment Model
+
 ### Local Development
+
 Purpose:
+
 - daily engineering work
 - rapid debugging
 - schema iteration
 - contract and workflow verification
 
 Expected characteristics:
+
 - local or containerized infrastructure
 - relaxed operational scale assumptions
 - safe development secrets only
 - mock or sandbox connector integrations where practical
 
 ### Shared Development Or Integration
+
 Purpose:
+
 - team-level integration
 - frontend-backend coordination
 - Windows Agent contract validation
 - external dependency sandbox testing
 
 Expected characteristics:
+
 - centrally managed environment variables
 - shared database and service endpoints
 - basic observability enabled
 - restricted but stable test integrations
 
 ### Staging Or Pre-Production
+
 Purpose:
+
 - release validation
 - deployment rehearsal
 - migration verification
 - smoke testing with production-like settings
 
 Expected characteristics:
+
 - production-like topology where practical
 - controlled secrets management
 - deployment automation enabled
 - rollback and recovery checks performed
 
 ### Production
+
 Purpose:
+
 - live communication operations
 - audited delivery and monitoring
 - controlled change rollout
 
 Expected characteristics:
+
 - hardened secret handling
 - monitoring and alerting enabled
 - backup and restore plan defined
 - operational logging and audit retention active
 
 ## Configuration Categories
+
 ### Application Configuration
+
 Examples:
+
 - application name
 - environment name
 - public base URL for admin application
@@ -102,6 +126,7 @@ Examples:
 - enabled delivery channels for the current release scope
 
 Current implementation baseline:
+
 - `ENABLED_DELIVERY_CHANNELS` now controls which backend delivery channels may be used by create, update, and publish flows. The desktop-first live default is `WindowsAgent`.
 - `VITE_ENABLED_DELIVERY_CHANNELS` now controls which delivery channels are shown in the admin compose and edit flows. The desktop-first live default is `DesktopAgent`.
 - Windows Agent package builds keep runtime environment settings and package versioning separate: `ServerBaseUrl` is baked into `appsettings.json`, while build versioning should flow through installer metadata (`Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`, and MSI `ProductVersion`) using `build-agent-package.ps1 -PackageVersion`. When code-signing certificate values are available in the repo `.env`, the same build step now also signs and validates the resulting MSI so rollout metadata inspection can recover signer thumbprint automatically.
@@ -116,12 +141,15 @@ Current implementation baseline:
 - If `MTI_ALERT_PRODUCTION_UPLOAD_API_BASE_URL` is omitted, `build-agent-package.ps1` derives it as `<ServerBaseUrl>/api`.
 
 ### Database Configuration
+
 Examples:
+
 - PostgreSQL connection string
 - connection pool settings
 - migration execution settings
 
 Current implementation baseline:
+
 - Phase 1 backend startup verifies live PostgreSQL connectivity during application bootstrap.
 - The current target database is `ictMTIAlertHub`.
 - Versioned migration commands now exist through `npm run backend:migrate` and `npm run backend:migrate:status`.
@@ -129,13 +157,16 @@ Current implementation baseline:
 - Organization, employee, and device read-model endpoints currently return empty-state payloads because the new tables are still unseeded, not because the schema is missing.
 
 ### Realtime Configuration
+
 Examples:
+
 - hub endpoint or transport settings
 - heartbeat thresholds
 - stale connection thresholds
 - reconnect policy values
 
 Current implementation baseline:
+
 - `POST /agent/realtime/negotiate` now builds `connectionUrl` from the inbound request host by default, so shared-environment and remote Windows Agent clients do not receive a loopback-only `localhost` stream URL.
 - Reverse-proxied or split-host deployments may override that derived value with `BACKEND_PUBLIC_BASE_URL` when the externally reachable realtime base URL differs from the immediate request host.
 - Do not set `BACKEND_PUBLIC_BASE_URL` to `localhost` or another loopback host for shared or remote Windows Agent deployments, because agent clients will then attempt to open SSE against themselves instead of the backend host.
@@ -151,7 +182,9 @@ Current implementation baseline:
 - The backend now uses that TTL to stop replaying old one-time Windows Agent delivery jobs after reconnect or reinstall when the original publish had no explicit `valid_until`.
 
 ### Authentication Configuration
+
 Examples:
+
 - LDAP or Active Directory host
 - bind settings
 - allowed admin groups
@@ -159,6 +192,7 @@ Examples:
 - signing keys or token secrets
 
 Current implementation baseline:
+
 - Phase 1 currently uses LDAP-backed admin authentication.
 - Phase 1 currently issues opaque bearer session tokens from an in-memory session store.
 - `POST /auth/rotate-session` now provides an authenticated admin token-rotation baseline and invalidates the previous bearer token immediately.
@@ -173,13 +207,16 @@ Current implementation baseline:
 - `LDAP_SKIP_TLS_VERIFY=true` is rejected in production; local and shared-development runtimes may still use relaxed TLS verification for internal directory infrastructure.
 
 ### Baseline Data Import
+
 Examples:
+
 - one-time org baseline import
 - one-time employee baseline import
 - one-time device inventory import
 - dry-run validation before shared-environment execution
 
 Current implementation baseline:
+
 - Phase 1 now includes a baseline import script for `sites`, `areas`, `departments`, `sections`, `employees`, `devices`, and saved `audienceGroups`.
 - Development command: `npm run backend:import:baseline:dev -- "<path-to-json>"`
 - Development rollback command: `npm run backend:import:baseline:dev:rollback -- "<path-to-json>"`
@@ -190,31 +227,39 @@ Current implementation baseline:
 - Direct script usage also supports `--rollback` and `--dry-run`, but the dedicated rollback npm scripts are safer in shared environments.
 
 ### Channel And Connector Configuration
+
 Examples:
+
 - WhatsApp provider endpoint
 - provider credentials
 - callback verification secrets
 - retry and timeout policy values
 
 ### Scheduling And Queueing Configuration
+
 Examples:
+
 - queue backend connection
 - worker concurrency
 - retry limits
 - delayed delivery policy
 
 Current implementation baseline:
+
 - Reminder communications can now be authored from the admin UI with an explicit `Reminder` type and later published in `Recurring` mode with recurrence rule, timezone, execution mode, and validity-window controls.
 - Admin communication detail now exposes persisted reminder schedule metadata and reminder monitoring for `AgentLocalRoutine` through reminder-policy materialization and reconciled reminder-event history.
 
 ### Observability Configuration
+
 Examples:
+
 - log level
 - audit retention policy
 - metrics export settings
 - tracing or correlation settings
 
 Current implementation baseline:
+
 - Every HTTP response now echoes `X-Request-Id`, using the inbound header when supplied or a generated value otherwise.
 - Backend request lifecycle logs now include `requestId` and `actorUsername` where available for request-level correlation.
 - `GET /health/diagnostics` now returns explicit warning and critical `alerts` in addition to raw counters so operators can prioritize expiring sessions, stale realtime connections, and other degraded states more quickly during desktop-first live operations.
@@ -224,12 +269,14 @@ Current implementation baseline:
 - The Docker `nginx` admin gateway must allow MSI-sized upload bodies for `Settings > Desktop Agent` package publishing. Keep `client_max_body_size` aligned with the backend rollout upload path; the current baseline is `512m` in `docker/nginx.admin-gateway.conf`.
 
 ## Secret Handling Rules
+
 - Never hardcode secrets in source code or documentation examples.
 - Keep local development secrets separate from shared and production credentials.
 - Rotate provider and token secrets through environment-specific secret management.
 - Treat authentication keys, provider credentials, webhook verification secrets, and database credentials as secrets by default.
 
 ## Data And Migration Expectations
+
 - Database schema changes must stay synchronized with `docs/database-schema-specification.md`.
 - Backend API behavior changes must stay synchronized with `docs/openapi.yaml`.
 - Migrations should be versioned, repeatable, and deployable independently from ad hoc manual SQL.
@@ -237,11 +284,13 @@ Current implementation baseline:
 - Backup and rollback expectations must be defined before high-risk schema changes reach production.
 
 Current command conventions:
+
 - `npm run backend:migrate:status` checks applied and pending migrations against the built backend runtime.
 - `npm run backend:migrate` applies pending migrations against the configured target database.
 - `npm run backend:migrate:status:dev` and `npm run backend:migrate:dev` provide the same behavior through `tsx` during local development.
 
 ## Release Flow Baseline
+
 1. Confirm related documentation is synchronized.
 2. Validate build, typecheck, and targeted verification for changed areas.
 3. Validate database migration readiness if schema changes are included.
@@ -250,6 +299,7 @@ Current command conventions:
 6. Promote to production only when verification evidence is acceptable.
 
 For Windows Agent rollout changes, the release checklist should also confirm:
+
 - installer upgrade and uninstall commands are verified in a non-production environment
 - startup registration survives reinstall and update
 - updater trust checks validate package version, checksum, and signature before execution
@@ -261,22 +311,28 @@ For Windows Agent rollout changes, the release checklist should also confirm:
 - for large on-prem bootstrap rollout, prefer copying the signed `MSI` to a local cache such as `%ProgramData%\MTI\Packages\` before install, then invoke a local silent install from a computer startup script; the current repository helper is `MTI.Alert.Agent\Installer\install-agent-if-missing.vbs`
 
 Recent verification evidence:
+
 - `2026-07-14`: `npm run backend:typecheck`, `npm run backend:build`, and `npm run build` passed after adding hybrid reminder authoring and monitoring support to the admin flow.
 - `2026-07-14`: `node backend/tmp/phase4-reminder-hybrid-smoke.mjs` passed on `BACKEND_PORT=4033`, confirming recurring reminder publication with `AgentLocalRoutine`, reminder schedule metadata on communication detail, and reminder-policy activity retrieval for admin monitoring.
 
 ## Docker Baseline
+
 ### Scope
+
 The current Docker baseline is intended for:
+
 - local parity across frontend, backend, and PostgreSQL
 - shared integration bring-up for the desktop-first stack
 - early staging or pre-production rehearsal once environment secrets are provided
 
 The current Docker baseline is not yet a full production platform package. In particular:
+
 - LDAP certificate and network requirements remain environment-specific
 - reverse proxy or TLS termination is still expected to be handled outside this compose file
 - external managed PostgreSQL can still replace the bundled container by changing `POSTGRES_URL`
 
 ### Artifacts
+
 - `Dockerfile.backend`
 - `Dockerfile.frontend`
 - `docker-compose.yml`
@@ -286,6 +342,7 @@ The current Docker baseline is not yet a full production platform package. In pa
 - `.dockerignore`
 
 ### Usage
+
 1. Copy `.env.docker.example` to `.env.docker`.
 2. Replace placeholder PostgreSQL and LDAP values.
 3. If PostgreSQL is already managed outside Docker, run `docker-compose --env-file .env.docker up --build`.
@@ -295,6 +352,7 @@ The current Docker baseline is not yet a full production platform package. In pa
 If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
 
 ### Runtime Notes
+
 - The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The backend container must mount durable storage at `/app/backend/local-packages`; the current baseline uses the named Docker volume `backend_local_packages` so uploaded rollout packages survive backend container rebuilds and replacements.
@@ -308,6 +366,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 - `docker-compose.with-postgres.yml` is an optional overlay that adds a local PostgreSQL container and rewires `POSTGRES_URL` to `postgres:5432`.
 
 ## Smoke Verification Checklist
+
 - service starts successfully
 - database connection succeeds
 - migrations are applied successfully
@@ -317,6 +376,7 @@ If the host uses the newer Compose plugin, `docker compose --env-file .env.docke
 - logging and audit output are visible
 
 Latest verification evidence:
+
 - `2026-07-07`: backend startup succeeded with live database ping.
 - `2026-07-07`: `backend/migrations/0001_phase1_foundation.up.sql` was applied successfully to `ictMTIAlertHub`.
 - `2026-07-07`: migration status verification confirmed `0001_phase1_foundation.up.sql` is recorded as applied.
@@ -360,24 +420,31 @@ Latest verification evidence:
 - `2026-07-14`: the desktop-first Docker baseline was added through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `.dockerignore`, and `.env.docker.example`; focused verification confirmed `npm run backend:build` still passed, `NITRO_PRESET=node-server npm run build` generated a Node-runnable `.output/server/index.mjs`, and the resulting frontend runtime listened successfully on `http://127.0.0.1:4090`.
 
 ## Operational Dependencies
+
 ### Enterprise Identity
+
 - LDAP or Active Directory integration is required for administrative authentication.
 - Exact production configuration remains implementation-phase specific.
 
 ### WhatsApp Provider
+
 - A provider or gateway is required for outbound WhatsApp delivery and callback handling.
 - Production provider selection is still open and tracked in `docs/open-questions-and-challenges.md`.
 
 ### Windows Agent
+
 - A compatible C# Windows Agent is required for end-to-end desktop delivery validation.
 - Realtime protocol details must remain compatible with the documented push-first interaction model.
 
 ### HR Or Organization Data Source
+
 - External scheduled synchronization is the expected source of baseline organization data.
 - Ownership boundaries for overrides must remain explicit and documented.
 
 ## Observability Baseline
+
 Minimum operational visibility should include:
+
 - structured application logs
 - audit logging for publish, cancel, role changes, and scope changes
 - connector error visibility
@@ -386,21 +453,29 @@ Minimum operational visibility should include:
 - realtime connection health visibility
 
 ## Non-Production Test Data Guidance
+
 - Use synthetic or sanitized organization data where possible.
 - Avoid production recipient data in local development.
 - Separate connector sandbox traffic from live production traffic.
 
 ## Open Deployment Questions
+
 - Exact hosting topology for the realtime boundary is not yet fixed.
 - Exact production secret management solution is not yet fixed.
 - Exact production deployment platform is not yet fixed.
 - Provider-specific callback security and retry semantics depend on WhatsApp provider selection.
 
 ## Recommended Next Additions
+
 Add environment-specific detail to this document when implementation begins, including:
+
 - actual deployment platform
 - CI or CD flow
 - migration command conventions
 - secret manager choice
 - backup and restore procedure
 - rollback runbook links
+
+### Local development API proxy
+
+Run `npm run dev:full` for frontend and backend together. The frontend defaults to same-origin `/api`; Vite proxies this prefix to `DEV_API_TARGET`, defaulting to `http://127.0.0.1:4019`. Set that variable when using a different backend port. An explicit process `VITE_API_URL` overrides this default. When starting Vite alone, set `VITE_API_URL=/api` to use the proxy. This permits a local frontend port such as 4198 without expanding backend CORS origins. The production reverse proxy remains the owner of `/api` after deployment.

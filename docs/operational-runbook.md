@@ -171,3 +171,7 @@ powershell -ExecutionPolicy Bypass -File ".\mti.alert.agent\Installer\invoke-age
 - Windows Agent session, heartbeat, or reconciliation fails in the live candidate.
 - Desktop-targeted publish does not produce reconcilable delivery rows.
 - A non-approved channel is enabled in the live environment without an explicit release decision.
+
+### Local Vite module fetch failure
+
+When a route fails with `Failed to fetch dynamically imported module`, inspect the dependency request chain for a missing optimized module. The app uses `node_modules/.vite-mti-app`; temporary preview servers must use a different cache directory. To regenerate prebundles and rotate stale hashes, stop the existing dev stack and run `VITE_FORCE_OPTIMIZE=1 npm run dev:full` (POSIX shell). Normal startup remains `npm run dev:full`. Reload the browser afterward. Restarting the backend may require signing in again. Do not change credentials or business data to resolve a module-cache error.

@@ -1,3 +1,6 @@
+import { FilterChips } from "@/components/common/FilterChips";
+import { ListPagination } from "@/components/common/ListPagination";
+import { useListPagination } from "@/hooks/useListPagination";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -6,7 +9,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/common/SearchInput";
 import {
   Select,
   SelectContent,
@@ -44,7 +47,12 @@ export const Route = createFileRoute("/_app/notifications/")({
 function NotificationCenter() {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const { data = [], isLoading } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["notifications", "center"],
     queryFn: notificationsService.listNotificationCenterItems,
   });
@@ -66,9 +74,14 @@ function NotificationCenter() {
       ),
     [data, q, priority, status, view],
   );
-  const visibleSelectedIds = selectedIds.filter((id) => filtered.some((item) => item.id === id));
-  const selectedNotifications = filtered.filter((item) => visibleSelectedIds.includes(item.id));
-  const selectableCount = filtered.length;
+  const pagination = useListPagination(filtered, JSON.stringify([q, priority, status, view]));
+  const visibleSelectedIds = selectedIds.filter((id) =>
+    pagination.items.some((item) => item.id === id),
+  );
+  const selectedNotifications = pagination.items.filter((item) =>
+    visibleSelectedIds.includes(item.id),
+  );
+  const selectableCount = pagination.items.length;
   const allSelected = selectableCount > 0 && visibleSelectedIds.length === selectableCount;
   const hasSelection = visibleSelectedIds.length > 0;
   const selectedCancellableIds = selectedNotifications
@@ -136,15 +149,17 @@ function NotificationCenter() {
   function toggleSelectAll(checked: boolean) {
     setSelectedIds((current) => {
       if (!checked) {
-        return current.filter((id) => !filtered.some((item) => item.id === id));
+        return current.filter((id) => !pagination.items.some((item) => item.id === id));
       }
 
-      return Array.from(new Set([...current, ...filtered.map((item) => item.id)]));
+      return Array.from(new Set([...current, ...pagination.items.map((item) => item.id)]));
     });
   }
 
   function clearSelection() {
-    setSelectedIds((current) => current.filter((id) => !filtered.some((item) => item.id === id)));
+    setSelectedIds((current) =>
+      current.filter((id) => !pagination.items.some((item) => item.id === id)),
+    );
   }
 
   function openEdit(id: string) {
@@ -155,7 +170,7 @@ function NotificationCenter() {
     <div>
       <PageHeader
         title="Notification Center"
-        description="All standard notifications sent from MTI Alert. Wellness programs are managed separately."
+        description="All standard notifications sent from MTI Connect. Wellness programs are managed separately."
         actions={
           <Button asChild>
             <Link to="/notifications/new">
@@ -169,25 +184,46 @@ function NotificationCenter() {
         <CardContent className="p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <Tabs value={view} onValueChange={(value) => setView(value as CenterView)}>
-              <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="drafts">Drafts</TabsTrigger>
-                <TabsTrigger value="live">Scheduled / Live</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
+              <TabsList aria-label="Request views">
+                <TabsTrigger value="all">
+                  All
+                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                    {data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "all")).length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="drafts">
+                  Drafts
+                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                    {
+                      data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "drafts"))
+                        .length
+                    }
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="live">
+                  Scheduled / Live
+                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                    {data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "live")).length}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="history">
+                  History
+                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                    {
+                      data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "history"))
+                        .length
+                    }
+                  </span>
+                </TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="text-sm text-muted-foreground">
-              Standard one-time and recurring notifications stay in Notification Center for
-              monitoring, cancel, duplicate, and draft editing. Wellness programs use their own
-              submenu.
-            </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Input
+            <SearchInput
               placeholder="Search title…"
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onValueChange={setQ}
               className="max-w-xs"
             />
             <Select value={priority} onValueChange={setPriority}>
@@ -227,7 +263,9 @@ function NotificationCenter() {
 
           {hasSelection && (
             <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3">
-              <div className="text-sm font-medium">{visibleSelectedIds.length} selected</div>
+              <div className="text-sm font-medium">
+                {visibleSelectedIds.length} selected on this page
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -254,18 +292,59 @@ function NotificationCenter() {
             </div>
           )}
 
+          <FilterChips
+            count={filtered.length}
+            busy={isLoading}
+            filters={[
+              {
+                label: "Search",
+                value: q,
+                active: q !== "",
+                onRemove: () => setQ(""),
+              },
+              {
+                label: "Priority",
+                value: priority,
+                active: priority !== "all" && priority !== "",
+                onRemove: () => setPriority("all"),
+              },
+              {
+                label: "Status",
+                value: status,
+                active: status !== "all" && status !== "",
+                onRemove: () => setStatus("all"),
+              },
+            ]}
+          />
           <div className="overflow-x-auto rounded-md border">
-            <Table>
+            <Table
+              workspace={{
+                label: "Notifications",
+                columns: [
+                  "Select",
+                  "Title",
+                  "Priority",
+                  "Category",
+                  "Target",
+                  "Channels",
+                  "Status",
+                  "Created By",
+                  "Created At",
+                  "Actions",
+                ],
+                identityColumn: 1,
+              }}
+            >
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
-                      checked={allSelected}
+                      checked={allSelected ? true : hasSelection ? "indeterminate" : false}
                       onCheckedChange={(checked) => toggleSelectAll(checked === true)}
-                      aria-label="Select all visible notifications"
+                      aria-label="Select all notifications on this page"
                     />
                   </TableHead>
-                  <TableHead>Title</TableHead>
+                  <TableHead className="min-w-60">Title</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Target</TableHead>
@@ -273,7 +352,9 @@ function NotificationCenter() {
                   <TableHead>Status</TableHead>
                   <TableHead>Created By</TableHead>
                   <TableHead>Created At</TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-10">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -281,23 +362,35 @@ function NotificationCenter() {
                   <TableRow>
                     <TableCell
                       colSpan={10}
-                      className="py-8 text-center text-sm text-muted-foreground"
+                      className="h-32 text-center text-sm text-muted-foreground"
                     >
                       Loading…
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && filtered.length === 0 && (
+                {isError && (
                   <TableRow>
-                    <TableCell
-                      colSpan={10}
-                      className="py-8 text-center text-sm text-muted-foreground"
-                    >
-                      No standard notifications
+                    <TableCell colSpan={10} className="h-32 text-center">
+                      <span role="alert">
+                        Could not load notifications.{" "}
+                        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                          Retry
+                        </Button>
+                      </span>
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.map((n) => (
+                {!isLoading && !isError && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={10}
+                      className="h-32 text-center text-sm text-muted-foreground"
+                    >
+                      No notifications match this view. Adjust or reset the filters above.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {pagination.items.map((n) => (
                   <TableRow
                     key={n.id}
                     className="cursor-pointer"
@@ -404,6 +497,7 @@ function NotificationCenter() {
               </TableBody>
             </Table>
           </div>
+          <ListPagination {...pagination.controls} />
         </CardContent>
       </Card>
     </div>

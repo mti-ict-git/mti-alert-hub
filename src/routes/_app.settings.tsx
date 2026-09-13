@@ -21,7 +21,9 @@ function SettingsPage() {
   const qc = useQueryClient();
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [s, setS] = useState<AppSettings | null>(null);
-  useEffect(() => { settingsService.get().then(setS); }, []);
+  useEffect(() => {
+    settingsService.get().then(setS);
+  }, []);
 
   const {
     data: rolloutPackages = [],
@@ -42,7 +44,7 @@ function SettingsPage() {
           ? `Package ${result.package.fileName} already exists and is ready to use.`
           : result.replacedExisting
             ? `Replaced ${result.package.fileName} with the latest build successfully.`
-          : `Uploaded ${result.package.fileName} successfully.`,
+            : `Uploaded ${result.package.fileName} successfully.`,
       );
     },
     onError: (error) => {
@@ -63,12 +65,20 @@ function SettingsPage() {
 
   if (!s) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
-  const save = async () => { await settingsService.update(s); toast.success("Settings saved"); };
-  const latestPublishedPackage = rolloutPackages.find((item) => Boolean(item.version)) ?? rolloutPackages[0] ?? null;
+  const save = async () => {
+    await settingsService.update(s);
+    toast.success("Settings saved");
+  };
+  const latestPublishedPackage =
+    rolloutPackages.find((item) => Boolean(item.version)) ?? rolloutPackages[0] ?? null;
 
   return (
     <div>
-      <PageHeader title="Settings" description="Configure MTI Alert channels, agents, and permissions." actions={<Button onClick={save}>Save Changes</Button>} />
+      <PageHeader
+        title="Settings"
+        description="Configure MTI Connect channels, agents, and permissions."
+        actions={<Button onClick={save}>Save Changes</Button>}
+      />
 
       <Tabs defaultValue="general">
         <TabsList className="flex-wrap">
@@ -81,22 +91,65 @@ function SettingsPage() {
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
-          <Card><CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-            <Field label="Company Name"><Input value={s.general.companyName} onChange={(e) => setS({ ...s, general: { ...s.general, companyName: e.target.value } })} /></Field>
-            <Field label="Timezone"><Input value={s.general.timezone} onChange={(e) => setS({ ...s, general: { ...s.general, timezone: e.target.value } })} /></Field>
-            <Field label="Language"><Input value={s.general.language} onChange={(e) => setS({ ...s, general: { ...s.general, language: e.target.value } })} /></Field>
-          </CardContent></Card>
+          <Card>
+            <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+              <Field label="Company Name">
+                <Input
+                  aria-label="Company Name"
+                  value={s.general.companyName}
+                  onChange={(e) =>
+                    setS({ ...s, general: { ...s.general, companyName: e.target.value } })
+                  }
+                />
+              </Field>
+              <Field label="Timezone">
+                <Input
+                  aria-label="Timezone"
+                  value={s.general.timezone}
+                  onChange={(e) =>
+                    setS({ ...s, general: { ...s.general, timezone: e.target.value } })
+                  }
+                />
+              </Field>
+              <Field label="Language">
+                <Input
+                  aria-label="Language"
+                  value={s.general.language}
+                  onChange={(e) =>
+                    setS({ ...s, general: { ...s.general, language: e.target.value } })
+                  }
+                />
+              </Field>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="channels" className="mt-4">
-          <Card><CardContent className="grid grid-cols-1 gap-3 p-6 md:grid-cols-2">
-            {["Desktop Agent", "WhatsApp", "Email", "Digital Signage", "Telegram (planned)", "SMS (planned)"].map((c) => (
-              <div key={c} className="flex items-center justify-between rounded-md border p-3">
-                <div><div className="font-medium">{c}</div><div className="text-xs text-muted-foreground">{c.includes("planned") ? "Not yet configured" : "Enabled"}</div></div>
-                <Switch defaultChecked={!c.includes("planned")} disabled={c.includes("planned")} />
-              </div>
-            ))}
-          </CardContent></Card>
+          <Card>
+            <CardContent className="grid grid-cols-1 gap-3 p-6 md:grid-cols-2">
+              {[
+                "Desktop Agent",
+                "WhatsApp",
+                "Email",
+                "Digital Signage",
+                "Telegram (planned)",
+                "SMS (planned)",
+              ].map((c) => (
+                <div key={c} className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <div className="font-medium">{c}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.includes("planned") ? "Not yet configured" : "Enabled"}
+                    </div>
+                  </div>
+                  <Switch
+                    defaultChecked={!c.includes("planned")}
+                    disabled={c.includes("planned")}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="agent" className="mt-4">
@@ -107,34 +160,54 @@ function SettingsPage() {
                   <div>
                     <div className="font-medium">Agent Installer</div>
                     <div className="text-xs text-muted-foreground">
-                      Manage the global Windows Agent package registry here before triggering device-level rollouts.
+                      Manage the global Windows Agent package registry here before triggering
+                      device-level rollouts.
                     </div>
                   </div>
-                  <Button variant="outline" onClick={() => toast.info("Download — backend required")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => toast.info("Download — backend required")}
+                  >
                     <Download className="mr-1 h-4 w-4" /> Download Installer
                   </Button>
                 </div>
                 <Field label="Current Version">
                   <Input
+                    aria-label="Current Version"
                     value={s.desktopAgent.currentVersion}
-                    onChange={(e) => setS({ ...s, desktopAgent: { ...s.desktopAgent, currentVersion: e.target.value } })}
+                    onChange={(e) =>
+                      setS({
+                        ...s,
+                        desktopAgent: { ...s.desktopAgent, currentVersion: e.target.value },
+                      })
+                    }
                   />
                 </Field>
                 <Field label="Heartbeat Interval (seconds)">
                   <Input
+                    aria-label="Heartbeat Interval (seconds)"
                     type="number"
                     value={s.desktopAgent.heartbeatSec}
-                    onChange={(e) => setS({ ...s, desktopAgent: { ...s.desktopAgent, heartbeatSec: Number(e.target.value) } })}
+                    onChange={(e) =>
+                      setS({
+                        ...s,
+                        desktopAgent: { ...s.desktopAgent, heartbeatSec: Number(e.target.value) },
+                      })
+                    }
                   />
                 </Field>
                 <div className="md:col-span-2 flex items-center justify-between rounded-md border p-3">
                   <div>
                     <Label>Auto-update Agents</Label>
-                    <p className="text-xs text-muted-foreground">Push new versions automatically to online devices.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Push new versions automatically to online devices.
+                    </p>
                   </div>
                   <Switch
                     checked={s.desktopAgent.autoUpdate}
-                    onCheckedChange={(v) => setS({ ...s, desktopAgent: { ...s.desktopAgent, autoUpdate: v } })}
+                    onCheckedChange={(v) =>
+                      setS({ ...s, desktopAgent: { ...s.desktopAgent, autoUpdate: v } })
+                    }
                   />
                 </div>
               </CardContent>
@@ -149,7 +222,8 @@ function SettingsPage() {
                       Package Registry
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Upload signed MSI packages once here. Device rollout dialogs will reuse this global package list.
+                      Upload signed MSI packages once here. Device rollout dialogs will reuse this
+                      global package list.
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -172,7 +246,9 @@ function SettingsPage() {
                       type="button"
                       variant="outline"
                       disabled={packagesFetching}
-                      onClick={() => qc.invalidateQueries({ queryKey: ["device-rollout-packages"] })}
+                      onClick={() =>
+                        qc.invalidateQueries({ queryKey: ["device-rollout-packages"] })
+                      }
                     >
                       {packagesFetching ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -181,7 +257,11 @@ function SettingsPage() {
                       )}
                       Refresh
                     </Button>
-                    <Button type="button" disabled={uploadMutation.isPending} onClick={() => uploadInputRef.current?.click()}>
+                    <Button
+                      type="button"
+                      disabled={uploadMutation.isPending}
+                      onClick={() => uploadInputRef.current?.click()}
+                    >
                       {uploadMutation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
@@ -198,7 +278,10 @@ function SettingsPage() {
                     <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
                       <InfoRow label="Version" value={latestPublishedPackage.version ?? "-"} />
                       <InfoRow label="File" value={latestPublishedPackage.fileName} />
-                      <InfoRow label="Signature" value={latestPublishedPackage.signatureStatus ?? "-"} />
+                      <InfoRow
+                        label="Signature"
+                        value={latestPublishedPackage.signatureStatus ?? "-"}
+                      />
                       <InfoRow
                         label="Updated"
                         value={new Date(latestPublishedPackage.lastModifiedAt).toLocaleString()}
@@ -216,10 +299,13 @@ function SettingsPage() {
                     <div className="text-right">Action</div>
                   </div>
                   {packagesLoading ? (
-                    <div className="px-4 py-6 text-sm text-muted-foreground">Loading published MSI packages...</div>
+                    <div className="px-4 py-6 text-sm text-muted-foreground">
+                      Loading published MSI packages...
+                    </div>
                   ) : rolloutPackages.length === 0 ? (
                     <div className="px-4 py-6 text-sm text-muted-foreground">
-                      No MSI packages are published yet. Upload a signed package here before creating device rollouts.
+                      No MSI packages are published yet. Upload a signed package here before
+                      creating device rollouts.
                     </div>
                   ) : (
                     rolloutPackages.map((pkg) => (
@@ -229,7 +315,9 @@ function SettingsPage() {
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium">{pkg.fileName}</div>
-                          <div className="truncate text-xs text-muted-foreground">{pkg.packageUrl}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {pkg.packageUrl}
+                          </div>
                         </div>
                         <div>{pkg.version ?? "-"}</div>
                         <div>{pkg.signatureStatus ?? "-"}</div>
@@ -241,10 +329,11 @@ function SettingsPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                              disabled={deleteMutation.isPending}
+                            disabled={deleteMutation.isPending}
                             onClick={() => deleteMutation.mutate(pkg.fileName)}
                           >
-                              {deleteMutation.isPending && deleteMutation.variables === pkg.fileName ? (
+                            {deleteMutation.isPending &&
+                            deleteMutation.variables === pkg.fileName ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -262,33 +351,89 @@ function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="whatsapp" className="mt-4">
-          <Card><CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-            <Field label="Gateway URL"><Input value={s.whatsapp.gatewayUrl} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, gatewayUrl: e.target.value } })} /></Field>
-            <Field label="Webhook URL"><Input value={s.whatsapp.webhookUrl} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, webhookUrl: e.target.value } })} /></Field>
-            <Field label="Default Template"><Input value={s.whatsapp.defaultTemplate} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, defaultTemplate: e.target.value } })} /></Field>
-            <Field label="Retry Attempts"><Input type="number" value={s.whatsapp.retryAttempts} onChange={(e) => setS({ ...s, whatsapp: { ...s.whatsapp, retryAttempts: Number(e.target.value) } })} /></Field>
-          </CardContent></Card>
+          <Card>
+            <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+              <Field label="Gateway URL">
+                <Input
+                  aria-label="Gateway URL"
+                  value={s.whatsapp.gatewayUrl}
+                  onChange={(e) =>
+                    setS({ ...s, whatsapp: { ...s.whatsapp, gatewayUrl: e.target.value } })
+                  }
+                />
+              </Field>
+              <Field label="Webhook URL">
+                <Input
+                  aria-label="Webhook URL"
+                  value={s.whatsapp.webhookUrl}
+                  onChange={(e) =>
+                    setS({ ...s, whatsapp: { ...s.whatsapp, webhookUrl: e.target.value } })
+                  }
+                />
+              </Field>
+              <Field label="Default Template">
+                <Input
+                  aria-label="Default Template"
+                  value={s.whatsapp.defaultTemplate}
+                  onChange={(e) =>
+                    setS({ ...s, whatsapp: { ...s.whatsapp, defaultTemplate: e.target.value } })
+                  }
+                />
+              </Field>
+              <Field label="Retry Attempts">
+                <Input
+                  aria-label="Retry Attempts"
+                  type="number"
+                  value={s.whatsapp.retryAttempts}
+                  onChange={(e) =>
+                    setS({
+                      ...s,
+                      whatsapp: { ...s.whatsapp, retryAttempts: Number(e.target.value) },
+                    })
+                  }
+                />
+              </Field>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
-          <Card><CardContent className="p-6">
-            <div className="space-y-2">
-              {[
-                { role: "Admin", desc: "Full access, manage users and settings" },
-                { role: "Operator", desc: "Create and send notifications" },
-                { role: "Viewer", desc: "Read-only dashboards and reports" },
-              ].map((r) => (
-                <div key={r.role} className="flex items-center justify-between rounded-md border p-3">
-                  <div><div className="font-medium">{r.role}</div><div className="text-xs text-muted-foreground">{r.desc}</div></div>
-                  <Button size="sm" variant="outline">Edit permissions</Button>
-                </div>
-              ))}
-            </div>
-          </CardContent></Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-2">
+                {[
+                  { role: "Admin", desc: "Full access, manage users and settings" },
+                  { role: "Operator", desc: "Create and send notifications" },
+                  { role: "Viewer", desc: "Read-only dashboards and reports" },
+                ].map((r) => (
+                  <div
+                    key={r.role}
+                    className="flex items-center justify-between rounded-md border p-3"
+                  >
+                    <div>
+                      <div className="font-medium">{r.role}</div>
+                      <div className="text-xs text-muted-foreground">{r.desc}</div>
+                    </div>
+                    <Button size="sm" variant="outline">
+                      Edit permissions
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">See the full <a className="text-primary underline" href="/audit-logs">Audit Logs</a> page for filtering and export.</CardContent></Card>
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground">
+              See the full{" "}
+              <a className="text-primary underline" href="/audit-logs">
+                Audit Logs
+              </a>{" "}
+              page for filtering and export.
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
@@ -296,7 +441,12 @@ function SettingsPage() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-1.5"><Label className="text-xs">{label}</Label>{children}</div>;
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      {children}
+    </div>
+  );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

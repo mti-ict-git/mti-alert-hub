@@ -1,9 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  FlaskConical,
   BellRing,
-  CheckCircle2,
+  CircleAlert,
+  Plus,
+  ArrowUpRight,
   MonitorSmartphone,
   MessageCircle,
   Siren,
@@ -27,9 +30,8 @@ import { StatCard } from "@/components/common/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { dashboardService } from "@/services/dashboard.service";
 import { notificationsService } from "@/services/notifications.service";
-import { devicesService } from "@/services/devices.service";
-import { employeesService } from "@/services/employees.service";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 
 export const Route = createFileRoute("/_app/")({
@@ -37,18 +39,26 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function DashboardPage() {
-  const { data: overview } = useQuery({ queryKey: ["dashboard-overview"], queryFn: dashboardService.overview });
-  const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: notificationsService.list });
-  const { data: devices = [] } = useQuery({ queryKey: ["devices"], queryFn: devicesService.list });
-  const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: employeesService.list });
+  const {
+    data: overview,
+    isPending: overviewLoading,
+    isError: overviewError,
+    refetch: reloadOverview,
+  } = useQuery({ queryKey: ["dashboard-overview"], queryFn: dashboardService.overview });
+  const {
+    data: notifications = [],
+    isPending: notificationsLoading,
+    isError: notificationsError,
+    refetch: reloadNotifications,
+  } = useQuery({ queryKey: ["notifications"], queryFn: notificationsService.list });
 
   const overviewStats = overview ?? {
-    activeCommunications: 0,
-    recipientsPending: 0,
-    deliveredCount: 0,
-    respondedCount: 0,
-    failedCount: 0,
-    overdueResponses: 0,
+    activeCommunications: "—",
+    recipientsPending: "—",
+    deliveredCount: "—",
+    respondedCount: "—",
+    failedCount: "—",
+    overdueResponses: "—",
   };
 
   const byPriority = ["Emergency", "Warning", "Info"].map((p) => ({
@@ -63,7 +73,13 @@ function DashboardPage() {
     { name: "Acknowledged", value: 14 },
     { name: "No Response", value: 10 },
   ];
-  const ackColors = ["var(--success)", "var(--emergency)", "var(--warning)", "var(--info)", "var(--muted-foreground)"];
+  const ackColors = [
+    "var(--success)",
+    "var(--emergency)",
+    "var(--warning)",
+    "var(--info)",
+    "var(--muted-foreground)",
+  ];
 
   const channelData = [
     { name: "Desktop", value: 820 },
@@ -83,30 +99,130 @@ function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Control Room" description="Live overview of emergency and operational notifications." />
+      <PageHeader
+        title="Control Room"
+        description="Monitor emergency communications, delivery, and recipient responses."
+        actions={
+          <Button asChild>
+            <Link to="/notifications/new">
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Create Notification
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Active Communications" value={overviewStats.activeCommunications} icon={Siren} tone="emergency" hint="Scheduled, queued, sending, active" />
-        <StatCard label="Recipients Pending" value={overviewStats.recipientsPending} icon={BellRing} tone="info" />
-        <StatCard label="Delivered" value={overviewStats.deliveredCount} icon={MonitorSmartphone} tone="success" />
-        <StatCard label="Responded" value={overviewStats.respondedCount} icon={MessageCircle} tone="info" hint="Unique responding recipients" />
-        <StatCard label="Failed" value={overviewStats.failedCount} icon={CheckCircle2} tone="warning" />
-        <StatCard label="Overdue Responses" value={overviewStats.overdueResponses} icon={HandHelping} tone="warning" />
+      <div
+        className="mb-4 flex min-h-6 flex-wrap items-center gap-2 text-sm text-muted-foreground"
+        role="status"
+      >
+        {overviewLoading || notificationsLoading ? "Loading operational overview…" : null}
+        {overviewError || notificationsError ? (
+          <>
+            Some operational data could not be loaded.{" "}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void reloadOverview();
+                void reloadNotifications();
+              }}
+            >
+              Retry
+            </Button>
+          </>
+        ) : null}
+      </div>
+      {overview &&
+        !overviewError &&
+        (overview.overdueResponses > 0 || overview.failedCount > 0) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <p>
+              <strong>{overview.overdueResponses}</strong> overdue responses ·{" "}
+              <strong>{overview.failedCount}</strong> failed deliveries
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/notifications">
+                Review notifications <ArrowUpRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        )}
+      <h2 className="mb-3 text-sm font-semibold">Operational summary</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          label="Active Communications"
+          value={overviewStats.activeCommunications}
+          icon={Siren}
+          tone="emergency"
+          hint="Scheduled, queued, sending, active"
+        />
+        <StatCard
+          label="Recipients Pending"
+          value={overviewStats.recipientsPending}
+          icon={BellRing}
+          tone="info"
+        />
+        <StatCard
+          label="Overdue Responses"
+          value={overviewStats.overdueResponses}
+          icon={HandHelping}
+          tone="warning"
+        />
+        <StatCard
+          label="Failed"
+          value={overviewStats.failedCount}
+          icon={CircleAlert}
+          tone="warning"
+        />
+        <StatCard
+          label="Delivered"
+          value={overviewStats.deliveredCount}
+          icon={MonitorSmartphone}
+          tone="success"
+        />
+        <StatCard
+          label="Responded"
+          value={overviewStats.respondedCount}
+          icon={MessageCircle}
+          tone="info"
+          hint="Unique responding recipients"
+        />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle className="text-base">Notification by Priority</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Notification by Priority</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {notificationsLoading
+                ? "Loading notification totals…"
+                : notificationsError
+                  ? "Notification totals unavailable"
+                  : `${notifications.length} notifications in the current overview`}
+            </p>
+          </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byPriority}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} />
-                <YAxis stroke="var(--muted-foreground)" fontSize={12} />
-                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={12} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                />
+                <Bar isAnimationActive={false} dataKey="count" radius={[4, 4, 0, 0]}>
                   {byPriority.map((d) => (
-                    <Cell key={d.name} fill={d.name === "Emergency" ? "var(--emergency)" : d.name === "Warning" ? "var(--warning)" : "var(--info)"} />
+                    <Cell
+                      key={d.name}
+                      fill={
+                        d.name === "Emergency"
+                          ? "var(--emergency)"
+                          : d.name === "Warning"
+                            ? "var(--warning)"
+                            : "var(--info)"
+                      }
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -115,14 +231,32 @@ function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Acknowledgement Status</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Acknowledgement Status</CardTitle>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative data · not live response totals
+            </p>
+          </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={ackData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
-                  {ackData.map((_, i) => <Cell key={i} fill={ackColors[i]} />)}
+                <Pie
+                  isAnimationActive={false}
+                  data={ackData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={45}
+                  outerRadius={80}
+                  paddingAngle={2}
+                >
+                  {ackData.map((_, i) => (
+                    <Cell key={i} fill={ackColors[i]} />
+                  ))}
                 </Pie>
-                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
@@ -130,32 +264,74 @@ function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Delivery Channel Usage</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Delivery Channel Usage</CardTitle>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative data · not live delivery totals
+            </p>
+          </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={channelData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis type="number" stroke="var(--muted-foreground)" fontSize={12} />
-                <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={12} width={70} />
-                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }} />
-                <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  stroke="var(--muted-foreground)"
+                  fontSize={12}
+                  width={70}
+                />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)" }}
+                />
+                <Bar
+                  isAnimationActive={false}
+                  dataKey="value"
+                  fill="var(--primary)"
+                  radius={[0, 4, 4, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-base">Recent Notifications</CardTitle></CardHeader>
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle className="text-base">Recent Notifications</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/notifications">
+                View all
+                <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
           <CardContent>
-            <ul className="divide-y">
+            <ul className="min-h-32 divide-y">
+              {!notifications.length && (
+                <li className="py-10 text-center text-sm text-muted-foreground">
+                  {notificationsLoading
+                    ? "Loading notifications…"
+                    : notificationsError
+                      ? "Notifications are unavailable. Use Retry above."
+                      : "No notifications yet."}
+                </li>
+              )}
               {notifications.slice(0, 6).map((n) => (
                 <li key={n.id} className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <PriorityBadge priority={n.priority} />
-                      <span className="truncate font-medium">{n.title}</span>
+                      <Link
+                        to="/notifications/$id"
+                        params={{ id: n.id }}
+                        className="truncate rounded-sm font-medium hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        {n.title}
+                      </Link>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {n.category} · {n.targetType}
@@ -163,11 +339,14 @@ function DashboardPage() {
                         ? ` · ${n.targetSite}`
                         : n.targetArea
                           ? ` · ${n.targetArea}`
-                          : ""} · {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                          : ""}{" "}
+                      · {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
                     </div>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <div>{n.ackCount}/{n.recipientsCount} ack</div>
+                  <div className="shrink-0 text-right text-xs text-muted-foreground">
+                    <div>
+                      {n.ackCount}/{n.recipientsCount} ack
+                    </div>
                     <div>{n.channels.length} channels</div>
                   </div>
                 </li>
@@ -177,7 +356,13 @@ function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Activity Feed</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Activity Feed</CardTitle>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative activity · not a live event stream
+            </p>
+          </CardHeader>
           <CardContent>
             <ul className="space-y-3">
               {activity.map((a, i) => (

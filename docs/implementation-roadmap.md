@@ -447,6 +447,22 @@ Prepare the platform for broader rollout and future channels.
 
 ### Checklist
 
+- `[x]` Login motion refinement (2026-09-13): reduce blur to 6px and add 700ms horizontal slideshow transitions with reduced-motion support; browser computed styles/selection and targeted lint verified. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login depth styling (2026-09-13): Gaussian outer blur, vignette and layered card shadows; live visual/computed-style and formatting checks passed. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login slideshow (2026-09-13): full-height panel, wrapping arrows, white indicators, 20-second autoplay and pause/play; browser controls/timer and targeted lint verified. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Plant team gallery replacement (2026-09-13): remove Camp facilities and apply the user-selected Bisnis image as an oil painting; browser rendering and targeted lint verified. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Operations gallery painting (2026-09-13): replace the Operations runtime photograph with its oil-painted adaptation; live rendering/selection and targeted lint verified. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login gallery replacement (2026-09-13): user-selected factory photograph converted to oil painting and added as Industrial plant; live gallery selection/render and targeted lint passed. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login resource cleanup (2026-09-13): remove the user-selected nighttime site photograph and gallery option; live browser and targeted lint verified. Evidence: `docs/warehouse-theme-review.md`.
+
+- `[x]` Warehouse theme: implement and verify the shared web shell, Control Room, and Devices on `feat/warehouse-theme`. Production build, 12 reporting tests and 9 isolated browser checks passed; no new TypeScript diagnostics versus baseline. Full-project lint/audit limitations and evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Live login connectivity: route local browser API calls through the same-origin Vite proxy; health and login-validation responses verified in a real browser. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login background reference update (2026-09-13): apply the user-selected IMIP Morowali photograph as an oil-painting adaptation; desktop/mobile visual checks, asset HTTP 200 and CSS formatting passed. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Login background: generate and apply an original oil-painted landscape behind the card. Build, login lint and desktop/mobile visual checks passed; evidence in `docs/warehouse-theme-review.md`.
+- `[x]` Services-inspired login: centered photo/form layout and manual gallery implemented; build, targeted lint and 8 isolated login browser checks passed. Evidence: `docs/warehouse-theme-review.md`.
+- `[x]` Warehouse theme visual acceptance: user approved the dashboard theme on 2026-09-12 and requested live testing.
+- `[ ]` Warehouse theme promotion: complete user live testing and review the Services-inspired login before merge/push to main.
+
 - `[ ]` Channel expansion: define and document the email connector contract.
 - `[x]` Wellness revisions: edit Scheduled/Active program assignments and configuration atomically with version conflicts, retained history, and agent policy replacement. Closed 2026-09-05: PostgreSQL rollback integration, 15 regression tests, backend typecheck, targeted lint, production build and isolated browser verification passed; evidence and release boundary in `docs/wellness-program-revisions.md`.
 - `[x]` Wellness delivery correction: keep `AgentLocalRoutine` Windows execution policy-only on publish/revision and suppress legacy jobs from normal message reconciliation. Closed in development 2026-09-08: PostgreSQL rollback integration, backend typecheck/build and 12 reporting regression tests passed. Evidence and outstanding production smoke in `docs/wellness-policy-only-delivery-fix.md`; no agent rebuild required.
@@ -651,3 +667,51 @@ Prepare the platform for broader rollout and future channels.
 - `2026-09-03`: the first live device-user enrichment test exposed a remaining client-side gap: the backend was ready to persist `last_active_user_identifier`, but the Windows tray app never actually populated `ActiveUserIdentifier` on `/agent/session` or `/agent/heartbeat`, so the admin device list showed `Current User = -` and `Unknown` for online agents. `MTI.Alert.Agent/Services/ActiveUserContextResolver.cs` now resolves the interactive Windows username, while `MTI.Alert.Agent/Services/SessionService.cs` and `MTI.Alert.Agent/Services/HeartbeatService.cs` now send that value on session creation and heartbeat requests. `MTI.Alert.Agent/Tests/MTI.Alert.Agent.Tests/ActiveUserContextAgentRequestTests.cs` now covers both request paths so the regression is pinned. Verification target: build the Windows agent test project, run the new focused tests, then reconnect an agent and confirm `GET /devices` begins returning `lastActiveUserIdentifier` plus AD-enriched fields for live machines.
 - `2026-09-03`: the publishable Windows Agent shell is now trimmed for production use. `MTI.Alert.Agent/MainWindow.xaml` no longer renders the internal `Wellness Preview` shortcut panel in the main tray window, which removes lab-only quick triggers from the production-facing surface without changing the underlying wellness execution engine or server-driven reminder paths. Supporting client roadmap evidence was synchronized in `MTI.Alert.Agent/docs/client/implementation-roadmap.md`. Verification passed with `dotnet build .\\MTI.Alert.Agent\\MTI.Alert.Agent.csproj -c Release --no-restore`.
 - `2026-09-03`: rollout verification exposed a stale-version bug in backend device visibility. The Windows Agent already reports `agentVersion` on heartbeat, and the published `1.0.11` payload correctly embeds `FileVersion 1.0.11.0` plus `ProductVersion 1.0.11+...`, but `backend/src/modules/agent/service/agent-service.ts` previously updated `agent_version` only during `/agent/session`, not `/agent/heartbeat`. That meant endpoints upgraded in-place could keep showing `1.0.10` in the admin device list until the session was recreated. `reportHeartbeat()` now applies `input.agentVersion` as well, so version visibility advances on the first post-upgrade heartbeat. Verification passed with `npm run backend:typecheck` and `npm run backend:build`; the built production agent artifact was also inspected directly and confirmed to carry `FileVersion 1.0.11.0`.
+
+
+### Login branding follow-up - 2026-09-12
+
+- [x] Replace Gold Resources with the official Merdeka Tsingshan Indonesia mark in the corporate login row.
+- [x] Create and integrate an original MTI Alert application logo; deliver SVG, transparent PNG and ZIP.
+- [x] Verify login desktop/mobile layout and eight isolated login regression checks. Evidence and provenance: docs/warehouse-theme-review.md and public/images/brand/README.md.
+
+
+### MTI Connect web identity - 2026-09-12
+
+- [x] Apply user-selected MTI Connect name, original logo and tagline to the web interface.
+- [x] Deliver SVG, transparent PNG and ZIP logo assets.
+- [x] Verify production build, targeted lint, isolated login and dashboard branding; review desktop/mobile screenshots. Evidence and scope: docs/warehouse-theme-review.md.
+
+
+- [x] Revise MTI Connect application mark into a two-person handshake with M silhouette; regenerate exports and verify live desktop/mobile display. Evidence: warehouse-theme-review.md, handshake revision.
+
+
+### Services theme adoption — 2026-09-13
+
+- [x] Create the ordered adoption checklist and implement S1 sidebar styling with local browser and build verification.
+- [x] Complete S2–S6 header, cards/tabs, tables/filters, forms/dialogs and local cross-screen verification. Evidence: services-theme-checklist.md (production build, targeted lint, seven route components with isolated fixtures at desktop/mobile and dark theme; whole-project type/audit limits recorded).
+
+Scope, canonical owners and exact verification limits: [Services theme checklist](services-theme-checklist.md). Phase 4 remains in progress.
+
+### UI polish and consistency — 2026-09-13
+
+- [x] P1 — Notification table density, column visibility, sticky identity/header and active filter summaries.
+- [x] P2 — Apply shared table/filter patterns to Employees, Devices, Wellness Programs and Reports; add Devices search.
+- [x] P3 — Refine page hierarchy, status icon/text pairing, empty results and dashboard attention hierarchy; mark illustrative data.
+- [x] P4 — Verify local interactions and responsive/dark layout with isolated read-only fixtures; record build/lint and existing type/audit limitations in services-theme-checklist.md.
+
+Phase 4 remains in progress. This slice does not claim production integration or resolve the previously recorded project-wide type/audit backlog.
+
+- [x] Phase 4 sidebar artwork follow-up: adopt the original Services decorative background as a local asset; verify desktop/collapsed/mobile presentation, targeted lint and production build. Evidence: services-theme-checklist.md, Sidebar artwork follow-up.
+
+- [x] Phase 4 Wellness operator list: reduce visual density with five essential columns, three summary cards, optional filters and secondary action menu. Local desktop/mobile and interaction verification recorded in services-theme-checklist.md (Wellness density refinement).
+
+- [x] Phase 4 Wellness detail simplification: compact numeric summary, concise default Overview, separate full Configuration and secondary Deactivate action. Local responsive and confirmation-flow verification passed; evidence in services-theme-checklist.md.
+
+- [x] Phase 4 Create Wellness dev-module recovery: isolate application Vite dependency cache and provide explicit forced regeneration. Verify missing scroll-area import restored, complete inspected import graph, config lint and production build. Authenticated Create and Publish subsequently passed on 13 September 2026; physical-agent acceptance remains pending. Evidence in services-theme-checklist.md and pre-merge-verification.md.
+
+- [x] Phase 4 Devices: promote Hostname over Device ID and add page-scoped bulk approval with common-setting confirmation, partial results and failed-only retry. Unit/browser fixture verification, lint/build and documentation recorded in services-theme-checklist.md. No live enrollment mutation performed.
+
+- [x] Phase 4 Approved Devices filters: status/site/area/ownership/version, dependent reset, loaded-result counts and pagination reset. Read-only desktop/mobile verification and build/lint evidence in services-theme-checklist.md.
+
+- [ ] Phase 4 pre-merge actual-device acceptance: bounded Office Stretching test published only to MTI-NB-373, expiring 13 September 2026 21:40 WITA. Create/Publish, automated checks and build passed; agent was offline with no sync/activity evidence. Draft hostname display and misleading policy-summary wording remain observations. See pre-merge-verification.md. The user accepted proceeding with merge on 13 September 2026 and deferred physical-device acceptance until afterward; this checklist item remains open.
