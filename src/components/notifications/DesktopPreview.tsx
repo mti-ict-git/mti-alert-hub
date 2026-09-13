@@ -42,21 +42,30 @@ export function DesktopPreview({
     return (
       <div className="rounded-lg border bg-muted/40 p-3">
         <div className="mb-2 text-xs text-muted-foreground">Windows Agent wellness preview</div>
-        <div className={cn("overflow-hidden rounded-[24px] border bg-gradient-to-br shadow-lg", accent)}>
+        <div
+          className={cn(
+            "overflow-hidden rounded-[24px] border bg-gradient-to-br shadow-lg",
+            accent,
+          )}
+        >
           <div className="space-y-4 p-5">
             <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               <span>{wellnessProgram.programType}</span>
               <span>{wellnessProgram.theme}</span>
             </div>
             <div>
-              <div className="text-xl font-semibold text-foreground">{title || "Wellness Program Title"}</div>
+              <div className="text-xl font-semibold text-foreground">
+                {title || "Wellness Program Title"}
+              </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {message || "Short reminder body will appear here for the wellness surface."}
               </p>
             </div>
             {wellnessProgram.layoutVariant === "CountdownCard" && (
               <div className="rounded-2xl bg-background/80 p-4 text-center shadow-sm">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">Countdown</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Countdown
+                </div>
                 <div className="mt-2 text-3xl font-semibold">
                   {wellnessProgram.countdownSeconds ?? 20}s
                 </div>
@@ -66,15 +75,23 @@ export function DesktopPreview({
               <div className="grid grid-cols-3 gap-2 rounded-2xl bg-background/80 p-4 text-center shadow-sm">
                 <div>
                   <div className="text-2xl font-semibold">20</div>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Minutes</div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Minutes
+                  </div>
                 </div>
                 <div>
                   <div className="text-2xl font-semibold">20</div>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Feet</div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Feet
+                  </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-semibold">{wellnessProgram.countdownSeconds ?? 20}</div>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Seconds</div>
+                  <div className="text-2xl font-semibold">
+                    {wellnessProgram.countdownSeconds ?? 20}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Seconds
+                  </div>
                 </div>
               </div>
             )}
@@ -96,7 +113,9 @@ export function DesktopPreview({
                       </div>
                       <X className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                     </div>
-                    <div className="mt-3 text-sm font-semibold text-slate-800">Take 2-3 minutes to:</div>
+                    <div className="mt-3 text-sm font-semibold text-slate-800">
+                      Take 2-3 minutes to:
+                    </div>
                   </div>
                 </div>
 
@@ -234,14 +253,22 @@ export function DesktopPreview({
   const isCritical = priority === "Emergency" || priority === "Critical";
   const isToast = presentation === "Toast";
   const Icon = isCritical ? Siren : priority === "Warning" ? TriangleAlert : Info;
-  const border =
-    isCritical ? "border-emergency" : priority === "Warning" ? "border-warning" : "border-info";
-  const bar =
-    isCritical ? "bg-emergency" : priority === "Warning" ? "bg-warning" : "bg-info";
+  const border = isCritical
+    ? "border-emergency"
+    : priority === "Warning"
+      ? "border-warning"
+      : "border-info";
+  const bar = isCritical ? "bg-emergency" : priority === "Warning" ? "bg-warning" : "bg-info";
   return (
     <div className="rounded-lg border bg-muted/40 p-3">
       <div className="mb-2 text-xs text-muted-foreground">Desktop Agent popup preview</div>
-      <div className={cn("relative overflow-hidden rounded-md border-2 bg-card shadow-lg", border, isToast ? "max-w-[22rem]" : "max-w-sm")}>
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-md border-2 bg-card shadow-lg",
+          border,
+          isToast ? "max-w-[22rem]" : "max-w-sm",
+        )}
+      >
         <div className={cn("h-1 w-full", bar)} />
         <div className="p-4">
           <div className="flex items-center gap-2">
@@ -253,7 +280,9 @@ export function DesktopPreview({
             </div>
           </div>
           <div className="mt-3 text-sm font-semibold">{title || "—"}</div>
-          <p className="mt-1 text-sm text-muted-foreground">{message || "Notification message will appear here."}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {message || "Notification message will appear here."}
+          </p>
           {instruction && (
             <div className="mt-3 rounded-md bg-muted p-2">
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

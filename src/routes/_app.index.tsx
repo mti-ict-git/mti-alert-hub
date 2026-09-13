@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  FlaskConical,
   BellRing,
   CircleAlert,
   Plus,
@@ -132,6 +133,22 @@ function DashboardPage() {
           </>
         ) : null}
       </div>
+      {overview &&
+        !overviewError &&
+        (overview.overdueResponses > 0 || overview.failedCount > 0) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <p>
+              <strong>{overview.overdueResponses}</strong> overdue responses ·{" "}
+              <strong>{overview.failedCount}</strong> failed deliveries
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/notifications">
+                Review notifications <ArrowUpRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        )}
+      <h2 className="mb-3 text-sm font-semibold">Operational summary</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label="Active Communications"
@@ -147,6 +164,18 @@ function DashboardPage() {
           tone="info"
         />
         <StatCard
+          label="Overdue Responses"
+          value={overviewStats.overdueResponses}
+          icon={HandHelping}
+          tone="warning"
+        />
+        <StatCard
+          label="Failed"
+          value={overviewStats.failedCount}
+          icon={CircleAlert}
+          tone="warning"
+        />
+        <StatCard
           label="Delivered"
           value={overviewStats.deliveredCount}
           icon={MonitorSmartphone}
@@ -158,18 +187,6 @@ function DashboardPage() {
           icon={MessageCircle}
           tone="info"
           hint="Unique responding recipients"
-        />
-        <StatCard
-          label="Failed"
-          value={overviewStats.failedCount}
-          icon={CircleAlert}
-          tone="warning"
-        />
-        <StatCard
-          label="Overdue Responses"
-          value={overviewStats.overdueResponses}
-          icon={HandHelping}
-          tone="warning"
         />
       </div>
 
@@ -216,7 +233,10 @@ function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Acknowledgement Status</CardTitle>
-            <p className="text-xs text-muted-foreground">Sample data · not live response totals</p>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative data · not live response totals
+            </p>
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -246,7 +266,10 @@ function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Delivery Channel Usage</CardTitle>
-            <p className="text-xs text-muted-foreground">Sample data · not live delivery totals</p>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative data · not live delivery totals
+            </p>
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -335,7 +358,10 @@ function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Activity Feed</CardTitle>
-            <p className="text-xs text-muted-foreground">Sample activity · for illustration</p>
+            <p className="flex items-center gap-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+              <FlaskConical aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              Illustrative activity · not a live event stream
+            </p>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">

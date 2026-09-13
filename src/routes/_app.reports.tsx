@@ -1,3 +1,4 @@
+import { FilterChips } from "@/components/common/FilterChips";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -352,8 +353,70 @@ function ReportsPage() {
               />
             )}
 
+            <FilterChips
+              count={filteredWellnessPrograms.length}
+              busy={isWellnessFetching}
+              filters={[
+                {
+                  label: "Family",
+                  value: wellnessFamily,
+                  active: wellnessFamily !== "all" && wellnessFamily !== "",
+                  onRemove: () => setWellnessFamily("all"),
+                },
+                {
+                  label: "Status",
+                  value: wellnessStatus,
+                  active: wellnessStatus !== "all" && wellnessStatus !== "",
+                  onRemove: () => setWellnessStatus("all"),
+                },
+                {
+                  label: "Site",
+                  value: wellnessSite,
+                  active: wellnessSite !== "all" && wellnessSite !== "",
+                  onRemove: () => setWellnessSite("all"),
+                },
+                {
+                  label: "Area",
+                  value: wellnessArea,
+                  active: wellnessArea !== "all" && wellnessArea !== "",
+                  onRemove: () => setWellnessArea("all"),
+                },
+                {
+                  label: "From",
+                  value: wellnessFrom,
+                  active: wellnessFrom !== "all" && wellnessFrom !== "",
+                  onRemove: () => setWellnessFrom(""),
+                },
+                {
+                  label: "To",
+                  value: wellnessTo,
+                  active: wellnessTo !== "all" && wellnessTo !== "",
+                  onRemove: () => setWellnessTo(""),
+                },
+              ]}
+            />
             <div className="overflow-x-auto rounded-md border">
-              <Table aria-label="Wellness program outcome report">
+              <Table
+                workspace={{
+                  label: "Wellness outcomes",
+                  columns: [
+                    "Program",
+                    "Family",
+                    "Status",
+                    "Cadence",
+                    "Target Size",
+                    "Displayed",
+                    "Completed",
+                    "Deferred",
+                    "Dismissed",
+                    "Timed Out",
+                    "Ambiguous",
+                    "Completion Rate",
+                  ],
+                  identityColumn: 0,
+                }}
+                aria-label="Wellness program outcome report"
+              >
                 <TableHeader>
                   <TableRow>
                     <TableHead>Program</TableHead>
@@ -438,7 +501,21 @@ function ReportsPage() {
             <CardTitle className="text-base">Notification History</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
+            <Table
+              workspace={{
+                label: "Notification reports",
+                columns: [
+                  "Title",
+                  "Priority",
+                  "Category",
+                  "Recipients",
+                  "Ack",
+                  "Status",
+                  "Created At",
+                ],
+                identityColumn: 0,
+              }}
+            >
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>

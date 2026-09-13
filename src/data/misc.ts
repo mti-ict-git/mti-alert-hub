@@ -8,7 +8,8 @@ export const templates: Template[] = [
     category: "OHSE",
     priority: "Emergency",
     defaultMessage: "Fire alarm activated. Evacuate immediately.",
-    defaultInstruction: "Proceed to nearest Assembly Point. Reply 1=Safe, 2=Need Assistance, 3=Not in Area.",
+    defaultInstruction:
+      "Proceed to nearest Assembly Point. Reply 1=Safe, 2=Need Assistance, 3=Not in Area.",
     defaultChannels: ["DesktopAgent", "WhatsApp", "Email", "DigitalSignage"],
     requireAck: true,
   },
@@ -80,7 +81,15 @@ export const whatsappMessages: WhatsAppMessage[] = Array.from({ length: 28 }).ma
   };
 });
 
-const actions = ["Login", "Create Notification", "Cancel Notification", "Update Employee", "Send Test", "Logout", "Update Settings"];
+const actions = [
+  "Login",
+  "Create Notification",
+  "Cancel Notification",
+  "Update Employee",
+  "Send Test",
+  "Logout",
+  "Update Settings",
+];
 const modules = ["Auth", "Notifications", "Employees", "Devices", "Settings", "WhatsApp"];
 
 export const auditLogs: AuditLog[] = Array.from({ length: 60 }).map((_, i) => ({

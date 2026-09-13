@@ -8,6 +8,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   vite: {
+    // Keep app dependency prebundles separate from isolated preview/test servers.
+    cacheDir: "node_modules/.vite-mti-app",
+    optimizeDeps: { force: process.env.VITE_FORCE_OPTIMIZE === "1" },
     server: {
       proxy: {
         "/api": {

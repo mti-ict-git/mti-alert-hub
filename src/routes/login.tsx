@@ -1,6 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { Eye, EyeOff, Loader2, ShieldCheck, Siren } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  Pause,
+  Play,
+  ShieldCheck,
+  Siren,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +19,9 @@ import { useAuth } from "@/hooks/useAuth";
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
 const sitePhotos = [
-  { src: "/images/login/camp.jpg", label: "Camp facilities" },
-  { src: "/images/login/operations.jpeg", label: "Operations" },
-  { src: "/images/login/site.jpg", label: "Site overview" },
+  { src: "/images/login/plant-team-oil-painting.png", label: "Plant team" },
+  { src: "/images/login/operations-oil-painting.png", label: "Operations" },
+  { src: "/images/login/industrial-plant-oil-painting.png", label: "Industrial plant" },
 ];
 
 function LoginPage() {
@@ -27,7 +37,21 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [slideshowPaused, setSlideshowPaused] = useState(false);
+
+  function selectPhoto(index: number) {
+    setPhotoIndex((index + sitePhotos.length) % sitePhotos.length);
+  }
+
+  useEffect(() => {
+    if (slideshowPaused) return;
+    const timer = window.setTimeout(() => {
+      setPhotoIndex((index) => (index + 1) % sitePhotos.length);
+    }, 20_000);
+    return () => window.clearTimeout(timer);
+  }, [photoIndex, slideshowPaused]);
+
   const usernameMissing = submitted && !username.trim();
   const passwordMissing = submitted && !password;
 
@@ -60,27 +84,61 @@ function LoginPage() {
       <div className="grid w-full max-w-[1120px] overflow-hidden rounded-surface border bg-card shadow-login lg:min-h-[720px] lg:grid-cols-[1.15fr_1fr]">
         <section
           aria-label="Site photos"
-          className="flex min-w-0 flex-col border-b border-border lg:border-b-0 lg:border-r"
+          aria-roledescription="carousel"
+          className="relative h-72 min-w-0 overflow-hidden border-b border-border bg-login-panel sm:h-96 lg:h-auto lg:min-h-[720px] lg:border-b-0 lg:border-r"
         >
-          <div className="relative h-52 overflow-hidden bg-login-panel sm:h-72 lg:h-auto lg:min-h-[540px] lg:flex-1">
-            {imageFailed ? (
-              <div className="flex h-full min-h-52 items-center justify-center text-login-foreground">
-                <Siren aria-hidden="true" className="h-14 w-14" />
+          <div
+            className="absolute inset-0 flex transition-transform duration-700 ease-in-out motion-reduce:transition-none"
+            style={{ transform: `translateX(-${photoIndex * 100}%)` }}
+          >
+            {sitePhotos.map((photo, index) => (
+              <div
+                key={photo.src}
+                aria-hidden={photoIndex !== index}
+                className="relative h-full w-full shrink-0"
+              >
+                {failedImages[photo.src] ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-login-foreground">
+                    <Siren aria-hidden="true" className="h-14 w-14" />
+                    <span className="sr-only">Image unavailable. Choose another slide.</span>
+                  </div>
+                ) : (
+                  <img
+                    src={photo.src}
+                    alt={photo.label}
+                    width={900}
+                    height={900}
+                    fetchPriority={index === 0 ? "high" : "auto"}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={{ objectPosition: index === 0 ? "70% center" : "center" }}
+                    onError={() => setFailedImages((failed) => ({ ...failed, [photo.src]: true }))}
+                  />
+                )}
               </div>
-            ) : (
-              <img
-                src={sitePhotos[photoIndex].src}
-                alt={sitePhotos[photoIndex].label}
-                width={900}
-                height={900}
-                fetchPriority="high"
-                className="h-full w-full object-cover lg:absolute lg:inset-0"
-                onError={() => setImageFailed(true)}
-              />
-            )}
+            ))}
           </div>
           <div
-            className="flex items-center justify-center gap-3 bg-card px-6 py-4 lg:py-6"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/60 to-transparent"
+          />
+          <button
+            type="button"
+            aria-label="Previous image"
+            onClick={() => selectPhoto(photoIndex - 1)}
+            className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ChevronLeft aria-hidden="true" className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next image"
+            onClick={() => selectPhoto(photoIndex + 1)}
+            className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ChevronRight aria-hidden="true" className="h-6 w-6" />
+          </button>
+          <div
+            className="absolute inset-x-0 bottom-4 flex justify-center"
             role="group"
             aria-label="Choose a site photo"
           >
@@ -90,22 +148,27 @@ function LoginPage() {
                 type="button"
                 aria-label={`Show ${photo.label.toLowerCase()}`}
                 aria-pressed={photoIndex === index}
-                onClick={() => {
-                  setPhotoIndex(index);
-                  setImageFailed(false);
-                }}
-                className={`h-12 w-16 overflow-hidden rounded-md border-2 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${photoIndex === index ? "border-primary" : "border-transparent"}`}
+                onClick={() => selectPhoto(index)}
+                className="flex h-11 w-9 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-white"
               >
-                <img
-                  src={photo.src}
-                  alt=""
-                  width={64}
-                  height={48}
-                  className="h-full w-full object-cover"
+                <span
+                  className={`block h-2.5 rounded-full border border-white transition-all motion-reduce:transition-none ${photoIndex === index ? "w-6 bg-white" : "w-2.5 bg-white/40 hover:bg-white/80"}`}
                 />
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            aria-label={slideshowPaused ? "Play slideshow" : "Pause slideshow"}
+            onClick={() => setSlideshowPaused((paused) => !paused)}
+            className="absolute bottom-4 right-3 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/65 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            {slideshowPaused ? (
+              <Play aria-hidden="true" className="h-4 w-4" />
+            ) : (
+              <Pause aria-hidden="true" className="h-4 w-4" />
+            )}
+          </button>
         </section>
 
         <section
@@ -178,7 +241,7 @@ function LoginPage() {
                   autoCapitalize="none"
                   spellCheck={false}
                   placeholder="Corporate username"
-                  className="h-11 bg-card shadow-none"
+                  className="h-11 rounded-md bg-card shadow-none"
                   aria-invalid={usernameMissing}
                   aria-describedby={usernameMissing ? "username-error" : undefined}
                 />
@@ -200,7 +263,7 @@ function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     placeholder="Password"
-                    className="h-11 bg-card pr-12 shadow-none"
+                    className="h-11 rounded-md bg-card pr-12 shadow-none"
                     aria-invalid={passwordMissing}
                     aria-describedby={passwordMissing ? "password-error" : undefined}
                   />

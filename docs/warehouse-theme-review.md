@@ -102,3 +102,51 @@ Verification: production build and targeted ESLint passed. Eight isolated login 
 User requested a clearer handshake symbol. Replaced the abstract paired arcs with two people whose arms meet at a central clasp; the body/arm silhouette suggests M. Regenerated both SVGs, transparent PNGs and ZIP in the existing mti-connect-logo paths, automatically updating login/sidebar/favicon. Corporate marks and application behavior are unchanged.
 
 Verification: canonical SVG PNG preview inspected; live logo decoded successfully at /login; 1440px desktop and 390px mobile captured, mobile visually reviewed with no horizontal overflow. Evidence: .tmp/live-theme/handshake-desktop.png and handshake-mobile.png. This asset-only revision does not rerun the previously passing application build/authentication suite.
+
+
+## IMIP Morowali painted background — 2026-09-13
+
+Replaced the login-only CSS background reference with `public/images/login/imip-morowali-oil-painting.png`, a built-in ImageGen oil-painting adaptation of the photograph explicitly selected by the user. Source URL and exact generation prompt are in the adjacent asset README. DESIGN.md now describes the reference-based artwork. The existing 42% overlay, centered cover crop, gallery, corporate marks and authentication behavior remain unchanged.
+
+Verification: original photograph and generated artwork visually inspected; real browser at localhost:8080/login confirmed the new computed background URL and visible painting at the normal desktop viewport and 390x844 mobile viewport, without horizontal overflow. Viewport override reset after verification. Asset endpoint returned HTTP 200; Prettier check for src/styles.css and git diff --check passed. Strict project audit reports 31 existing broad findings (17 unresolved, 14 violations), outside this background-only change; output at /tmp/mti-login-art/premium-audit.json. No application-wide compliance claim, authenticated login test, build or database migration was made for this CSS URL/asset-only change.
+
+
+## Remove nighttime site photograph — 2026-09-13
+
+Removed the user-identified nighttime mine photograph (`public/images/login/site.jpg`) and its gallery entry and asset listing. The login gallery now offers Camp facilities and Operations. Verified in the live browser that only these two photo choices remain; targeted login ESLint and git diff --check passed. Source/resource search found no remaining runtime reference to the removed image.
+
+
+## Industrial plant painted gallery replacement — 2026-09-13
+
+Added `industrial-plant-oil-painting.png`, generated with built-in ImageGen from the user-selected brita.id photograph, as the third login gallery item in place of the deleted nighttime photograph. Source and exact prompt are recorded in the asset README. DESIGN.md reflects the gallery composition. Verified in the live browser: three thumbnail choices, Industrial plant selection updates the main image and pressed state, and the painting renders correctly inside the existing card. Targeted login ESLint and git diff --check passed. No authentication requests or database migrations were performed.
+
+
+## Operations oil-painting resource — 2026-09-13
+
+Converted the user-selected Operations photograph into an oil painting using built-in ImageGen and changed the gallery resource to `operations-oil-painting.png`. Original photograph retained as source reference; label, order, gallery behavior and outer background remain unchanged. Source/provenance and exact prompt are recorded in the asset README; DESIGN.md reflects the updated gallery. Live browser confirmed Operations selection, pressed state and correctly rendered painting. Targeted login ESLint and git diff --check passed. No login requests or database changes were made.
+
+
+## Plant team replaces Camp facilities — 2026-09-13
+
+Deleted camp.jpg and replaced the first gallery entry with plant-team-oil-painting.png, a built-in ImageGen adaptation of the user-selected Bisnis photograph. Updated accessible label to Plant team and set its main-image horizontal crop focus to 70% to retain the two workers. Source and exact prompt recorded in the asset README; DESIGN.md now reflects three oil-painted gallery resources. Live browser confirmed three choices, selected Plant team state and visible painting with both workers. Targeted login ESLint and git diff --check passed. No authentication or database action performed.
+
+
+## Full-height login slideshow — 2026-09-13
+
+Removed the thumbnail strip and extended the image to the full desktop panel height. Added wrapping previous/next arrows, white position indicators and pause/play, using native accessible buttons. Slides advance on a cleaned-up 20-second timeout; changing slides resets the interval. Mobile retains a bounded banner and natural form scrolling. Image errors retain navigation to another slide. Authentication is unchanged.
+
+Verification: targeted login ESLint and formatting passed. Live browser verified first-to-last previous wrapping, last-to-first next wrapping, dot selection, pause/play, full-height desktop rendering and automatic first-to-second transition after a 21-second observation interval. Narrow viewport overflow check passed; viewport override restored. Initial locator wait missed its target; repeated timer check from a reset first slide confirmed the actual automatic transition.
+
+Production build with `NITRO_PRESET=node-server npm run build` and final `git diff --check` passed. Build log: `/tmp/mti-login-art/slideshow-build.log`.
+
+
+## Login depth and blurred backdrop — 2026-09-13
+
+User requested glass/Gaussian depth and stronger window-edge shadows. Moved the outer painting to an isolated fixed pseudo-element with 14px blur and 24px overscan, retaining the dark image overlay. Added a separate edge vignette. The existing login-only shadow token now provides broad depth, contact shadow and a thin white rim; card content stays sharp and opaque for readability. No layout or authentication changes.
+
+Verification: Prettier and git diff --check passed. Live computed styles confirmed blur(14px), the intended layered shadows, and no horizontal overflow. Normal browser screenshot verified sharp form/gallery against the blurred outer background. A viewport-override screenshot was clipped by the browser capture; override was reset and the normal screenshot inspected.
+
+
+## Lighter blur and sliding transition — 2026-09-13
+
+Reduced outer blur from 14px to 6px on user feedback. Replaced image swapping with a mounted horizontal image track and 700ms ease-in-out transform transition, shared by manual and automatic selection. Reduced-motion preferences disable the transition; inactive slides are hidden from assistive technology. Image failures are tracked per resource. The existing 20-second schedule remains unchanged. Verified live browser next-image selection and computed 6px blur, translateX(-100%) and 0.7s transition. Targeted ESLint, formatting and git diff --check passed.

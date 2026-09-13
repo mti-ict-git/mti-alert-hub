@@ -388,3 +388,36 @@ Published Scheduled/Active wellness programs support `Edit Program` and explicit
 - No approval workflow is required before publication in MVP.
 - External HR synchronization supplies basic organization data on a scheduled batch basis.
 - Email and Digital Signage remain future channels but must fit the same core model.
+
+
+### Services theme adoption — local list navigation (2026-09-13)
+
+The admin theme uses the shared shell, cards, tabs and form controls recorded in `DESIGN.md`. Employees, Notification Center, Wellness Programs and the approved/pending Device tables page the existing loaded result sets with 10/25/50/100 rows (default 25). The displayed range explicitly describes loaded results and does not assert a server-wide total. Filters/page-size changes reset page 1 and shrinking results clamp the current page. Notification Center select-all and bulk operations apply only to the visible page; the toolbar names that scope. This UI change preserves server fetch limits, lifecycle rules, permissions and action endpoints. Search remains local and clearable. See `services-theme-checklist.md` for implementation and verification limits.
+
+### Phase 4 UI polish — 2026-09-13
+
+Operational list screens (Notification Center, Employees, Devices, Wellness Programs and Reports) expose Comfortable/Compact density and a Columns menu. Density persists per browser; column choices last for the mounted table and can be restored with Show all columns. Identity, selection, status, priority and actions cannot be hidden. Sticky headers remain in each bounded scroll region; identifying columns also stay pinned on desktop. Mobile retains internal horizontal table scrolling.
+
+Active filters appear as removable chips with Reset filters and matching loaded-result counts. Approved and pending Devices have independent local search. These controls filter the already loaded records; existing server fetch limits, route contracts, permissions and business actions are unchanged. Empty searches, including pending enrollment requests, show a recoverable empty message. Notification selection still scopes to the current page.
+
+The dashboard prioritizes active communications, pending recipients, overdue responses and failed delivery totals. When the overview has overdue responses or failed deliveries, an attention strip links to Notification Center. Illustrative acknowledgement, delivery and activity panels are explicitly labeled; they do not become live backend metrics. Shared status labels add an icon without changing the meaning of any status.
+
+### Wellness operator overview refinement — 2026-09-13
+
+The Wellness list displays five columns: Program, Schedule, Status, Completion and Actions. Completion keeps the existing percentage and explicitly labels completed/triggered counts; it does not represent unique employees. Existing detail pages remain the owner of technical configuration, policy/device signal and event breakdowns. The summary shows Scheduled/Live, Drafts and Completion. Theme/type/status filters are collapsed behind Filters; active filter chips remain removable. View is the primary action; permitted Edit/Publish, Duplicate and Deactivate are in the row menu. Deactivate now asks for confirmation before invoking the unchanged mutation. Existing eligibility, route destinations, loaded-result pagination and refresh interval remain unchanged.
+
+### Wellness detail presentation — 2026-09-13
+
+The default Overview provides message/instruction, configured action labels, guided-step count, readable recurrence, timezone, first occurrence, expiry, next-run summary and target summary. All previous configuration fields remain available under Configuration. Audience preview warnings also appear on Overview. Audience, active/synchronized policy counts and outcome retain their existing data definitions. Program editing, publishing, CSV export, activity, recipient and delivery-log workflows are preserved. Deactivate is accessed from More program actions and still requires the existing confirmation dialog.
+
+### Devices bulk approval — 2026-09-13
+
+Approved Devices displays Hostname before Device ID; hostname remains the readable pinned identity. Pending Approval allows selecting multiple Pending requests on the current page, including select-all and indeterminate state. Changing the visible page/search/page size resets selection. The Approve selected button displays the exact selected count.
+
+A shared confirmation dialog lists hostnames and identifiers, requires Site, and applies the same optional Area/Location Label and Ownership to all selected requests. Single-request approval remains supported by the same dialog. Submission uses a frozen request/settings snapshot and sequential existing `POST /devices/pending/{requestId}/approve` calls. Backend authorization, pending-state checks, site/area validation, device-conflict checks and audit behavior remain authoritative. No new bulk endpoint or database schema is introduced.
+
+Each request commits independently. The dialog shows approved/not-approved results and error messages, refreshes device lists, and offers retry only for requests not confirmed approved. A network interruption can leave an outcome uncertain; the operator is told to refresh/check current device state before retry. Already-approved/rejected requests remain protected by backend pending-state validation. Closing and repeated submission are blocked during the active batch. No automatic rollback of successful approvals is attempted.
+
+### Approved Device filters — 2026-09-13
+
+Approved Devices supports combined local search, Online/Offline status, Site, Area, Ownership and Agent version filters. Site/area/version options derive from the loaded devices; missing area/version has an explicit No area/Unknown version option. Changing Site clears Area and limits its options to that site. Active filters have removable chips and a shared reset. Any filter change resets pagination. Empty matches provide recovery guidance. Summary totals describe loaded devices, while the filter toolbar reports matching loaded results. Backend fetch limits and approval behavior are unchanged.

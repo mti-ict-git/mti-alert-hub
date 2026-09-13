@@ -54,9 +54,11 @@
 }
 
 :root {
-  --surface-radius: 1rem;
+  --surface-radius: 0.5rem;
   --surface-shadow: 0 2px 8px rgb(24 36 51 / 4%);
-  --login-shadow: 0 12px 40px rgb(24 36 51 / 12%);
+  --login-shadow:
+    0 40px 100px -20px rgb(3 10 18 / 65%), 0 16px 36px -12px rgb(3 10 18 / 55%),
+    0 0 0 1px rgb(255 255 255 / 28%);
   --login-panel: #182433;
   --login-foreground: #f6f8fb;
   --login-border: #374456;
@@ -88,13 +90,13 @@
   --emergency-foreground: oklch(0.99 0 0);
   --success: oklch(0.62 0.16 155);
   --success-foreground: oklch(0.99 0 0);
-  --sidebar: #f9fafc;
-  --sidebar-foreground: #526174;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #182433;
   --sidebar-primary: #2563eb;
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: #edf2f9;
   --sidebar-accent-foreground: #182433;
-  --sidebar-border: #e5e9ef;
+  --sidebar-border: #e2e8f0;
   --sidebar-ring: #2563eb;
 }
 
@@ -206,11 +208,95 @@
 
 @layer components {
   .login-backdrop {
+    position: relative;
+    isolation: isolate;
+    background-color: #14212b;
+  }
+
+  .login-backdrop::before {
+    content: "";
+    position: fixed;
+    inset: -24px;
+    z-index: -2;
+    pointer-events: none;
+    filter: blur(6px);
     background-image:
       linear-gradient(rgb(12 22 25 / 42%), rgb(12 22 25 / 42%)),
-      url("/images/login/oil-landscape-background.png");
+      url("/images/login/imip-morowali-oil-painting.png");
     background-position: center;
     background-size: cover;
     background-repeat: no-repeat;
   }
+
+  .login-backdrop::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at 50% 40%,
+      rgb(220 235 245 / 8%) 0%,
+      rgb(3 10 18 / 12%) 55%,
+      rgb(3 10 18 / 48%) 100%
+    );
+  }
+}
+
+/* Opt-in operational tables own scrolling; surrounding forms keep natural height. */
+table[data-workspace="true"] {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table[data-workspace="true"] thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--card);
+}
+table[data-workspace="true"] th {
+  border-bottom: 1px solid var(--border);
+}
+table[data-workspace="true"] td {
+  border-bottom: 1px solid var(--border);
+}
+table[data-workspace="true"][data-density="comfortable"] td {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  font-size: 0.875rem;
+}
+table[data-workspace="true"][data-density="compact"] td {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.8125rem;
+}
+@media (min-width: 768px) {
+  table[data-workspace="true"] tr > :first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--card);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  table[data-workspace="true"][data-identity="1"] tr > :first-child:not([colspan]) {
+    width: var(--table-leading-width);
+    min-width: var(--table-leading-width);
+    max-width: var(--table-leading-width);
+  }
+  table[data-workspace="true"][data-identity="1"] tr > :nth-child(2):not([colspan]) {
+    position: sticky;
+    left: var(--table-leading-width);
+    z-index: 10;
+    background: var(--card);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  table[data-workspace="true"] tbody tr:hover > :first-child:not([colspan]),
+  table[data-workspace="true"][data-identity="1"] tbody tr:hover > :nth-child(2):not([colspan]) {
+    background: var(--muted);
+  }
+}
+
+table[data-workspace="true"][data-identity="1"] tr > :first-child:not([colspan]) {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }

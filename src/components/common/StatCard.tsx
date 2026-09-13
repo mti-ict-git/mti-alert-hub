@@ -24,19 +24,14 @@ export function StatCard({
   };
   return (
     <Card className="relative h-full overflow-hidden">
-      <CardContent className="relative p-6">
-        <Icon
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-3 -right-3 h-24 w-24 text-muted-foreground/5"
-          strokeWidth={1}
-        />
+      <CardContent className="relative p-5">
         <div className="relative flex items-start gap-4">
-          <div className={cn("shrink-0 rounded-xl p-3", toneMap[tone])}>
-            <Icon aria-hidden="true" className="h-5 w-5" />
+          <div className={cn("shrink-0 rounded-lg border border-current/15 p-3", toneMap[tone])}>
+            <Icon aria-hidden="true" className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium leading-5 text-muted-foreground">{label}</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
+            <p className="text-sm font-medium leading-5 text-foreground">{label}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
             {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
           </div>
         </div>

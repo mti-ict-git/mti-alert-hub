@@ -1,6 +1,12 @@
+import { Checkbox } from "@/components/ui/checkbox";
+import { approveDeviceRequests, type DeviceApprovalResult } from "@/lib/device-bulk-approval";
+import { SearchInput } from "@/components/common/SearchInput";
+import { FilterChips } from "@/components/common/FilterChips";
+import { ListPagination } from "@/components/common/ListPagination";
+import { useListPagination } from "@/hooks/useListPagination";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Check, Loader2, Package, Rocket, Send, ShieldAlert, X } from "lucide-react";
 
@@ -39,7 +45,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { devicesService } from "@/services/devices.service";
 import { referenceService } from "@/services/reference.service";
 import type {
-  ApprovePendingDeviceResponse,
   Device,
   DeviceRolloutAction,
   DeviceRolloutPackage,
@@ -80,10 +85,25 @@ function DevicesPage() {
   const qc = useQueryClient();
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
   const [rolloutDevice, setRolloutDevice] = useState<Device | null>(null);
+  const [deviceQuery, setDeviceQuery] = useState("");
+  const [deviceFilters, setDeviceFilters] = useState({
+    status: "all",
+    site: "all",
+    area: "all",
+    ownership: "all",
+    version: "all",
+  });
+  const [pendingQuery, setPendingQuery] = useState("");
   const [rolloutOpen, setRolloutOpen] = useState(false);
   const [previewResult, setPreviewResult] = useState<DeviceRolloutPreviewResponse | null>(null);
   const [form, setForm] = useState<RolloutFormState>(() => createDefaultRolloutForm());
-  const [pendingSelection, setPendingSelection] = useState<PendingDeviceEnrollment | null>(null);
+  const [pendingSelections, setPendingSelections] = useState<PendingDeviceEnrollment[]>([]);
+  const [checkedPending, setCheckedPending] = useState<{ page: string; ids: string[] }>({
+    page: "",
+    ids: [],
+  });
+  const [approvalResults, setApprovalResults] = useState<DeviceApprovalResult[]>([]);
+  const [approvalProgress, setApprovalProgress] = useState(0);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [pendingForm, setPendingForm] = useState<PendingApprovalFormState>(() =>
     createDefaultPendingApprovalForm(),
@@ -162,30 +182,46 @@ function DevicesPage() {
   });
 
   const approvePendingMutation = useMutation({
-    mutationFn: async () => {
-      if (!pendingSelection) {
-        throw new Error("Select a pending device first.");
-      }
-
-      return devicesService.approvePending(pendingSelection.id, {
-        siteId: pendingForm.siteId,
-        areaId: pendingForm.areaId === NO_AREA_VALUE ? null : pendingForm.areaId || null,
-        locationLabel: pendingForm.locationLabel.trim() || null,
-        ownershipMode: pendingForm.ownershipMode,
-      });
+    mutationFn: async ({
+      targets,
+      settings,
+    }: {
+      targets: PendingDeviceEnrollment[];
+      settings: PendingApprovalFormState;
+    }) => {
+      if (!targets.length || !settings.siteId) throw new Error("Select devices and a site first.");
+      const payload = {
+        siteId: settings.siteId,
+        areaId: settings.areaId === NO_AREA_VALUE ? null : settings.areaId || null,
+        locationLabel: settings.locationLabel.trim() || null,
+        ownershipMode: settings.ownershipMode,
+      };
+      return approveDeviceRequests(
+        targets,
+        (id) => devicesService.approvePending(id, payload),
+        (completed) => setApprovalProgress(completed),
+      );
     },
-    onSuccess: async (result: ApprovePendingDeviceResponse) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["devices"] }),
-        qc.invalidateQueries({ queryKey: ["devices", "pending"] }),
+    onSuccess: async (results) => {
+      setApprovalResults((current) => [
+        ...current.filter((item) => !results.some((result) => result.id === item.id)),
+        ...results,
       ]);
-      toast.success(`Pending device ${result.device.hostname} approved`);
-      setPendingOpen(false);
-      setPendingSelection(null);
+      const approvedIds = new Set(results.filter((item) => item.approved).map((item) => item.id));
+      setPendingSelections((current) => current.filter((item) => !approvedIds.has(item.id)));
+      setCheckedPending((current) => ({
+        ...current,
+        ids: current.ids.filter((id) => !approvedIds.has(id)),
+      }));
+      const failed = results.length - approvedIds.size;
+      if (failed)
+        toast.warning(
+          `${approvedIds.size} approved; ${failed} could not be approved. Review the results.`,
+        );
+      else toast.success(`${approvedIds.size} device${approvedIds.size === 1 ? "" : "s"} approved`);
+      await qc.invalidateQueries({ queryKey: ["devices"] });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to approve pending device.");
-    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Approval failed."),
   });
 
   const rejectPendingMutation = useMutation({
@@ -195,9 +231,9 @@ function DevicesPage() {
     onSuccess: async (result) => {
       await qc.invalidateQueries({ queryKey: ["devices", "pending"] });
       toast.success(`Pending device ${result.request.hostname} rejected`);
-      if (pendingSelection?.id === result.request.id) {
+      if (pendingSelections.some((item) => item.id === result.request.id)) {
         setPendingOpen(false);
-        setPendingSelection(null);
+        setPendingSelections([]);
       }
     },
     onError: (error) => {
@@ -223,6 +259,108 @@ function DevicesPage() {
     return organizationReference.areas.filter((area) => area.siteId === pendingForm.siteId);
   }, [organizationReference, pendingForm.siteId]);
 
+  const deviceFilterOptions = [
+    {
+      key: "status" as const,
+      label: "Status",
+      options: ["Online", "Offline"].map((value) => ({ value, label: value })),
+    },
+    {
+      key: "site" as const,
+      label: "Site",
+      options: [
+        ...new Map(
+          devices.map((d) => [d.siteId, { value: d.siteId, label: d.siteName ?? d.siteId }]),
+        ).values(),
+      ].sort((a, b) => a.label.localeCompare(b.label)),
+    },
+    {
+      key: "area" as const,
+      label: "Area",
+      options: [
+        ...new Map(
+          devices
+            .filter((d) => deviceFilters.site === "all" || d.siteId === deviceFilters.site)
+            .map((d) => [
+              d.areaId ?? "__none",
+              { value: d.areaId ?? "__none", label: d.areaName ?? d.areaId ?? "No area" },
+            ]),
+        ).values(),
+      ].sort((a, b) => a.label.localeCompare(b.label)),
+    },
+    {
+      key: "ownership" as const,
+      label: "Ownership",
+      options: [
+        { value: "LocationOwned", label: "Location owned" },
+        { value: "EmployeeAssigned", label: "Employee assigned" },
+        { value: "Mixed", label: "Mixed" },
+      ],
+    },
+    {
+      key: "version" as const,
+      label: "Agent version",
+      options: [...new Set(devices.map((d) => d.agentVersion ?? "__none"))]
+        .sort()
+        .map((value) => ({ value, label: value === "__none" ? "Unknown version" : value })),
+    },
+  ];
+  const updateDeviceFilter = (key: keyof typeof deviceFilters, value: string) =>
+    setDeviceFilters((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "site" ? { area: "all" } : {}),
+    }));
+  const filteredDevices = devices.filter(
+    (d) =>
+      `${d.hostname} ${d.deviceId} ${d.siteName ?? ""}`
+        .toLowerCase()
+        .includes(deviceQuery.toLowerCase()) &&
+      (deviceFilters.status === "all" || d.status === deviceFilters.status) &&
+      (deviceFilters.site === "all" || d.siteId === deviceFilters.site) &&
+      (deviceFilters.area === "all" || (d.areaId ?? "__none") === deviceFilters.area) &&
+      (deviceFilters.ownership === "all" || d.ownershipMode === deviceFilters.ownership) &&
+      (deviceFilters.version === "all" || (d.agentVersion ?? "__none") === deviceFilters.version),
+  );
+  const approvedPagination = useListPagination(
+    filteredDevices,
+    JSON.stringify([deviceQuery, deviceFilters]),
+  );
+  const filteredPending = pendingDevices.filter((d) =>
+    `${d.hostname} ${d.deviceIdentifier}`.toLowerCase().includes(pendingQuery.toLowerCase()),
+  );
+  const pendingPagination = useListPagination(filteredPending, pendingQuery);
+  const pendingPageKey = JSON.stringify([
+    pendingQuery,
+    pendingPagination.items.map((item) => item.id),
+  ]);
+  useEffect(() => {
+    setCheckedPending({ page: pendingPageKey, ids: [] });
+  }, [pendingPageKey]);
+  const selectablePending = pendingPagination.items.filter(
+    (item) => item.requestStatus === "Pending",
+  );
+  const selectedPending = selectablePending.filter(
+    (item) => checkedPending.page === pendingPageKey && checkedPending.ids.includes(item.id),
+  );
+  const allPendingSelected =
+    selectablePending.length > 0 && selectedPending.length === selectablePending.length;
+  const openApproval = (targets: PendingDeviceEnrollment[]) => {
+    setPendingSelections([...targets]);
+    setApprovalResults([]);
+    setApprovalProgress(0);
+    approvePendingMutation.reset();
+    setPendingForm(
+      targets.length === 1
+        ? createPendingApprovalFormFromRequest(
+            targets[0],
+            organizationReference?.sites[0]?.id ?? "",
+          )
+        : createDefaultPendingApprovalForm(),
+    );
+    setPendingOpen(true);
+  };
+
   return (
     <div>
       <PageHeader
@@ -242,13 +380,13 @@ function DevicesPage() {
           <strong className="tabular-nums">
             {devicesLoading || devicesError ? "—" : devices.length}
           </strong>{" "}
-          approved in current view
+          approved devices loaded
         </span>
         <span>
           <strong className="tabular-nums">
             {pendingLoading || pendingError ? "—" : pendingCount}
           </strong>{" "}
-          pending in current view
+          pending requests loaded
         </span>
         {(devicesError || pendingError) && (
           <Button
@@ -264,7 +402,7 @@ function DevicesPage() {
         )}
       </div>
       <Tabs defaultValue="approved" className="space-y-4">
-        <TabsList className="h-auto max-w-full flex-wrap gap-1 rounded-xl border bg-card p-1">
+        <TabsList>
           <TabsTrigger value="approved">Approved Devices</TabsTrigger>
           <TabsTrigger value="pending">
             Pending Approval ({pendingLoading || pendingError ? "—" : pendingCount})
@@ -281,12 +419,95 @@ function DevicesPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto rounded-b-surface">
-                <Table className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+                <div className="px-4 pt-4">
+                  <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    <SearchInput
+                      value={deviceQuery}
+                      onValueChange={setDeviceQuery}
+                      placeholder="Search devices…"
+                    />
+                    {deviceFilterOptions.map((filter) => (
+                      <Select
+                        key={filter.key}
+                        value={deviceFilters[filter.key]}
+                        onValueChange={(value) => updateDeviceFilter(filter.key, value)}
+                      >
+                        <SelectTrigger
+                          aria-label={`Filter approved devices by ${filter.label}`}
+                          className="w-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">
+                            All {filter.label.toLowerCase()}
+                            {filter.key === "status"
+                              ? "es"
+                              : filter.key === "site" ||
+                                  filter.key === "area" ||
+                                  filter.key === "version"
+                                ? "s"
+                                : " types"}
+                          </SelectItem>
+                          {filter.options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ))}
+                  </div>
+                  <FilterChips
+                    count={filteredDevices.length}
+                    busy={devicesLoading}
+                    filters={[
+                      {
+                        label: "Search",
+                        value: deviceQuery,
+                        active: Boolean(deviceQuery),
+                        onRemove: () => setDeviceQuery(""),
+                      },
+                      ...deviceFilterOptions.map((filter) => ({
+                        label: filter.label,
+                        value:
+                          filter.options.find(
+                            (option) => option.value === deviceFilters[filter.key],
+                          )?.label ?? deviceFilters[filter.key],
+                        active: deviceFilters[filter.key] !== "all",
+                        onRemove: () => updateDeviceFilter(filter.key, "all"),
+                      })),
+                    ]}
+                  />
+                </div>
+                <Table
+                  workspace={{
+                    label: "Approved devices",
+                    columns: [
+                      "Status",
+                      "Hostname",
+                      "Device ID",
+                      "Site",
+                      "Area",
+                      "Location",
+                      "Ownership",
+                      "Assigned Employee",
+                      "Current User",
+                      "Department",
+                      "Version",
+                      "Last Seen",
+                      "Actions",
+                    ],
+                    identityColumn: 1,
+                    leadingColumnWidth: "7rem",
+                  }}
+                  className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap"
+                >
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status</TableHead>
-                      <TableHead>Device ID</TableHead>
                       <TableHead>Hostname</TableHead>
+                      <TableHead>Device ID</TableHead>
                       <TableHead>Site</TableHead>
                       <TableHead>Area</TableHead>
                       <TableHead>Location</TableHead>
@@ -300,18 +521,21 @@ function DevicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!devices.length && (
+                    {!filteredDevices.length && (
                       <TableRow>
                         <TableCell colSpan={13} className="h-32 text-center text-muted-foreground">
                           {devicesLoading
                             ? "Loading approved devices…"
                             : devicesError
                               ? "Could not load approved devices. Use Retry device data above."
-                              : "No approved devices yet."}
+                              : deviceQuery ||
+                                  Object.values(deviceFilters).some((value) => value !== "all")
+                                ? "No devices match these filters. Adjust or reset the filters above."
+                                : "No approved devices yet."}
                         </TableCell>
                       </TableRow>
                     )}
-                    {devices.map((device) => (
+                    {approvedPagination.items.map((device) => (
                       <TableRow key={device.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -325,8 +549,10 @@ function DevicesPage() {
                             <StatusBadge status={device.status} />
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{device.deviceId}</TableCell>
                         <TableCell className="font-medium">{device.hostname}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {device.deviceId}
+                        </TableCell>
                         <TableCell className="text-sm">
                           {device.siteName ?? device.siteId}
                         </TableCell>
@@ -426,6 +652,7 @@ function DevicesPage() {
                   </TableBody>
                 </Table>
               </div>
+              <ListPagination {...approvedPagination.controls} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -440,11 +667,84 @@ function DevicesPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto rounded-b-surface">
-                <Table className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+                <div className="px-4 pt-4">
+                  <SearchInput
+                    value={pendingQuery}
+                    onValueChange={setPendingQuery}
+                    placeholder="Search pending devices…"
+                    className="max-w-sm"
+                  />
+                  <FilterChips
+                    count={filteredPending.length}
+                    filters={[
+                      {
+                        label: "Search",
+                        value: pendingQuery,
+                        active: Boolean(pendingQuery),
+                        onRemove: () => setPendingQuery(""),
+                      },
+                    ]}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedPending.length} selected on this page
+                  </span>
+                  <Button
+                    disabled={
+                      !selectedPending.length ||
+                      approvePendingMutation.isPending ||
+                      rejectPendingMutation.isPending
+                    }
+                    onClick={() => openApproval(selectedPending)}
+                  >
+                    <Check aria-hidden="true" />
+                    Approve selected ({selectedPending.length})
+                  </Button>
+                </div>
+                <Table
+                  workspace={{
+                    label: "Pending device requests",
+                    columns: [
+                      "Select",
+                      "Hostname",
+                      "Status",
+                      "Device Identifier",
+                      "Version",
+                      "Active User",
+                      "Attempts",
+                      "First Seen",
+                      "Last Seen",
+                      "Actions",
+                    ],
+                    identityColumn: 1,
+                    leadingColumnWidth: "2.5rem",
+                  }}
+                  className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap"
+                >
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Status</TableHead>
+                      <TableHead>
+                        <Checkbox
+                          aria-label="Select all pending devices on this page"
+                          disabled={!selectablePending.length}
+                          checked={
+                            allPendingSelected
+                              ? true
+                              : selectedPending.length
+                                ? "indeterminate"
+                                : false
+                          }
+                          onCheckedChange={(checked) =>
+                            setCheckedPending({
+                              page: pendingPageKey,
+                              ids: checked === true ? selectablePending.map((item) => item.id) : [],
+                            })
+                          }
+                        />
+                      </TableHead>
                       <TableHead>Hostname</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Device Identifier</TableHead>
                       <TableHead>Version</TableHead>
                       <TableHead>Active User</TableHead>
@@ -455,26 +755,46 @@ function DevicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingDevices.length === 0 ? (
+                    {filteredPending.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={9}
+                          colSpan={10}
                           className="py-10 text-center text-sm text-muted-foreground"
                         >
                           {pendingLoading
                             ? "Loading pending requests…"
                             : pendingError
                               ? "Could not load pending requests. Use Retry device data above."
-                              : "No pending device approval requests."}
+                              : pendingQuery
+                                ? "No pending requests match this search."
+                                : "No pending device approval requests."}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pendingDevices.map((request) => (
+                      pendingPagination.items.map((request) => (
                         <TableRow key={request.id}>
+                          <TableCell>
+                            <Checkbox
+                              aria-label={`Select ${request.hostname}`}
+                              disabled={request.requestStatus !== "Pending"}
+                              checked={selectedPending.some((item) => item.id === request.id)}
+                              onCheckedChange={(checked) =>
+                                setCheckedPending({
+                                  page: pendingPageKey,
+                                  ids:
+                                    checked === true
+                                      ? [...selectedPending.map((item) => item.id), request.id]
+                                      : selectedPending
+                                          .filter((item) => item.id !== request.id)
+                                          .map((item) => item.id),
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{request.hostname}</TableCell>
                           <TableCell>
                             <StatusBadge status={request.requestStatus} />
                           </TableCell>
-                          <TableCell className="font-medium">{request.hostname}</TableCell>
                           <TableCell className="font-mono text-xs">
                             {request.deviceIdentifier}
                           </TableCell>
@@ -495,16 +815,12 @@ function DevicesPage() {
                             <div className="flex justify-end gap-2">
                               <Button
                                 size="sm"
-                                onClick={() => {
-                                  setPendingSelection(request);
-                                  setPendingForm(
-                                    createPendingApprovalFormFromRequest(
-                                      request,
-                                      organizationReference?.sites[0]?.id ?? "",
-                                    ),
-                                  );
-                                  setPendingOpen(true);
-                                }}
+                                disabled={
+                                  request.requestStatus !== "Pending" ||
+                                  approvePendingMutation.isPending ||
+                                  rejectPendingMutation.isPending
+                                }
+                                onClick={() => openApproval([request])}
                               >
                                 <Check className="mr-1 h-3 w-3" />
                                 Approve
@@ -526,6 +842,7 @@ function DevicesPage() {
                   </TableBody>
                 </Table>
               </div>
+              <ListPagination {...pendingPagination.controls} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -650,7 +967,7 @@ function DevicesPage() {
                         setForm((current) => ({ ...current, action: value as DeviceRolloutAction }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Action">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -662,6 +979,7 @@ function DevicesPage() {
                   </Field>
                   <Field label="Rollout Channel">
                     <Input
+                      aria-label="Rollout Channel"
                       value={form.rolloutChannel}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, rolloutChannel: event.target.value }))
@@ -671,6 +989,7 @@ function DevicesPage() {
                   </Field>
                   <Field label="Target Version">
                     <Input
+                      aria-label="Target Version"
                       value={form.version}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, version: event.target.value }))
@@ -680,6 +999,7 @@ function DevicesPage() {
                   </Field>
                   <Field label="Deadline (optional)">
                     <Input
+                      aria-label="Deadline (optional)"
                       type="datetime-local"
                       value={form.deadlineAt}
                       onChange={(event) =>
@@ -692,6 +1012,7 @@ function DevicesPage() {
                 <div className="grid gap-4">
                   <Field label="Package URL">
                     <Input
+                      aria-label="Package URL"
                       value={form.packageUrl}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, packageUrl: event.target.value }))
@@ -702,6 +1023,7 @@ function DevicesPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="SHA256">
                       <Input
+                        aria-label="SHA256"
                         value={form.sha256}
                         onChange={(event) =>
                           setForm((current) => ({
@@ -715,6 +1037,7 @@ function DevicesPage() {
                     </Field>
                     <Field label="Signature Thumbprint">
                       <Input
+                        aria-label="Signature Thumbprint"
                         value={form.signature}
                         onChange={(event) =>
                           setForm((current) => ({
@@ -852,46 +1175,61 @@ function DevicesPage() {
       <Dialog
         open={pendingOpen}
         onOpenChange={(nextOpen) => {
+          if (approvePendingMutation.isPending) return;
           setPendingOpen(nextOpen);
           if (!nextOpen) {
-            setPendingSelection(null);
+            setPendingSelections([]);
             approvePendingMutation.reset();
           }
         }}
       >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Approve Pending Device</DialogTitle>
+            <DialogTitle>Approve pending devices</DialogTitle>
             <DialogDescription>
-              Approving this request moves the device into the trusted `public.devices` baseline.
-              The existing agent will retry automatically and should connect on the next session
-              attempt.
+              Review the hostnames below. The same site, area, location and ownership will apply to
+              every selected device. Approval registers each device as trusted; successful approvals
+              are not rolled back if another request fails.
             </DialogDescription>
           </DialogHeader>
 
-          {pendingSelection ? (
-            <div className="space-y-5">
-              <Card className="border-dashed">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Pending Request</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-                  <InfoRow label="Hostname" value={pendingSelection.hostname} />
-                  <InfoRow label="Version" value={pendingSelection.agentVersion ?? "-"} />
-                  <InfoRow
-                    label="Device Identifier"
-                    value={pendingSelection.deviceIdentifier}
-                    mono
-                  />
-                  <InfoRow
-                    label="Last Seen"
-                    value={formatDistanceToNow(new Date(pendingSelection.lastSeenAt), {
-                      addSuffix: true,
-                    })}
-                  />
-                </CardContent>
-              </Card>
-
+          <div className="space-y-4">
+            <div className="max-h-48 overflow-y-auto rounded-md border p-3">
+              <p className="mb-2 text-sm font-medium">
+                {pendingSelections.length
+                  ? `${pendingSelections.length} device(s) awaiting approval`
+                  : "All selected devices approved"}
+              </p>
+              <ul className="space-y-1 text-sm">
+                {pendingSelections.map((item) => (
+                  <li key={item.id} className="break-all">
+                    <strong>{item.hostname}</strong>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {item.deviceIdentifier}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {!!approvalResults.length && (
+              <div role="status" className="max-h-48 overflow-y-auto rounded-md border p-3">
+                <ul className="space-y-2 text-sm">
+                  {approvalResults.map((item) => (
+                    <li key={item.id} className="break-words">
+                      <strong>{item.hostname}</strong>:{" "}
+                      {item.approved ? "Approved" : `Not approved — ${item.error}`}
+                    </li>
+                  ))}
+                </ul>
+                {pendingSelections.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Retry processes only requests not confirmed as approved. If a connection was
+                    interrupted, refresh device data to check the outcome first.
+                  </p>
+                )}
+              </div>
+            )}
+            <fieldset disabled={approvePendingMutation.isPending || !pendingSelections.length}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Site">
                   <Select
@@ -904,7 +1242,7 @@ function DevicesPage() {
                       }));
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Site">
                       <SelectValue placeholder="Select site" />
                     </SelectTrigger>
                     <SelectContent>
@@ -924,7 +1262,7 @@ function DevicesPage() {
                       setPendingForm((current) => ({ ...current, areaId: value }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Area">
                       <SelectValue placeholder="Optional area" />
                     </SelectTrigger>
                     <SelectContent>
@@ -940,6 +1278,7 @@ function DevicesPage() {
 
                 <Field label="Location Label">
                   <Input
+                    aria-label="Location Label"
                     value={pendingForm.locationLabel}
                     onChange={(event) =>
                       setPendingForm((current) => ({
@@ -961,7 +1300,7 @@ function DevicesPage() {
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Ownership">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -972,8 +1311,8 @@ function DevicesPage() {
                   </Select>
                 </Field>
               </div>
-            </div>
-          ) : null}
+            </fieldset>
+          </div>
 
           <DialogFooter className="gap-2">
             <Button
@@ -981,21 +1320,33 @@ function DevicesPage() {
               onClick={() => setPendingOpen(false)}
               disabled={approvePendingMutation.isPending}
             >
-              Cancel
+              {approvalResults.length ? "Close" : "Cancel"}
             </Button>
-            <Button
-              onClick={() => approvePendingMutation.mutate()}
-              disabled={
-                !pendingSelection || !pendingForm.siteId || approvePendingMutation.isPending
-              }
-            >
-              {approvePendingMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="mr-2 h-4 w-4" />
-              )}
-              Approve Device
-            </Button>
+            {pendingSelections.length > 0 && (
+              <Button
+                onClick={() => {
+                  setApprovalProgress(0);
+                  approvePendingMutation.mutate({
+                    targets: [...pendingSelections],
+                    settings: { ...pendingForm },
+                  });
+                }}
+                disabled={
+                  !pendingSelections.length ||
+                  !pendingForm.siteId ||
+                  approvePendingMutation.isPending
+                }
+              >
+                {approvePendingMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                {approvePendingMutation.isPending
+                  ? `Approving ${approvalProgress}/${pendingSelections.length}…`
+                  : `${approvalResults.length ? "Retry" : "Approve"} ${pendingSelections.length} device(s)`}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

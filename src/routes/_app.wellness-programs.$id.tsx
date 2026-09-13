@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import {
   Activity,
   Download,
+  MoreHorizontal,
+  ArrowLeft,
   Eye,
   HeartPulse,
   Pencil,
@@ -336,9 +338,16 @@ function WellnessProgramDetailPage() {
 
   return (
     <div>
+      <Link
+        to="/wellness-programs"
+        className="mb-3 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Wellness Programs
+      </Link>
       <PageHeader
         title={notification.title}
-        description={buildWellnessDescription(notification, recipients)}
+        description={`${wellness.programType === "GuidedRoutine" ? "Guided routine" : "Simple reminder"} · ${wellness.theme}`}
         actions={
           <>
             <Button
@@ -357,9 +366,6 @@ function WellnessProgramDetailPage() {
             >
               <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
               {isRefreshing ? "Refreshing..." : "Refresh"}
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to="/wellness-programs">Back To Wellness Programs</Link>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -432,35 +438,40 @@ function WellnessProgramDetailPage() {
               </Button>
             )}
             {canCancel && (
-              <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Deactivate
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="More program actions">
+                    <MoreHorizontal aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setCancelOpen(true)}>
+                    <XCircle className="h-4 w-4" />
+                    Deactivate program
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-            <PriorityBadge priority={notification.priority} />
-            <StatusBadge status={notification.status} />
           </>
         }
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard
-          icon={HeartPulse}
-          title="Program Shape"
-          value={`${wellness.programType} / ${wellness.layoutVariant}`}
-          description={`Theme ${wellness.theme} with ${wellness.actions.length} configured CTA actions.`}
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <StatusBadge status={notification.status} />
+        <PriorityBadge priority={notification.priority} />
+      </div>
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <SummaryCard
           icon={Eye}
           title="Audience"
           value={`${eligibleDeviceRecipientCount}`}
-          description={`Eligible Windows Agent device recipients from the latest preview. Total recipients: ${audiencePreview?.totalRecipients ?? recipientCount}.`}
+          description="Eligible devices in the latest preview"
         />
         <SummaryCard
           icon={ShieldCheck}
           title="Policies"
           value={`${monitoring.activePolicies}/${monitoring.totalPolicies}`}
-          description="Active versus total synchronized reminder policies currently observed for this routine."
+          description="Active / synchronized policies"
         />
         <SummaryCard
           icon={Activity}
@@ -478,21 +489,12 @@ function WellnessProgramDetailPage() {
               : `Triggered ${monitoring.counts.triggered}, completed ${monitoring.counts.completed}, timed out ${monitoring.counts.timedOut}.`
           }
         />
-        <SummaryCard
-          icon={Rocket}
-          title="Execution"
-          value={notification.reminderSchedule?.executionMode ?? "Draft"}
-          description={
-            notification.reminderSchedule?.validUntil
-              ? `Valid until ${formatOptionalDate(notification.reminderSchedule.validUntil)}`
-              : "No expiry is set. The routine stays active until an operator deactivates it."
-          }
-        />
       </div>
 
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="activity">Wellness Activity</TabsTrigger>
           <TabsTrigger value="recipients">Recipients ({recipientCount})</TabsTrigger>
           <TabsTrigger value="logs">
@@ -501,6 +503,75 @@ function WellnessProgramDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
+          {!!audiencePreview?.previewWarnings.length && (
+            <div role="status" className="rounded-lg border border-warning/40 bg-warning/5 p-4">
+              <p className="text-sm font-medium">Audience needs attention</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {audiencePreview.previewWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Program content</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <Info label="Message" value={notification.message} markdown />
+                {notification.instruction && (
+                  <Info label="Instruction" value={notification.instruction} markdown />
+                )}
+                <Info
+                  label="Available actions"
+                  value={wellness.actions.map((action) => action.label).join(", ") || "—"}
+                />
+                {!!wellness.steps?.length && (
+                  <Info
+                    label="Guided steps"
+                    value={`${wellness.steps.length} steps · see Configuration for program settings`}
+                  />
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Schedule & audience</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-5 sm:grid-cols-2">
+                <Info
+                  label="Repeats"
+                  value={formatWellnessRecurrenceSummary(
+                    notification.reminderSchedule?.recurrenceRule,
+                  )}
+                />
+                <Info
+                  label="Timezone"
+                  value={formatUtcOffsetTimeZone(notification.reminderSchedule?.timezone)}
+                />
+                <Info
+                  label="First occurrence"
+                  value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)}
+                />
+                <Info
+                  label="Valid until"
+                  value={
+                    notification.reminderSchedule?.validUntil
+                      ? formatOptionalDate(notification.reminderSchedule.validUntil)
+                      : "No expiry configured"
+                  }
+                />
+                <Info label="Next run window" value={nextRunWindowSummary} />
+                <Info
+                  label="Target devices"
+                  value={formatTargetDeviceSummary(notification, recipients)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        <TabsContent value="configuration" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Program Snapshot</CardTitle>
@@ -1235,18 +1306,6 @@ function buildRecipientReference(recipient: Recipient) {
   }
 
   return recipient.employeeId || "—";
-}
-
-function buildWellnessDescription(notification: Notification, recipients: Recipient[]) {
-  const target = formatTargetDeviceSummary(notification, recipients);
-  return [
-    "Dedicated wellness detail",
-    notification.wellnessProgram?.programType,
-    notification.wellnessProgram?.theme,
-    target,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 function formatTargetDeviceSummary(notification: Notification, recipients: Recipient[]) {
