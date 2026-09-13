@@ -1,3 +1,4 @@
+import { runDeviceRolloutBatch, type RolloutBatchResult } from "@/lib/device-bulk-rollout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { approveDeviceRequests, type DeviceApprovalResult } from "@/lib/device-bulk-approval";
 import { SearchInput } from "@/components/common/SearchInput";
@@ -48,7 +49,6 @@ import type {
   Device,
   DeviceRolloutAction,
   DeviceRolloutPackage,
-  DeviceRolloutPreviewResponse,
   DeviceRolloutRequest,
   PendingDeviceEnrollment,
 } from "@/types";
@@ -84,7 +84,14 @@ const NO_AREA_VALUE = "__none__";
 function DevicesPage() {
   const qc = useQueryClient();
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
-  const [rolloutDevice, setRolloutDevice] = useState<Device | null>(null);
+  const [rolloutTargets, setRolloutTargets] = useState<Device[]>([]);
+  const [checkedDevices, setCheckedDevices] = useState<{ page: string; ids: string[] }>({
+    page: "",
+    ids: [],
+  });
+  const [rolloutResults, setRolloutResults] = useState<RolloutBatchResult[]>([]);
+  const [rolloutProgress, setRolloutProgress] = useState(0);
+  const [previewKey, setPreviewKey] = useState("");
   const [deviceQuery, setDeviceQuery] = useState("");
   const [deviceFilters, setDeviceFilters] = useState({
     status: "all",
@@ -95,7 +102,7 @@ function DevicesPage() {
   });
   const [pendingQuery, setPendingQuery] = useState("");
   const [rolloutOpen, setRolloutOpen] = useState(false);
-  const [previewResult, setPreviewResult] = useState<DeviceRolloutPreviewResponse | null>(null);
+  const [previewResults, setPreviewResults] = useState<RolloutBatchResult[]>([]);
   const [form, setForm] = useState<RolloutFormState>(() => createDefaultRolloutForm());
   const [pendingSelections, setPendingSelections] = useState<PendingDeviceEnrollment[]>([]);
   const [checkedPending, setCheckedPending] = useState<{ page: string; ids: string[] }>({
@@ -137,49 +144,77 @@ function DevicesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: rolloutPackages = [], isLoading: packagesLoading } = useQuery({
+  const {
+    data: rolloutPackages = [],
+    isLoading: packagesLoading,
+    isError: packagesError,
+    refetch: reloadPackages,
+  } = useQuery({
     queryKey: ["device-rollout-packages"],
     queryFn: devicesService.listRolloutPackages,
     refetchInterval: 30000,
   });
 
+  const rolloutKey = JSON.stringify([rolloutTargets.map((d) => d.id), form]);
   const previewMutation = useMutation({
     mutationFn: async () => {
-      if (!rolloutDevice) {
-        throw new Error("Select a target device first.");
-      }
-
-      return devicesService.previewRollout(rolloutDevice.id, mapFormToRequest(form));
+      const key = rolloutKey;
+      const payload = mapFormToRequest(form);
+      setPreviewKey("");
+      setRolloutProgress(0);
+      const results = await runDeviceRolloutBatch(
+        rolloutTargets,
+        (id) => devicesService.previewRollout(id, payload),
+        setRolloutProgress,
+      );
+      return { key, results };
     },
-    onSuccess: (result) => {
-      setPreviewResult(result);
-      toast.success(`Preview ready for ${result.target.hostname}`);
+    onSuccess: ({ key, results }) => {
+      setPreviewResults(results);
+      setPreviewKey(key);
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to preview rollout.");
-    },
+    onError: () => toast.error("Preview failed. Please try again."),
   });
-
   const applyMutation = useMutation({
     mutationFn: async () => {
-      if (!rolloutDevice) {
-        throw new Error("Select a target device first.");
+      if (
+        previewKey !== rolloutKey ||
+        !previewResults.length ||
+        previewResults.some((r) => !r.success) ||
+        rolloutResults.length
+      ) {
+        throw new Error("Preview every selected device before applying rollout.");
       }
-
-      return devicesService.applyRollout(rolloutDevice.id, mapFormToRequest(form));
-    },
-    onSuccess: async (result) => {
-      setPreviewResult(null);
-      await qc.invalidateQueries({ queryKey: ["devices"] });
-      toast.success(
-        `Rollout ${result.rolloutIntent.targetVersion} created for ${result.target.hostname}`,
+      const payload = mapFormToRequest(form);
+      setRolloutProgress(0);
+      return runDeviceRolloutBatch(
+        rolloutTargets,
+        (id) => devicesService.applyRollout(id, payload),
+        setRolloutProgress,
       );
-      setRolloutOpen(false);
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to create rollout.");
+    onSuccess: async (results) => {
+      setRolloutResults(results);
+      setPreviewKey("");
+      setCheckedDevices({ page: "", ids: [] });
+      await qc.invalidateQueries({ queryKey: ["devices"] });
+      const count = results.filter((r) => r.success).length;
+      toast[count === results.length ? "success" : "warning"](
+        `${count} of ${results.length} rollout requests created. Installation is confirmed by the agent separately.`,
+      );
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Rollout failed."),
   });
+  const rolloutBusy = previewMutation.isPending || applyMutation.isPending;
+  function openRollout(targets: Device[]) {
+    setRolloutTargets(targets.map((d) => ({ ...d })));
+    setPreviewResults([]);
+    setRolloutResults([]);
+    setPreviewKey("");
+    setRolloutProgress(0);
+    setForm(createRolloutFormFromPackage(readyPackages[0] ?? rolloutPackages[0] ?? null));
+    setRolloutOpen(true);
+  }
 
   const approvePendingMutation = useMutation({
     mutationFn: async ({
@@ -325,6 +360,17 @@ function DevicesPage() {
   const approvedPagination = useListPagination(
     filteredDevices,
     JSON.stringify([deviceQuery, deviceFilters]),
+  );
+  const approvedPageKey = JSON.stringify([
+    deviceQuery,
+    deviceFilters,
+    approvedPagination.items.map((d) => d.id),
+  ]);
+  useEffect(() => {
+    setCheckedDevices({ page: approvedPageKey, ids: [] });
+  }, [approvedPageKey]);
+  const selectedDevices = approvedPagination.items.filter(
+    (d) => checkedDevices.page === approvedPageKey && checkedDevices.ids.includes(d.id),
   );
   const filteredPending = pendingDevices.filter((d) =>
     `${d.hostname} ${d.deviceIdentifier}`.toLowerCase().includes(pendingQuery.toLowerCase()),
@@ -480,12 +526,37 @@ function DevicesPage() {
                     ]}
                   />
                 </div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground" role="status">
+                    {selectedDevices.length} selected on this page
+                  </span>
+                  <div className="flex gap-2">
+                    {selectedDevices.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCheckedDevices({ page: approvedPageKey, ids: [] })}
+                      >
+                        Clear selection
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      disabled={!selectedDevices.length}
+                      onClick={() => openRollout(selectedDevices)}
+                    >
+                      <Rocket className="mr-2 h-4 w-4" />
+                      Rollout selected ({selectedDevices.length})
+                    </Button>
+                  </div>
+                </div>
                 <Table
                   workspace={{
                     label: "Approved devices",
                     columns: [
-                      "Status",
+                      "Select",
                       "Hostname",
+                      "Status",
                       "Device ID",
                       "Site",
                       "Area",
@@ -499,14 +570,34 @@ function DevicesPage() {
                       "Actions",
                     ],
                     identityColumn: 1,
-                    leadingColumnWidth: "7rem",
+                    leadingColumnWidth: "3rem",
                   }}
                   className="min-w-[1200px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap"
                 >
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Status</TableHead>
+                      <TableHead>
+                        <Checkbox
+                          aria-label="Select all devices on this page"
+                          disabled={!approvedPagination.items.length}
+                          checked={
+                            selectedDevices.length === approvedPagination.items.length &&
+                            selectedDevices.length > 0
+                              ? true
+                              : selectedDevices.length
+                                ? "indeterminate"
+                                : false
+                          }
+                          onCheckedChange={(checked) =>
+                            setCheckedDevices({
+                              page: approvedPageKey,
+                              ids: checked ? approvedPagination.items.map((d) => d.id) : [],
+                            })
+                          }
+                        />
+                      </TableHead>
                       <TableHead>Hostname</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Device ID</TableHead>
                       <TableHead>Site</TableHead>
                       <TableHead>Area</TableHead>
@@ -523,7 +614,7 @@ function DevicesPage() {
                   <TableBody>
                     {!filteredDevices.length && (
                       <TableRow>
-                        <TableCell colSpan={13} className="h-32 text-center text-muted-foreground">
+                        <TableCell colSpan={14} className="h-32 text-center text-muted-foreground">
                           {devicesLoading
                             ? "Loading approved devices…"
                             : devicesError
@@ -538,6 +629,23 @@ function DevicesPage() {
                     {approvedPagination.items.map((device) => (
                       <TableRow key={device.id}>
                         <TableCell>
+                          <Checkbox
+                            aria-label={`Select ${device.hostname}`}
+                            checked={selectedDevices.some((d) => d.id === device.id)}
+                            onCheckedChange={(checked) =>
+                              setCheckedDevices({
+                                page: approvedPageKey,
+                                ids: checked
+                                  ? [...selectedDevices.map((d) => d.id), device.id]
+                                  : selectedDevices
+                                      .filter((d) => d.id !== device.id)
+                                      .map((d) => d.id),
+                              })
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{device.hostname}</TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <span
                               className={`h-2 w-2 rounded-full ${
@@ -549,7 +657,6 @@ function DevicesPage() {
                             <StatusBadge status={device.status} />
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium">{device.hostname}</TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {device.deviceId}
                         </TableCell>
@@ -629,19 +736,7 @@ function DevicesPage() {
                               )}
                               Test
                             </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setRolloutDevice(device);
-                                setPreviewResult(null);
-                                setForm(
-                                  createRolloutFormFromPackage(
-                                    readyPackages[0] ?? rolloutPackages[0] ?? null,
-                                  ),
-                                );
-                                setRolloutOpen(true);
-                              }}
-                            >
+                            <Button size="sm" onClick={() => openRollout([device])}>
                               <Rocket className="mr-1 h-3 w-3" />
                               Rollout
                             </Button>
@@ -851,9 +946,10 @@ function DevicesPage() {
       <Dialog
         open={rolloutOpen}
         onOpenChange={(nextOpen) => {
+          if (rolloutBusy) return;
           setRolloutOpen(nextOpen);
           if (!nextOpen) {
-            setPreviewResult(null);
+            setPreviewResults([]);
             previewMutation.reset();
             applyMutation.reset();
           }
@@ -863,23 +959,32 @@ function DevicesPage() {
           <DialogHeader>
             <DialogTitle>Trigger Device Rollout</DialogTitle>
             <DialogDescription>
-              Push a versioned MSI rollout to a single Windows Agent from the admin console. This
-              uses the same backend rollout path we already validated on the endpoint.
+              Review the selected devices and package, preview every target, then confirm rollout.
+              Offline devices receive the request when they reconnect.
             </DialogDescription>
           </DialogHeader>
 
-          {rolloutDevice && (
-            <div className="grid gap-6 lg:grid-cols-[1.4fr,0.9fr]">
+          {rolloutTargets.length > 0 && (
+            <fieldset
+              disabled={rolloutBusy || rolloutResults.length > 0}
+              className="min-w-0 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]"
+            >
               <div className="space-y-5">
                 <Card className="border-dashed">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Target Device</CardTitle>
+                    <CardTitle className="text-base">
+                      Target Devices ({rolloutTargets.length})
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-                    <InfoRow label="Hostname" value={rolloutDevice.hostname} />
-                    <InfoRow label="Current Version" value={rolloutDevice.agentVersion ?? "-"} />
-                    <InfoRow label="Device ID" value={rolloutDevice.deviceId} mono />
-                    <InfoRow label="Status" value={rolloutDevice.status} badge />
+                  <CardContent className="max-h-48 overflow-y-auto space-y-2 text-sm">
+                    {rolloutTargets.map((device) => (
+                      <div key={device.id} className="flex flex-wrap justify-between gap-2">
+                        <span className="font-medium">{device.hostname}</span>
+                        <span className="text-muted-foreground">
+                          {device.agentVersion ?? "Unknown version"} · {device.status}
+                        </span>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
 
@@ -899,7 +1004,7 @@ function DevicesPage() {
                           const nextPackage =
                             rolloutPackages.find((item) => item.packageUrl === value) ?? null;
                           setForm(createRolloutFormFromPackage(nextPackage));
-                          setPreviewResult(null);
+                          setPreviewResults([]);
                         }}
                       >
                         <SelectTrigger id="package-select">
@@ -912,6 +1017,15 @@ function DevicesPage() {
                           />
                         </SelectTrigger>
                         <SelectContent>
+                          {!rolloutPackages.length && (
+                            <div className="p-3 text-sm text-muted-foreground">
+                              {packagesLoading
+                                ? "Loading packages…"
+                                : packagesError
+                                  ? "Could not load packages."
+                                  : "No published MSI packages."}
+                            </div>
+                          )}
                           {rolloutPackages.map((pkg) => (
                             <SelectItem key={pkg.packageUrl} value={pkg.packageUrl}>
                               {pkg.fileName} {pkg.version ? `- ${pkg.version}` : ""}
@@ -920,9 +1034,17 @@ function DevicesPage() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Packages are discovered from `backend/local-packages` and inspected from the
-                        backend server before this dialog renders them.
+                        {packagesError
+                          ? "Could not load packages. Retry or check the package service."
+                          : !packagesLoading && !rolloutPackages.length
+                            ? "No published MSI packages available. Upload a package in Settings > Desktop Agent."
+                            : "Choose a published MSI package for all selected devices."}
                       </p>
+                      {packagesError && (
+                        <Button variant="outline" size="sm" onClick={() => void reloadPackages()}>
+                          Retry packages
+                        </Button>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         Manage package uploads from {"Settings > Desktop Agent"}. This rollout
                         dialog only applies packages that are already registered globally.
@@ -1114,33 +1236,54 @@ function DevicesPage() {
                     <CardTitle className="text-base">Backend Dry Run</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {previewResult ? (
-                      <>
-                        <InfoRow label="Mode" value={previewResult.mode} badge />
-                        <InfoRow
-                          label="Current Active Rollouts"
-                          value={`${previewResult.currentlyActiveRollouts}`}
-                        />
-                        <InfoRow label="Target Host" value={previewResult.target.hostname} />
-                        <InfoRow
-                          label="Target Version"
-                          value={previewResult.rollout.targetVersion}
-                        />
-                        <InfoRow label="Package Type" value={previewResult.package.packageType} />
-                        <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          Dry run confirmed that the backend can resolve the target device and would
-                          create the rollout intent with the package metadata above.
+                    {previewResults.length > 0 && previewKey === rolloutKey ? (
+                      previewResults.map((result) => (
+                        <div key={result.id} className="rounded-md border p-3 text-sm">
+                          <p className="font-medium">{result.hostname}</p>
+                          <p>
+                            {result.success
+                              ? `Ready · ${result.activeRollouts ?? 0} active rollout(s)`
+                              : result.error}
+                          </p>
                         </div>
-                      </>
+                      ))
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        Run preview first so the backend validates the target device and rollout
-                        metadata before you apply it.
+                        Preview every target before applying. Changing any setting requires a new
+                        preview.
                       </p>
                     )}
                   </CardContent>
                 </Card>
               </div>
+            </fieldset>
+          )}
+          {rolloutBusy && (
+            <p role="status">
+              {previewMutation.isPending ? "Previewing" : "Creating rollout requests"}{" "}
+              {rolloutProgress} / {rolloutTargets.length}…
+            </p>
+          )}
+          {rolloutResults.length > 0 && (
+            <div className="space-y-2" role="status">
+              <p className="font-medium">
+                {rolloutResults.filter((r) => r.success).length} / {rolloutResults.length} requests
+                created
+              </p>
+              {rolloutResults.map((r) => (
+                <p key={r.id} className="text-sm">
+                  {r.hostname}:{" "}
+                  {r.success
+                    ? "Request created; awaiting agent installation"
+                    : `Not confirmed: ${r.error}`}
+                </p>
+              ))}
+              {rolloutResults.some((r) => !r.success) && (
+                <p className="text-sm text-muted-foreground">
+                  Check rollout history before retrying unconfirmed devices. A lost response may
+                  still have created a request. Successful devices will not be retried here.
+                </p>
+              )}
             </div>
           )}
 
@@ -1148,9 +1291,7 @@ function DevicesPage() {
             <Button
               variant="outline"
               onClick={() => previewMutation.mutate()}
-              disabled={
-                !isRolloutFormValid(form) || previewMutation.isPending || applyMutation.isPending
-              }
+              disabled={!isRolloutFormValid(form) || rolloutBusy || rolloutResults.length > 0}
             >
               {previewMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Preview Rollout
@@ -1158,7 +1299,12 @@ function DevicesPage() {
             <Button
               onClick={() => applyMutation.mutate()}
               disabled={
-                !isRolloutFormValid(form) || previewMutation.isPending || applyMutation.isPending
+                !isRolloutFormValid(form) ||
+                rolloutBusy ||
+                rolloutResults.length > 0 ||
+                previewKey !== rolloutKey ||
+                !previewResults.length ||
+                previewResults.some((r) => !r.success)
               }
             >
               {applyMutation.isPending ? (
@@ -1166,7 +1312,11 @@ function DevicesPage() {
               ) : (
                 <Rocket className="mr-2 h-4 w-4" />
               )}
-              Apply Rollout
+              Apply Rollout to {rolloutTargets.length} device
+              {rolloutTargets.length === 1 ? "" : "s"}
+            </Button>
+            <Button variant="outline" disabled={rolloutBusy} onClick={() => setRolloutOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

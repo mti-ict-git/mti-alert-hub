@@ -159,3 +159,7 @@ Hostname is the primary device identity, before Device ID in the approved table.
 Approve selected opens a hostname/identifier review with one shared Site, Area, Location Label and Ownership setting. Bulk approval requires an explicit Site choice. Confirmation freezes a target/settings snapshot, disables controls/closing during submission, and reports results per hostname. Successful rows are excluded from retry. Partial completion is explicit, not represented as an all-or-nothing transaction.
 
 Approved Devices filter toolbar uses the shared Select and SearchInput controls in a responsive 1/2/3-column grid, plus FilterChips. Status, Site, Area, Ownership and Agent version combine with search; dependent Area resets on Site changes. Counts distinguish loaded totals from matching results.
+
+### Bulk device rollout — 2026-09-13
+
+Approved-device selection uses the existing Checkbox/Table and page-scoped selection pattern. Selection and Hostname are pinned, followed by Status. Rollout selected reuses the individual rollout dialog with a frozen hostname list and shared package settings. Preview must succeed for all targets and match the current settings before Apply is enabled. During processing, editing and closing are disabled. Per-device results distinguish request creation from completed installation. No automatic retry occurs for ambiguous responses.
