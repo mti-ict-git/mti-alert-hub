@@ -447,3 +447,8 @@ CentralAdmin only: changes may update Site, Area, Location Label and Ownership; 
 ### Direction update — Sites & Areas in Settings
 
 The user requested removal of the remaining Departments menu and relocation of master locations to Settings. The canonical UI is now Settings → Sites & Areas, with Sites and Areas subtabs only. Organization no longer appears in Management. The old /organization URL redirects to /settings?tab=locations. Department/Section storage and backend contracts are retained for compatibility; they have no management tab here. Sites/Areas use their own Save changes action in the entry editor, not the general Settings save button. This supersedes the earlier standalone Organization menu direction.
+
+
+## Create Notification device audience (2026-09-14)
+
+Device targeting supports multiple explicit device identifiers using the existing targets API. The picker follows Wellness: search hostname/user/site/department, select or clear visible results, clear all and selected-hostname chips. At least one device is required; changing target type clears device selection. Confirmation shows count and hostnames. The current shared device list loads up to 200 devices and Select Visible applies only to loaded search results; this is disclosed beside the picker.

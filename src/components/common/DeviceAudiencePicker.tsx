@@ -1,0 +1,194 @@
+import { useMemo, useState } from "react";
+import { X } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Device } from "@/types";
+
+type DeviceAudiencePickerProps = {
+  devices: Device[];
+  description?: string;
+  selectedDeviceIds: string[];
+  onChange: (deviceIds: string[]) => void;
+};
+
+export function DeviceAudiencePicker(props: DeviceAudiencePickerProps) {
+  const [search, setSearch] = useState("");
+
+  const filteredDevices = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return props.devices;
+    }
+
+    return props.devices.filter((device) => {
+      const fields = [
+        device.deviceId,
+        device.hostname,
+        device.siteName,
+        device.areaName,
+        device.currentDisplayName,
+        device.currentUsername,
+        device.currentDepartment,
+      ];
+
+      return fields.some((value) => value?.toLowerCase().includes(query));
+    });
+  }, [props.devices, search]);
+
+  const selectedSet = useMemo(() => new Set(props.selectedDeviceIds), [props.selectedDeviceIds]);
+  const devicesById = useMemo(
+    () => new Map(props.devices.map((device) => [device.deviceId, device])),
+    [props.devices],
+  );
+  const visibleSelectedCount = filteredDevices.filter((device) =>
+    selectedSet.has(device.deviceId),
+  ).length;
+
+  function toggleDevice(deviceId: string, checked: boolean) {
+    if (checked) {
+      props.onChange([...new Set([...props.selectedDeviceIds, deviceId])]);
+      return;
+    }
+
+    props.onChange(props.selectedDeviceIds.filter((item) => item !== deviceId));
+  }
+
+  function selectVisible() {
+    props.onChange([
+      ...new Set([...props.selectedDeviceIds, ...filteredDevices.map((device) => device.deviceId)]),
+    ]);
+  }
+
+  function clearVisible() {
+    const visibleIds = new Set(filteredDevices.map((device) => device.deviceId));
+    props.onChange(props.selectedDeviceIds.filter((deviceId) => !visibleIds.has(deviceId)));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <Label>Target Devices</Label>
+        <p className="text-xs text-muted-foreground">
+          {props.description ??
+            "Search, bulk-select, and assign the same routine to multiple approved Windows Agent devices."}
+        </p>
+      </div>
+
+      <div className="rounded-xl border">
+        <div className="space-y-3 border-b bg-muted/20 p-3">
+          <div className="relative">
+            <Input
+              aria-label="Search target devices"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search hostname, user, site, or department"
+              className="pr-10"
+            />
+            {search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-7 w-7"
+                aria-label="Clear device search"
+                onClick={() => setSearch("")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={selectVisible}>
+                Select Visible
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={clearVisible}>
+                Clear Visible
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => props.onChange([])}
+                disabled={props.selectedDeviceIds.length === 0}
+              >
+                Clear All
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {props.selectedDeviceIds.length} selected · {visibleSelectedCount}/
+              {filteredDevices.length} visible
+            </div>
+          </div>
+        </div>
+
+        <ScrollArea className="h-72">
+          <div className="divide-y">
+            {filteredDevices.map((device) => {
+              const isSelected = selectedSet.has(device.deviceId);
+
+              return (
+                <label
+                  key={device.id}
+                  className="flex cursor-pointer items-start gap-3 px-3 py-3 transition-colors hover:bg-muted/20"
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={(checked) => toggleDevice(device.deviceId, checked === true)}
+                    className="mt-1"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{device.hostname || "Unnamed device"}</span>
+                      <Badge variant="outline">{device.status}</Badge>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Site: {device.siteName ?? device.siteId}</span>
+                      {device.areaName && <span>Area: {device.areaName}</span>}
+                      <span>
+                        User:{" "}
+                        {device.currentDisplayName ??
+                          device.currentUsername ??
+                          device.lastActiveUserIdentifier ??
+                          "Unknown"}
+                      </span>
+                      <span>Department: {device.currentDepartment ?? "Unknown"}</span>
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+
+            {filteredDevices.length === 0 && (
+              <div className="px-3 py-10 text-center text-sm text-muted-foreground">
+                No devices match the current search.
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {props.selectedDeviceIds.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {props.selectedDeviceIds.slice(0, 8).map((deviceId) => {
+            const device = devicesById.get(deviceId);
+            return (
+              <Badge key={deviceId} variant="secondary">
+                {device?.hostname || "Device unavailable"}
+              </Badge>
+            );
+          })}
+          {props.selectedDeviceIds.length > 8 && (
+            <Badge variant="secondary">+{props.selectedDeviceIds.length - 8} more</Badge>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -730,3 +730,6 @@ Phase 4 remains in progress. This slice does not claim production integration or
 
 
 - [x] Replace sidebar corporate decoration with user-supplied artwork and match its faint opacity; real env-account login and before/after visual check passed. See warehouse-theme-review.md, sidebar artwork replacement (2026-09-14).
+
+
+- [x] Phase 4: align Create Notification Target Devices with the shared Wellness search/multi-selection picker; verify exact multi-device payload with intercepted write, selection reset, responsive layout, build and targeted lint. Evidence: warehouse-theme-review.md, Shared notification device picker.

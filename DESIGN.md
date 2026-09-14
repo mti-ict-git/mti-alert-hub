@@ -182,3 +182,6 @@ The user requested removal of the remaining Departments menu and relocation of m
 
 
 Sidebar decorative artwork now uses the user-supplied merdeka-battery-sidebar.png, with 6.5% opacity, multiply blending and a downward fade owned by AppSidebar. Preserve source proportions and collapsed-rail hiding.
+
+
+Device audience selection is owned by components/common/DeviceAudiencePicker.tsx and shared by Wellness and Create Notification. Use hostname-first searchable checkbox rows, visible-result bulk actions, selected count and selected-hostname chips. Notification target selection occupies the full form width and shows loading/retry states.

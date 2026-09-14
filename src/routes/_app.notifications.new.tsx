@@ -1,3 +1,4 @@
+import { DeviceAudiencePicker } from "@/components/common/DeviceAudiencePicker";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -11,9 +12,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { WhatsAppPreview } from "@/components/notifications/WhatsAppPreview";
 import { DesktopPreview } from "@/components/notifications/DesktopPreview";
@@ -58,10 +70,14 @@ const TARGET_TYPES: TargetType[] = [
   "Device",
 ].filter((targetType) => !(DESKTOP_ONLY_LIVE_PATH && targetType === "Employee")) as TargetType[];
 
-interface Search { template?: string }
+interface Search {
+  template?: string;
+}
 
 export const Route = createFileRoute("/_app/notifications/new")({
-  validateSearch: (s: Record<string, unknown>): Search => ({ template: typeof s.template === "string" ? s.template : undefined }),
+  validateSearch: (s: Record<string, unknown>): Search => ({
+    template: typeof s.template === "string" ? s.template : undefined,
+  }),
   component: CreateNotificationPage,
 });
 
@@ -69,7 +85,10 @@ function CreateNotificationPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/notifications/new" });
-  const { data: templates = [] } = useQuery({ queryKey: ["templates"], queryFn: templatesService.list });
+  const { data: templates = [] } = useQuery({
+    queryKey: ["templates"],
+    queryFn: templatesService.list,
+  });
   const { data: workflows = [] } = useQuery({
     queryKey: ["workflow-definitions"],
     queryFn: workflowsService.list,
@@ -82,7 +101,12 @@ function CreateNotificationPage() {
     queryKey: ["employee-reference"],
     queryFn: referenceService.listEmployees,
   });
-  const { data: devices = [] } = useQuery({
+  const {
+    data: devices = [],
+    isPending: devicesLoading,
+    isError: devicesError,
+    refetch: reloadDevices,
+  } = useQuery({
     queryKey: ["devices"],
     queryFn: devicesService.list,
   });
@@ -102,7 +126,7 @@ function CreateNotificationPage() {
   const [department, setDepartment] = useState<string>("");
   const [section, setSection] = useState<string>("");
   const [employeeId, setEmployeeId] = useState<string>("");
-  const [deviceId, setDeviceId] = useState<string>("");
+  const [deviceIds, setDeviceIds] = useState<string[]>([]);
   const [channels, setChannels] = useState<Channel[]>([...enabledDeliveryChannels]);
   const [windowsAgentPresentation, setWindowsAgentPresentation] =
     useState<WindowsAgentPresentation>("Toast");
@@ -159,7 +183,9 @@ function CreateNotificationPage() {
     if (priority === "Emergency" || priority === "Critical") {
       setChannels([...enabledDeliveryChannels]);
       setRequireAck(true);
-      setWorkflowId((current) => current || selectedTemplate?.defaultWorkflowId || workflows[0]?.id || "");
+      setWorkflowId(
+        (current) => current || selectedTemplate?.defaultWorkflowId || workflows[0]?.id || "",
+      );
     }
   }, [priority, selectedTemplate?.defaultWorkflowId, workflows]);
 
@@ -171,7 +197,11 @@ function CreateNotificationPage() {
     hasDesktopAgentChannel,
     windowsAgentPresentation,
   );
-  const instructionMode = getInstructionMode(priority, hasDesktopAgentChannel, effectiveWindowsAgentPresentation);
+  const instructionMode = getInstructionMode(
+    priority,
+    hasDesktopAgentChannel,
+    effectiveWindowsAgentPresentation,
+  );
   const instructionRequired = instructionMode === "required";
   const instructionBlocked = instructionMode === "blocked";
   const desktopToastOnlyDelivery =
@@ -270,7 +300,7 @@ function CreateNotificationPage() {
     }
 
     if (nextTargetType !== "Device") {
-      setDeviceId("");
+      setDeviceIds([]);
     }
   }
 
@@ -308,7 +338,7 @@ function CreateNotificationPage() {
       targetDepartment: department || undefined,
       targetSection: section || undefined,
       targetEmployeeId: employeeId || undefined,
-      targetDeviceId: deviceId || undefined,
+      targetDeviceIds: targetType === "Device" ? deviceIds : undefined,
       channels,
       windowsAgentPresentation: hasDesktopAgentChannel ? effectiveWindowsAgentPresentation : null,
       toastAutoDismissSeconds: parseToastAutoDismissSecondsInput(toastAutoDismissSeconds),
@@ -336,7 +366,7 @@ function CreateNotificationPage() {
     (targetType === "Department" && Boolean(department)) ||
     (targetType === "Section" && Boolean(section)) ||
     (targetType === "Employee" && Boolean(employeeId)) ||
-    (targetType === "Device" && Boolean(deviceId));
+    (targetType === "Device" && deviceIds.length > 0 && !devicesLoading && !devicesError);
   const canSubmit =
     title &&
     message &&
@@ -345,30 +375,40 @@ function CreateNotificationPage() {
     hasRequiredTargetSelection &&
     (!requireAck || Boolean(workflowId)) &&
     (!instructionRequired || Boolean(instruction.trim())) &&
-    (!isReminder || isValidReminderDraftAuthoring({
-      timezone: reminderTimezone,
-      recurrenceRule: reminderRecurrenceRule,
-      executionMode: reminderExecutionMode,
-      validUntil: reminderValidUntil,
-      scheduledAt: reminderScheduledAt,
-    }));
+    (!isReminder ||
+      isValidReminderDraftAuthoring({
+        timezone: reminderTimezone,
+        recurrenceRule: reminderRecurrenceRule,
+        executionMode: reminderExecutionMode,
+        validUntil: reminderValidUntil,
+        scheduledAt: reminderScheduledAt,
+      }));
 
   return (
     <div>
-      <PageHeader title="Create Notification" description="Compose an emergency or operational notification." />
+      <PageHeader
+        title="Create Notification"
+        description="Compose an emergency or operational notification."
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className={cn("lg:col-span-2", isEmergency && "border-emergency border-2")}>
           {isEmergency && (
             <div className="flex items-center gap-2 rounded-t-xl bg-emergency px-4 py-2 text-emergency-foreground emergency-pulse">
               <Siren className="h-4 w-4" />
-              <span className="text-sm font-semibold uppercase tracking-wider">Critical Notification Draft</span>
+              <span className="text-sm font-semibold uppercase tracking-wider">
+                Critical Notification Draft
+              </span>
             </div>
           )}
           <CardContent className="space-y-5 p-6">
             <div className="space-y-2">
               <Label>Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Fire Alarm at Acid Plant" />
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Fire Alarm at Acid Plant"
+              />
             </div>
 
             <div className="space-y-2">
@@ -381,7 +421,8 @@ function CreateNotificationPage() {
                 placeholder="Describe the situation clearly and concisely."
               />
               <p className="text-xs text-muted-foreground">
-                Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters. {message.trim().length}/{MESSAGE_MAX_LENGTH}
+                Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters.{" "}
+                {message.trim().length}/{MESSAGE_MAX_LENGTH}
               </p>
             </div>
 
@@ -393,12 +434,23 @@ function CreateNotificationPage() {
                   onValueChange={(value) => setCommunicationType(value as CommunicationType)}
                   disabled={Boolean(selectedTemplate)}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {(
-                      ["Alert", "Reminder", "OperationalNotice", "News", "Article", "KnowledgeUpdate"] as CommunicationType[]
+                      [
+                        "Alert",
+                        "Reminder",
+                        "OperationalNotice",
+                        "News",
+                        "Article",
+                        "KnowledgeUpdate",
+                      ] as CommunicationType[]
                     ).map((type) => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -411,7 +463,9 @@ function CreateNotificationPage() {
               <div className="space-y-2">
                 <Label>Priority</Label>
                 <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Info">Info</SelectItem>
                     <SelectItem value="Warning">Warning</SelectItem>
@@ -422,11 +476,17 @@ function CreateNotificationPage() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {(["IT", "OHSE", "Security", "Operation", "HR", "General"] as Category[]).map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
+                    {(["IT", "OHSE", "Security", "Operation", "HR", "General"] as Category[]).map(
+                      (c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -462,7 +522,8 @@ function CreateNotificationPage() {
                       onChange={(event) => setReminderScheduledAt(event.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Optional. Leave empty to let the recurring reminder start as soon as it is published.
+                      Optional. Leave empty to let the recurring reminder start as soon as it is
+                      published.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -491,9 +552,13 @@ function CreateNotificationPage() {
                     <Label>Execution Mode</Label>
                     <Select
                       value={reminderExecutionMode}
-                      onValueChange={(value) => setReminderExecutionMode(value as ScheduleExecutionMode)}
+                      onValueChange={(value) =>
+                        setReminderExecutionMode(value as ScheduleExecutionMode)
+                      }
                     >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
                         <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
@@ -532,7 +597,10 @@ function CreateNotificationPage() {
                 className="grid grid-cols-2 gap-2 md:grid-cols-3"
               >
                 {allowedTargetTypes.map((t) => (
-                  <Label key={t} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+                  <Label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                  >
                     <RadioGroupItem value={t} /> {t}
                   </Label>
                 ))}
@@ -555,7 +623,9 @@ function CreateNotificationPage() {
                   }}
                   disabled={targetType !== "Site" && targetType !== "Area"}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select site" />
+                  </SelectTrigger>
                   <SelectContent>
                     {sites.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
@@ -567,12 +637,10 @@ function CreateNotificationPage() {
               </div>
               <div className="space-y-2">
                 <Label>Target Area</Label>
-                <Select
-                  value={area}
-                  onValueChange={setArea}
-                  disabled={targetType !== "Area"}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
+                <Select value={area} onValueChange={setArea} disabled={targetType !== "Area"}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select area" />
+                  </SelectTrigger>
                   <SelectContent>
                     {availableAreas.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
@@ -595,7 +663,9 @@ function CreateNotificationPage() {
                   }}
                   disabled={targetType !== "Department" && targetType !== "Section"}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
                   <SelectContent>
                     {availableDepartments.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
@@ -612,7 +682,9 @@ function CreateNotificationPage() {
                   onValueChange={setSection}
                   disabled={targetType !== "Section" || !department}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select section" />
+                  </SelectTrigger>
                   <SelectContent>
                     {availableSections.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
@@ -629,7 +701,9 @@ function CreateNotificationPage() {
                   onValueChange={setEmployeeId}
                   disabled={targetType !== "Employee"}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
                   <SelectContent>
                     {availableEmployees.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
@@ -639,40 +713,53 @@ function CreateNotificationPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Target Device</Label>
-                <Select
-                  value={deviceId}
-                  onValueChange={setDeviceId}
-                  disabled={targetType !== "Device"}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select device" /></SelectTrigger>
-                  <SelectContent>
-                    {devices.map((item) => (
-                      <SelectItem key={item.id} value={item.deviceId}>
-                        {item.deviceId} - {item.hostname}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+            {targetType === "Device" &&
+              (devicesLoading ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Loading devices…
+                </p>
+              ) : devicesError ? (
+                <div role="alert" className="space-y-2 text-sm">
+                  <p>Unable to load target devices.</p>
+                  <Button type="button" variant="outline" onClick={() => reloadDevices()}>
+                    Retry devices
+                  </Button>
+                </div>
+              ) : (
+                <DeviceAudiencePicker
+                  devices={devices}
+                  selectedDeviceIds={deviceIds}
+                  onChange={setDeviceIds}
+                  description="Search and select approved Windows Agent devices for this notification. Select Visible applies to the loaded search results (up to 200 devices)."
+                />
+              ))}
 
             <div className="space-y-2">
               <Label>Channels</Label>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                 {CHANNELS.map((c) => (
-                  <Label key={c.key} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
-                    <Checkbox checked={channels.includes(c.key)} onCheckedChange={() => toggleChannel(c.key)} disabled={isEmergency} />
+                  <Label
+                    key={c.key}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                  >
+                    <Checkbox
+                      checked={channels.includes(c.key)}
+                      onCheckedChange={() => toggleChannel(c.key)}
+                      disabled={isEmergency}
+                    />
                     {c.label}
                   </Label>
                 ))}
               </div>
               {isEmergency && (
-                <p className="text-xs text-emergency">Critical priority auto-enables all channels in the current release scope.</p>
+                <p className="text-xs text-emergency">
+                  Critical priority auto-enables all channels in the current release scope.
+                </p>
               )}
               <p className="text-xs text-muted-foreground">
-                Current go-live scope exposes: {CHANNELS.map((channel) => channel.label).join(", ")}.
+                Current go-live scope exposes: {CHANNELS.map((channel) => channel.label).join(", ")}
+                .
               </p>
             </div>
 
@@ -681,10 +768,14 @@ function CreateNotificationPage() {
                 <Label>Windows Agent Presentation</Label>
                 <Select
                   value={effectiveWindowsAgentPresentation}
-                  onValueChange={(value) => setWindowsAgentPresentation(value as WindowsAgentPresentation)}
+                  onValueChange={(value) =>
+                    setWindowsAgentPresentation(value as WindowsAgentPresentation)
+                  }
                   disabled={priority === "Warning"}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {WINDOWS_AGENT_PRESENTATIONS.filter((presentation) =>
                       priority === "Warning" ? presentation === "Modal" : true,
@@ -717,7 +808,8 @@ function CreateNotificationPage() {
                   className="max-w-[12rem]"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Optional server-side override for Windows Agent toast duration. Leave empty to use the agent default of 5 seconds.
+                  Optional server-side override for Windows Agent toast duration. Leave empty to use
+                  the agent default of 5 seconds.
                 </p>
               </div>
             )}
@@ -746,7 +838,11 @@ function CreateNotificationPage() {
             {!isReminder && (
               <div className="space-y-2 rounded-md border p-3">
                 <Label>Schedule</Label>
-                <RadioGroup value={scheduleLater ? "later" : "now"} onValueChange={(v) => setScheduleLater(v === "later")} className="flex gap-4">
+                <RadioGroup
+                  value={scheduleLater ? "later" : "now"}
+                  onValueChange={(v) => setScheduleLater(v === "later")}
+                  className="flex gap-4"
+                >
                   <Label className="flex cursor-pointer items-center gap-2 text-sm">
                     <RadioGroupItem value="now" /> Send Now
                   </Label>
@@ -755,10 +851,16 @@ function CreateNotificationPage() {
                   </Label>
                 </RadioGroup>
                 {scheduleLater && (
-                  <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="max-w-xs" />
+                  <Input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="max-w-xs"
+                  />
                 )}
                 <p className="text-xs text-muted-foreground">
-                  This step still creates a draft only. Use the detail page to publish `Now` or `Scheduled` through the live backend flow.
+                  This step still creates a draft only. Use the detail page to publish `Now` or
+                  `Scheduled` through the live backend flow.
                 </p>
               </div>
             )}
@@ -773,7 +875,11 @@ function CreateNotificationPage() {
                 onChange={setInstruction}
                 rows={5}
                 previewEmptyText="Instruction preview will appear here."
-                placeholder={instructionBlocked ? "Instruction is disabled for Info toast notifications." : "What should recipients do?"}
+                placeholder={
+                  instructionBlocked
+                    ? "Instruction is disabled for Info toast notifications."
+                    : "What should recipients do?"
+                }
                 disabled={instructionBlocked}
               />
               <p className="text-xs text-muted-foreground">
@@ -813,9 +919,21 @@ function CreateNotificationPage() {
             )}
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => nav({ to: "/notifications" })}>Cancel</Button>
-              <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)} className={cn(isEmergency && "bg-emergency hover:bg-emergency/90 text-emergency-foreground")}>
-                {scheduleLater ? "Save Draft" : isEmergency ? "Create Critical Draft" : "Create Draft"}
+              <Button variant="outline" onClick={() => nav({ to: "/notifications" })}>
+                Cancel
+              </Button>
+              <Button
+                disabled={!canSubmit}
+                onClick={() => setConfirmOpen(true)}
+                className={cn(
+                  isEmergency && "bg-emergency hover:bg-emergency/90 text-emergency-foreground",
+                )}
+              >
+                {scheduleLater
+                  ? "Save Draft"
+                  : isEmergency
+                    ? "Create Critical Draft"
+                    : "Create Draft"}
               </Button>
             </div>
           </CardContent>
@@ -823,7 +941,9 @@ function CreateNotificationPage() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Previews</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Previews</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               {channels.includes("WhatsApp") && (
                 <WhatsAppPreview
@@ -841,19 +961,31 @@ function CreateNotificationPage() {
                     priority={priority}
                     instruction={instructionBlocked ? "" : instruction}
                     presentation={effectiveWindowsAgentPresentation}
-                    toastAutoDismissSeconds={parseToastAutoDismissSecondsInput(toastAutoDismissSeconds)}
+                    toastAutoDismissSeconds={parseToastAutoDismissSecondsInput(
+                      toastAutoDismissSeconds,
+                    )}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {`Windows Agent presentation: ${effectiveWindowsAgentPresentation}${effectiveWindowsAgentPresentation === "Toast"
-                      ? ` · auto-dismiss ${parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5}s`
-                      : ""}`}
+                    {`Windows Agent presentation: ${effectiveWindowsAgentPresentation}${
+                      effectiveWindowsAgentPresentation === "Toast"
+                        ? ` · auto-dismiss ${parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5}s`
+                        : ""
+                    }`}
                   </p>
                 </div>
               )}
-              {channels.length === 0 && <p className="text-sm text-muted-foreground">Select at least one channel to see previews.</p>}
-              {!channels.includes("WhatsApp") && !channels.includes("DesktopAgent") && channels.length > 0 && (
-                <p className="text-sm text-muted-foreground">No visual preview for the selected channels.</p>
+              {channels.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Select at least one channel to see previews.
+                </p>
               )}
+              {!channels.includes("WhatsApp") &&
+                !channels.includes("DesktopAgent") &&
+                channels.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No visual preview for the selected channels.
+                  </p>
+                )}
             </CardContent>
           </Card>
         </div>
@@ -863,7 +995,11 @@ function CreateNotificationPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {isEmergency ? "Confirm Critical Draft" : isReminder ? "Confirm Reminder Draft" : "Confirm Draft Creation"}
+              {isEmergency
+                ? "Confirm Critical Draft"
+                : isReminder
+                  ? "Confirm Reminder Draft"
+                  : "Confirm Draft Creation"}
             </DialogTitle>
             <DialogDescription>
               {isEmergency
@@ -875,16 +1011,32 @@ function CreateNotificationPage() {
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
             <div className="font-medium">{title}</div>
+            {targetType === "Device" && (
+              <p className="mt-2 text-sm">
+                Target: {deviceIds.length} device(s) —{" "}
+                {devices
+                  .filter((device) => deviceIds.includes(device.deviceId))
+                  .map((device) => device.hostname || device.deviceId)
+                  .join(", ")}
+              </p>
+            )}
             <p className="mt-1 text-muted-foreground">{message}</p>
             <p className="mt-2 text-xs text-muted-foreground">
               Type: {communicationType} · Channels: {channels.join(", ")}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              className={cn(isEmergency && "bg-emergency hover:bg-emergency/90 text-emergency-foreground")}
-              onClick={() => { setConfirmOpen(false); submit(); }}
+              className={cn(
+                isEmergency && "bg-emergency hover:bg-emergency/90 text-emergency-foreground",
+              )}
+              onClick={() => {
+                setConfirmOpen(false);
+                submit();
+              }}
               disabled={createMut.isPending}
             >
               {createMut.isPending ? "Saving…" : "Confirm"}
@@ -897,8 +1049,8 @@ function CreateNotificationPage() {
 }
 
 function getAllowedAuthoringTargetTypes(template: Template): TargetType[] {
-  const allowedTargetTypes = template.allowedTargetTypes?.filter((targetType): targetType is TargetType =>
-    TARGET_TYPES.includes(targetType),
+  const allowedTargetTypes = template.allowedTargetTypes?.filter(
+    (targetType): targetType is TargetType => TARGET_TYPES.includes(targetType),
   );
 
   return allowedTargetTypes && allowedTargetTypes.length > 0 ? allowedTargetTypes : TARGET_TYPES;
@@ -989,10 +1141,7 @@ function isValidReminderDraftAuthoring(input: {
     return false;
   }
 
-  if (
-    input.executionMode === "AgentLocalRoutine" &&
-    !input.validUntil.trim()
-  ) {
+  if (input.executionMode === "AgentLocalRoutine" && !input.validUntil.trim()) {
     return false;
   }
 

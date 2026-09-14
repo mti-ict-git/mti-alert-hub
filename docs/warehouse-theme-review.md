@@ -157,3 +157,10 @@ Reduced outer blur from 14px to 6px on user feedback. Replaced image swapping wi
 Replaced the prior Services corporate decoration with the user-supplied green/turquoise artwork. Original pixels are preserved; AppSidebar applies 6.5% opacity, multiply blending and a downward CSS mask, approximating the previous alpha range 0-16/255. Placement and collapsed hiding remain unchanged.
 
 Verification: successful real login using the explicitly authorized env account on local frontend 4199, sidebar screenshots before/after captured and visually reviewed, followed by sign-out. No credentials or session tokens were saved in evidence. Targeted AppSidebar ESLint passed. Source asset and CSS-only change; authentication behavior unchanged. Evidence: .tmp/live-theme/sidebar-before.png and sidebar-after.png. Existing server 4198 also remains available; a separate frontend was started on 4199 for verification.
+
+
+## Shared notification device picker - 2026-09-14
+
+User selected Target Device in Create Notification and requested the Wellness pattern. Extracted DeviceAudiencePicker as the shared owner; Wellness retains a compatibility export and original default copy. Notifications use targetDeviceIds through the existing service mapping to explicit Device targets. Added full-width search/multi-selection, loading/error retry, selection reset and confirmation summary. No backend API change.
+
+Verification: production build passed; targeted ESLint zero errors with three existing useMemo dependency warnings in the notification route. Browser verified search, Select Visible, Clear Visible, multi-selection, mobile overflow and target-type reset. Intercepted draft POST contained exactly target-a and target-b; returned a synthetic failure to avoid any real draft creation or publication. Evidence: .tmp/device-picker-build.log, device-picker-lint.log, device-picker-desktop.png and device-picker-mobile.png. Shared list currently caps at 200 devices; picker copy explicitly discloses this.
