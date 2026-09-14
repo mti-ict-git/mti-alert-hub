@@ -733,3 +733,7 @@ Phase 4 remains in progress. This slice does not claim production integration or
 
 
 - [x] Phase 4: align Create Notification Target Devices with the shared Wellness search/multi-selection picker; verify exact multi-device payload with intercepted write, selection reset, responsive layout, build and targeted lint. Evidence: warehouse-theme-review.md, Shared notification device picker.
+
+- [x] Phase 4 Windows Agent main-menu design integration: approved tray shell, scoped themed controls, persistent appearance picker, existing command bindings, and collapsed wellness launcher. Build and 42 regression tests passed; production-window fixture render/command/scroll checks passed. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md. Installed-agent acceptance and rollout remain pending.
+
+- [x] Phase 4 Windows Agent About and notification-history design alignment: shared menu controls/activity template, both themes, empty history, preserved command bindings, and work-area sizing. Build, 42 tests, and isolated production-window render checks passed. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md.
