@@ -91,13 +91,13 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" aria-label="Main navigation">
       <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden">
         <img
-          src="/images/sidebar/services-sidebar-background.png"
+          src="/images/sidebar/merdeka-battery-sidebar.png"
           alt=""
           aria-hidden="true"
-          width={212}
-          height={223}
+          width={196}
+          height={174}
           draggable={false}
-          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full select-none group-data-[collapsible=icon]:hidden"
+          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full select-none opacity-[0.065] mix-blend-multiply [mask-image:linear-gradient(to_bottom,black_15%,transparent_100%)] group-data-[collapsible=icon]:hidden"
         />
         <SidebarHeader className="h-22 justify-center px-4 group-data-[collapsible=icon]:px-0">
           <div className="flex items-center gap-2 px-2 py-3">

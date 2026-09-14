@@ -150,3 +150,10 @@ Verification: Prettier and git diff --check passed. Live computed styles confirm
 ## Lighter blur and sliding transition — 2026-09-13
 
 Reduced outer blur from 14px to 6px on user feedback. Replaced image swapping with a mounted horizontal image track and 700ms ease-in-out transform transition, shared by manual and automatic selection. Reduced-motion preferences disable the transition; inactive slides are hidden from assistive technology. Image failures are tracked per resource. The existing 20-second schedule remains unchanged. Verified live browser next-image selection and computed 6px blur, translateX(-100%) and 0.7s transition. Targeted ESLint, formatting and git diff --check passed.
+
+
+## Sidebar artwork replacement - 2026-09-14
+
+Replaced the prior Services corporate decoration with the user-supplied green/turquoise artwork. Original pixels are preserved; AppSidebar applies 6.5% opacity, multiply blending and a downward CSS mask, approximating the previous alpha range 0-16/255. Placement and collapsed hiding remain unchanged.
+
+Verification: successful real login using the explicitly authorized env account on local frontend 4199, sidebar screenshots before/after captured and visually reviewed, followed by sign-out. No credentials or session tokens were saved in evidence. Targeted AppSidebar ESLint passed. Source asset and CSS-only change; authentication behavior unchanged. Evidence: .tmp/live-theme/sidebar-before.png and sidebar-after.png. Existing server 4198 also remains available; a separate frontend was started on 4199 for verification.

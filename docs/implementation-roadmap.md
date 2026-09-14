@@ -727,3 +727,6 @@ Phase 4 remains in progress. This slice does not claim production integration or
 - [x] Phase 4 device placement: single and visible-page bulk editor, shared-value review, unchanged defaults, dependent Site/Area validation, stale-write guards, AD department read-only and audited CentralAdmin API. Section removed from Organization navigation. PostgreSQL temporary-fixture test passed; backend typecheck, targeted lint and production build passed. Live browser save acceptance remains pending authenticated session; no real placement changed by testing.
 
 - [x] Phase 4 navigation refinement: move Sites & Areas into Settings; remove Organization from sidebar and Departments from management UI; redirect the legacy URL. Authenticated browser verified redirect, sidebar, active tab and real location rows. Targeted lint and production build passed; no data mutation or API change.
+
+
+- [x] Replace sidebar corporate decoration with user-supplied artwork and match its faint opacity; real env-account login and before/after visual check passed. See warehouse-theme-review.md, sidebar artwork replacement (2026-09-14).
