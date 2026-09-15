@@ -12,7 +12,7 @@ services:
     tmpfs:
       - /tmp
     environment:
-      GITHUB_PACKAGE_REPOSITORY: ${GITHUB_PACKAGE_REPOSITORY:?Set OWNER/REPO}
+      GIT_REPO_URL: ${GIT_REPO_URL:?Set GIT_REPO_URL as on the signing laptop}
       PACKAGE_SIGNER_THUMBPRINT: ${AGENT_CODE_SIGNING_CERT_THUMBPRINT:?Set trusted signer thumbprint}
       PACKAGE_POLL_SECONDS: "120"
     secrets:

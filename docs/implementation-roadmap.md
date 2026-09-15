@@ -754,3 +754,5 @@ Phase 4 remains in progress. This slice does not claim production integration or
 - [x] Phase 4 focused preflight scenarios 3–5: fixed sticky severity and clipped scroll viewport in long modal/fullscreen content. Maintained WPF preflight: 12 render/theme/scroll/action cases passed; agent suite 54 passed. Evidence: MTI.Alert.Agent/Tests/NotificationPreflight/README.md and Presentation/Shell/MainMenu-design.md. Installed-device acceptance remains separate.
 
 - [x] Phase 4 manual GitHub Package Registry import: CentralAdmin button/API, shared-volume request coalescing, heartbeat availability, persistent status and completion refresh. Backend typecheck, 2 queue tests, 13 worker tests, targeted lint and frontend production build passed. Browser acceptance requires renewed local login; production Docker execution remains unverified. See github-package-relay.md.
+
+- [x] Phase 4 repository configuration correction: uploader and worker now use GIT_REPO_URL with HTTPS/SSH/OWNER-REPO parsing. 15 worker tests passed. Certificate verification and PEM configuration remain unchanged; requested removal is pending approval after automatic review rejection.

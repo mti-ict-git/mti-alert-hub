@@ -65,6 +65,15 @@ def fetch(api_path, token, limit, destination=None):
                 stream.close()
         return count if destination else json.loads(b"".join(chunks).decode("utf-8-sig"))
 
+def normalize_repository(value):
+    value = value.strip().rstrip("/")
+    value = re.sub(r"^https://github\.com/", "", value)
+    value = re.sub(r"^git@github\.com:", "", value)
+    value = re.sub(r"\.git$", "", value)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
+        raise ValueError("Set GIT_REPO_URL to a github.com repository URL or OWNER/REPO")
+    return value
+
 def validate_manifest(data, tag, signer):
     version = data.get("Version", "")
     if not isinstance(version, str) or not re.fullmatch(r"\d{1,3}\.\d{1,3}\.\d{1,5}", version):
@@ -210,9 +219,7 @@ def run_sync(store, repo, token, signer, ca_file):
 
 def main():
     import fcntl
-    repo = os.environ["GITHUB_PACKAGE_REPOSITORY"]
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
-        raise ValueError("Repository must be OWNER/REPO")
+    repo = normalize_repository(os.environ["GIT_REPO_URL"])
     token = Path(os.environ.get("GITHUB_TOKEN_FILE", "/run/secrets/github_package_download_token")).read_text().strip()
     if not token:
         raise ValueError("Download token is empty")

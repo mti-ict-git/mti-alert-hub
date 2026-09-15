@@ -14,7 +14,7 @@ Implementation and local checks precede live GitHub publication or production de
 ## Setup on the laptop
 
 1. Initialize the private package repository with a README commit. The read-only repository check on 2026-09-15 succeeded, but the repository reported size 0.
-2. Keep GIT_REPO_URL and GITHUB_PACKAGE_UPLOAD_TOKEN in the parent project's .env, outside Git. The uploader also accepts GITHUB_PACKAGE_REPOSITORY=OWNER/REPO.
+2. Keep GIT_REPO_URL and GITHUB_PACKAGE_UPLOAD_TOKEN in the parent project's .env, outside Git. Both uploader and worker use GIT_REPO_URL (HTTPS URL, GitHub SSH URL or OWNER/REPO).
 3. Ensure the MSI's Authenticode status is Valid on the signing laptop. A thumbprint alone is insufficient.
 4. Build from the parent repository root, using an unused package version:
 
@@ -35,7 +35,7 @@ Use the existing production checkout and the same Compose project name (-p, if p
 1. Transfer/pull the reviewed implementation to the server. No commits or pushes were performed by this task.
 2. Add to the server .env:
 
-    GITHUB_PACKAGE_REPOSITORY=OWNER/REPO
+    GIT_REPO_URL=https://github.com/OWNER/REPO.git
     AGENT_CODE_SIGNING_CERT_THUMBPRINT=40_HEX_CHARACTERS_FROM_TRUSTED_SIGNER
 
 3. Create secrets/ beside docker-compose.yml. It is excluded from Git and Docker build context.
@@ -108,3 +108,5 @@ A frontend-only deployment cannot enable this feature. Importing never schedules
 Verification: backend typecheck passed; 2 service tests cover offline rejection, simultaneous requests, persisted completion and stale heartbeat. 13 worker tests cover integrity gates plus manual partial failure, connection failure redaction and empty results. Targeted ESLint and frontend production build passed. Browser reached login because local session expired; visual acceptance and production Docker integration remain pending. Docker is unavailable on this laptop; no production import or device rollout was triggered by these tests.
 
 API documentation check: the new endpoint parses successfully. Strict validation of the full OpenAPI document encounters a pre-existing duplicate mapping key (deviceId), reproduced on HEAD before these changes; this task did not alter that unrelated schema.
+
+Configuration correction: uploader and worker now share GIT_REPO_URL; the duplicate GITHUB_PACKAGE_REPOSITORY variable was removed. Server .env is still separate from the laptop and is not populated by git pull. Certificate verification is unchanged; removal was not applied.

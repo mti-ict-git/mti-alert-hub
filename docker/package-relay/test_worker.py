@@ -39,6 +39,15 @@ class ManualSyncTests(unittest.TestCase):
             self.assertEqual(result["state"], "completed")
             self.assertEqual(result["imported"], 0)
 
+class RepositoryTests(unittest.TestCase):
+    def test_same_repo_formats_as_local_publisher(self):
+        for value in ("owner/repo", "https://github.com/owner/repo", "https://github.com/owner/repo.git/", "git@github.com:owner/repo.git"):
+            self.assertEqual(relay.normalize_repository(value), "owner/repo")
+    def test_rejects_other_hosts_and_credentials(self):
+        for value in ("https://other.example/owner/repo", "https://token@github.com/owner/repo", "owner/repo/extra"):
+            with self.assertRaises(ValueError):
+                relay.normalize_repository(value)
+
 class RelayTests(unittest.TestCase):
     def test_manifest_rejects_version_mismatch(self):
         with self.assertRaises(ValueError):
