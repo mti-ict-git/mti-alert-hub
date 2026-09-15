@@ -156,7 +156,10 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
       requiresAuth: true,
       requiredRoles: ["CentralAdmin"],
       async handler({ auth }) {
-        return { statusCode: 202, body: await githubPackageSync.request(auth!.session.user.username) };
+        return {
+          statusCode: 202,
+          body: await githubPackageSync.request(auth!.session.user.username),
+        };
       },
     },
     {
