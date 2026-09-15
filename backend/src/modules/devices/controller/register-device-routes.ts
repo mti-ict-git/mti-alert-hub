@@ -1,3 +1,4 @@
+import { GitHubPackageSyncService } from "../service/github-package-sync-service.js";
 import { placementUpdate } from "../service/device-placement-service.js";
 import { z } from "zod";
 import type { AppRoute, AppRouteHandlerContext } from "../../../app/http/create-server.js";
@@ -8,6 +9,8 @@ import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { DeviceReadService } from "../service/device-read-service.js";
 import type { DeviceActionService } from "../service/device-action-service.js";
 import type { DeviceEnrollmentService } from "../service/device-enrollment-service.js";
+
+const githubPackageSync = new GitHubPackageSyncService();
 
 const deviceListQuerySchema = baseListQuerySchema.extend({
   siteId: z.string().optional(),
@@ -136,6 +139,24 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
             ),
           },
         };
+      },
+    },
+    {
+      method: "GET",
+      path: "/devices/rollout-packages/github-sync",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler() {
+        return { statusCode: 200, body: await githubPackageSync.status() };
+      },
+    },
+    {
+      method: "POST",
+      path: "/devices/rollout-packages/github-sync",
+      requiresAuth: true,
+      requiredRoles: ["CentralAdmin"],
+      async handler({ auth }) {
+        return { statusCode: 202, body: await githubPackageSync.request(auth!.session.user.username) };
       },
     },
     {

@@ -41,3 +41,7 @@ The warehouse theme is developed on `feat/warehouse-theme`. Merge or push to mai
 The Services-inspired sign-in page uses one corporate credential form connected to the existing auth service. No provider, permissions, session persistence or successful-login destination changes. Required fields focus the first missing value; failed sign-in retains inputs and shows a generic inline message; password visibility is explicit; duplicate requests are guarded. Site photographs are selected manually with pressed-state buttons and no autoplay.
 
 Organization uses the existing authored Radix Select from components/ui/select. Form validation is application-owned (required-field checks and backend Zod schema); native browser validation is disabled.
+
+## Package Registry GitHub import
+
+Settings uses the shared Button, semantic colors, TanStack Query and Sonner. CentralAdmin can request a worker import; persistent live status covers queued, running, completed, partial failure, offline and request failure. Active work disables duplicate clicks and is restored by status polling after refresh. Package lists invalidate on completion. GitHub tokens and configuration remain server-side. Import does not initiate a rollout. See docs/github-package-relay.md.

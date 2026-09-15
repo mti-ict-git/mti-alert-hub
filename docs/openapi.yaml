@@ -975,6 +975,46 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /devices/rollout-packages/github-sync:
+    get:
+      tags: [Devices]
+      summary: Read GitHub package relay availability and latest import status
+      operationId: getGitHubPackageSync
+      description: CentralAdmin only. Reads worker heartbeat and persistent shared-volume status.
+      responses:
+        "200":
+          description: Current worker availability and import state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitHubPackageSyncStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Devices]
+      summary: Request an immediate GitHub package import
+      operationId: requestGitHubPackageSync
+      description: |
+        CentralAdmin only. No request body. Coalesces concurrent requests.
+        The worker downloads published stable agent releases from its configured repository
+        and verifies SHA256, Authenticode, pinned signer and MSI version before registry import.
+        No device rollout is created. Tokens stay in the worker secret mount.
+      responses:
+        "202":
+          description: Queued or active import; poll GET on this path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitHubPackageSyncStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          description: Worker heartbeat missing or stale; start/update package-relay and check shared volume
+
   /devices/rollout-packages/local:
     get:
       tags: [Devices]
@@ -1990,6 +2030,29 @@ components:
             $ref: "#/components/schemas/ValidationErrorResponse"
 
   schemas:
+    GitHubPackageSyncStatus:
+      type: object
+      required: [available, state, message]
+      properties:
+        available:
+          type: boolean
+        id:
+          type: string
+        state:
+          type: string
+          enum: [idle, queued, running, completed, failed]
+        message:
+          type: string
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        rejected:
+          type: integer
+        finishedAt:
+          type: string
+          format: date-time
+
     DevicePlacementFields:
       type: object
       additionalProperties: false

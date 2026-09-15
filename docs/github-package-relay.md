@@ -6,7 +6,7 @@ The laptop uploads only a signed MSI and minimal manifest. Releases are staged a
 
 Trust anchors are public PEM certificates provided independently by the operator. Private keys stay on the signing laptop. Signature verification errors fail closed. Downloads are bounded and staged; imports are idempotent and do not replace different bytes for an existing version. One worker owns the shared-volume import lock.
 
-No new HTTP endpoint or database migration is needed. The current registry already reads MSI files and adjacent .rollout.json files. Import audit is structured worker output and a persistent manifest with release provenance; it does not create an admin audit-log row.
+No database migration is needed. Admin GET/POST /devices/rollout-packages/github-sync now expose a manual relay trigger and status. The current registry already reads MSI files and adjacent .rollout.json files. Import audit is structured worker output and a persistent manifest with release provenance; it does not create an admin audit-log row.
 
 Implementation and local checks precede live GitHub publication or production deployment.
 
@@ -79,3 +79,32 @@ Do not use down -v: existing production package storage must be preserved.
 A 79-byte non-sensitive text asset uploaded successfully using Windows PowerShell Invoke-WebRequest to a separate draft/prerelease diagnostic release (ID 389304265). It was left unpublished and is ignored by the worker. The agent-v1.0.16 draft already contained an uploaded 124,411,904-byte MSI and its 178-byte manifest. GitHub reported no branches and returned HTTP 409, Git Repository is empty, for its tag reference. An initial README commit is needed before publishing.
 
 Publisher now checks that the repository contains commits before upload, reports the failing stage/HTTP status with redacted message, and compares existing manifests by version/hash/signer instead of JSON whitespace/key order. PowerShell syntax and publisher mock tests passed, including draft resume with equivalent JSON formatting. No production package was published or replaced during the diagnostic. After creating README, retry the existing signed MSI with publish-agent-github.ps1; do not rebuild version 1.0.16 into different bytes.
+
+
+## Manual import from Package Registry (2026-09-16)
+
+CentralAdmin can select **Get from GitHub** under Settings > Desktop Agent > Package Registry.
+The existing Button, semantic theme tokens, TanStack Query and Sonner error feedback own this interaction.
+A persistent live status explains queued/running/completed/failed outcomes and worker unavailability.
+The page polls active work every 2 seconds, survives refresh, and refreshes the package list after completion (including partial imports).
+Concurrent requests coalesce. Each request records requesting username in the shared file and structured worker output.
+
+Backend and relay communicate through hidden JSON files on the existing package volume; there is no new inbound port.
+The relay emits a heartbeat every 5 seconds independently of downloads; a heartbeat older than 30 seconds reports unavailable.
+A pending request survives a worker restart. The worker checks requests every second between import runs.
+Automatic polling remains enabled. Draft/prerelease filtering and signature verification remain unchanged.
+Imported files use versioned names such as MTI.Alert.Agent.Setup-1.0.16.msi; the older canonical file may remain listed.
+
+Deploy **backend, frontend and package-relay**, using the same project name and existing secrets/volume:
+
+    docker compose -f docker-compose.yml -f docker-compose.package-relay.yml up -d --build backend frontend package-relay
+
+After deployment, click Get from GitHub. If unavailable, inspect:
+
+    docker compose -f docker-compose.yml -f docker-compose.package-relay.yml logs --tail=100 package-relay
+
+A frontend-only deployment cannot enable this feature. Importing never schedules upgrades on devices.
+
+Verification: backend typecheck passed; 2 service tests cover offline rejection, simultaneous requests, persisted completion and stale heartbeat. 13 worker tests cover integrity gates plus manual partial failure, connection failure redaction and empty results. Targeted ESLint and frontend production build passed. Browser reached login because local session expired; visual acceptance and production Docker integration remain pending. Docker is unavailable on this laptop; no production import or device rollout was triggered by these tests.
+
+API documentation check: the new endpoint parses successfully. Strict validation of the full OpenAPI document encounters a pre-existing duplicate mapping key (deviceId), reproduced on HEAD before these changes; this task did not alter that unrelated schema.

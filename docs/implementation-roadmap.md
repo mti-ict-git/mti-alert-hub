@@ -752,3 +752,5 @@ Phase 4 remains in progress. This slice does not claim production integration or
 - [ ] Updated modal/fullscreen installed-agent acceptance: rebuild/install updated binary before repeating tests 3–5. This change did not replace the installed agent or modify wellness themes.
 
 - [x] Phase 4 focused preflight scenarios 3–5: fixed sticky severity and clipped scroll viewport in long modal/fullscreen content. Maintained WPF preflight: 12 render/theme/scroll/action cases passed; agent suite 54 passed. Evidence: MTI.Alert.Agent/Tests/NotificationPreflight/README.md and Presentation/Shell/MainMenu-design.md. Installed-device acceptance remains separate.
+
+- [x] Phase 4 manual GitHub Package Registry import: CentralAdmin button/API, shared-volume request coalescing, heartbeat availability, persistent status and completion refresh. Backend typecheck, 2 queue tests, 13 worker tests, targeted lint and frontend production build passed. Browser acceptance requires renewed local login; production Docker execution remains unverified. See github-package-relay.md.

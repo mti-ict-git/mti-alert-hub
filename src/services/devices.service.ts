@@ -1,3 +1,13 @@
+export type GitHubPackageSyncStatus = {
+  available: boolean;
+  id?: string;
+  state: "idle" | "queued" | "running" | "completed" | "failed";
+  message: string;
+  imported?: number;
+  skipped?: number;
+  rejected?: number;
+};
+
 import { apiClient } from "@/services/api-client";
 import { referenceService } from "@/services/reference.service";
 import type {
@@ -99,12 +109,12 @@ export const devicesService = {
       siteId: item.siteId,
       siteName: sitesById.get(item.siteId) ?? item.siteId,
       areaId: item.areaId ?? null,
-      areaName: item.areaId ? areasById.get(item.areaId) ?? item.areaId : null,
+      areaName: item.areaId ? (areasById.get(item.areaId) ?? item.areaId) : null,
       locationLabel: item.locationLabel ?? null,
       ownershipMode: item.ownershipMode,
       primaryEmployeeId: item.primaryEmployeeId ?? null,
       primaryEmployeeName: item.primaryEmployeeId
-        ? employeesById.get(item.primaryEmployeeId) ?? item.primaryEmployeeId
+        ? (employeesById.get(item.primaryEmployeeId) ?? item.primaryEmployeeId)
         : null,
       lastActiveUserIdentifier: item.lastActiveUserIdentifier ?? null,
       currentUserType: item.lastDirectoryUserType ?? "Unknown",
@@ -165,8 +175,16 @@ export const devicesService = {
   async sendTest(id: string): Promise<DeviceTestNotificationResponse> {
     return apiClient.post<DeviceTestNotificationResponse>(`/devices/${id}/test-notification`, {});
   },
+  async getGitHubSyncStatus(): Promise<GitHubPackageSyncStatus> {
+    return apiClient.get<GitHubPackageSyncStatus>("/devices/rollout-packages/github-sync");
+  },
+  async syncFromGitHub(): Promise<GitHubPackageSyncStatus> {
+    return apiClient.post<GitHubPackageSyncStatus>("/devices/rollout-packages/github-sync");
+  },
   async listRolloutPackages(): Promise<DeviceRolloutPackage[]> {
-    const response = await apiClient.get<DeviceRolloutPackageListResponse>("/devices/rollout-packages/local");
+    const response = await apiClient.get<DeviceRolloutPackageListResponse>(
+      "/devices/rollout-packages/local",
+    );
     return response.items;
   },
   async uploadRolloutPackage(file: File): Promise<DeviceRolloutUploadResponse> {

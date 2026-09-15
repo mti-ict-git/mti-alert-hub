@@ -7,6 +7,8 @@ import re
 import subprocess
 import tempfile
 import time
+import threading
+import uuid
 import urllib.error
 import urllib.request
 
@@ -146,13 +148,65 @@ def process_release(release, repo, token, store, signer, ca_file):
             saved = json.loads(saved_path.read_text(encoding="utf-8"))
             if (saved.get("Sha256") == sha and saved.get("Thumbprint") == signer
                     and saved.get("GitHubReleaseId") == release["id"] and digest(target) == sha):
-                return
+                return "skipped"
         msi_path = temp / MSI
         size = fetch(f"/repos/{repo}/releases/assets/{binary['id']}", token, MAX_MSI, msi_path)
         if size != binary["size"] or digest(msi_path) != sha:
             raise ValueError("Package size or SHA256 mismatch")
         properties = verify_msi(msi_path, version, signer, ca_file)
         install_package(msi_path, store, version, sha, signer, release["id"], properties)
+        return "imported"
+
+def write_state(store, name, data):
+    pending = store / (name + ".tmp")
+    pending.write_text(json.dumps(data), encoding="utf-8")
+    os.replace(pending, store / name)
+
+def heartbeat_loop(store):
+    while True:
+        try:
+            write_state(store, ".relay-heartbeat.json", {"time": time.time()})
+        except OSError:
+            log("relay.heartbeat.failed")
+        time.sleep(5)
+
+def run_sync(store, repo, token, signer, ca_file):
+    request_path = store / ".relay-request.json"
+    request = json.loads(request_path.read_text(encoding="utf-8")) if request_path.exists() else None
+    state = {"id": request["id"] if request else str(uuid.uuid4()), "state": "running",
+             "message": "Checking published releases on GitHub.", "imported": 0, "skipped": 0, "rejected": 0}
+    write_state(store, ".relay-status.json", state)
+    log("relay.sync.started", requestId=state["id"], requestedBy=request.get("requestedBy") if request else "scheduled")
+    errors = []
+    try:
+        releases = fetch(f"/repos/{repo}/releases?per_page=100", token, 4 * 1024 * 1024)
+        for release in reversed(releases):
+            try:
+                if not release.get("draft") and not release.get("prerelease"):
+                    state["message"] = "Downloading and verifying published packages."
+                    write_state(store, ".relay-status.json", state)
+                outcome = process_release(release, repo, token, store, signer, ca_file)
+                if outcome:
+                    state[outcome] += 1
+            except Exception as error:
+                state["rejected"] += 1
+                detail = str(error) if isinstance(error, ValueError) else "Download or verification failed; check worker logs."
+                errors.append(detail)
+                log("package.rejected", releaseId=release.get("id"), reason=type(error).__name__, detail=detail)
+        state["state"] = "failed" if errors else "completed"
+        state["message"] = f'{state["imported"]} imported, {state["skipped"]} already available, {state["rejected"]} rejected.'
+        if errors:
+            state["message"] += " " + errors[0]
+    except Exception as error:
+        state["state"] = "failed"
+        code = getattr(error, "code", None)
+        state["message"] = ("GitHub request failed (HTTP " + str(code) + "). Check repository access and worker token.") if code else "GitHub connection failed. Check worker connectivity and logs."
+        log("relay.poll.failed", reason=type(error).__name__, status=code)
+    state["finishedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    write_state(store, ".relay-status.json", state)
+    if request:
+        request_path.unlink(missing_ok=True)
+    return state
 
 def main():
     import fcntl
@@ -174,22 +228,16 @@ def main():
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     interval = max(30, int(os.environ.get("PACKAGE_POLL_SECONDS", "120")))
     log("relay.started", repository=repo, pollSeconds=interval)
+    write_state(store, ".relay-heartbeat.json", {"time": time.time()})
+    threading.Thread(target=heartbeat_loop, args=(store,), daemon=True).start()
+    next_poll = 0.0
     while True:
-        try:
-            # Bounded to the newest 100 releases; dedicated repository is required.
-            releases = fetch(f"/repos/{repo}/releases?per_page=100", token, 4 * 1024 * 1024)
-            for release in reversed(releases):
-                try:
-                    process_release(release, repo, token, store, signer, ca_file)
-                except Exception as error:
-                    log("package.rejected", releaseId=release.get("id"), reason=type(error).__name__,
-                        detail=str(error) if isinstance(error, ValueError) else "Download or verification failed; retry next poll")
-        except Exception as error:
-            log("relay.poll.failed", reason=type(error).__name__,
-                status=getattr(error, "code", None))
-        if os.environ.get("PACKAGE_RUN_ONCE") == "1":
-            return
-        time.sleep(interval)
+        if time.monotonic() >= next_poll or (store / ".relay-request.json").exists():
+            run_sync(store, repo, token, signer, ca_file)
+            next_poll = time.monotonic() + interval
+            if os.environ.get("PACKAGE_RUN_ONCE") == "1":
+                return
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()

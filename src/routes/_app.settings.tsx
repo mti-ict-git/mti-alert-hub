@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/useAuth";
 import { SitesAreasSettings } from "@/components/settings/SitesAreasSettings";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { settingsService, type AppSettings } from "@/services/settings.service";
 import { devicesService } from "@/services/devices.service";
-import { Download, Loader2, Package, RefreshCw, Trash2, Upload } from "lucide-react";
+import { Download, Github, Loader2, Package, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -31,6 +32,8 @@ function SettingsPage() {
   const { tab = "general" } = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canSyncGitHub = user?.role === "Admin";
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [s, setS] = useState<AppSettings | null>(null);
   useEffect(() => {
@@ -45,6 +48,33 @@ function SettingsPage() {
     queryKey: ["device-rollout-packages"],
     queryFn: devicesService.listRolloutPackages,
     refetchInterval: 30000,
+  });
+
+  const { data: githubSync, error: githubStatusError } = useQuery({
+    queryKey: ["github-package-sync"],
+    queryFn: devicesService.getGitHubSyncStatus,
+    enabled: tab === "agent" && canSyncGitHub,
+    refetchInterval: (query) =>
+      ["queued", "running"].includes(query.state.data?.state ?? "") ? 2000 : 15000,
+    retry: false,
+  });
+  const githubBusy = githubSync?.state === "queued" || githubSync?.state === "running";
+  const lastSyncResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (!githubSync?.id || !["completed", "failed"].includes(githubSync.state)) return;
+    if (lastSyncResult.current === githubSync.id) return;
+    lastSyncResult.current = githubSync.id;
+    void qc.invalidateQueries({ queryKey: ["device-rollout-packages"] });
+  }, [githubSync, qc]);
+
+  const githubMutation = useMutation({
+    mutationFn: devicesService.syncFromGitHub,
+    onSuccess: (result) => {
+      qc.setQueryData(["github-package-sync"], result);
+      void qc.invalidateQueries({ queryKey: ["github-package-sync"] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Unable to start GitHub import."),
   });
 
   const uploadMutation = useMutation({
@@ -247,7 +277,7 @@ function SettingsPage() {
                       global package list.
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       ref={uploadInputRef}
                       type="file"
@@ -267,9 +297,10 @@ function SettingsPage() {
                       type="button"
                       variant="outline"
                       disabled={packagesFetching}
-                      onClick={() =>
-                        qc.invalidateQueries({ queryKey: ["device-rollout-packages"] })
-                      }
+                      onClick={() => {
+                        void qc.invalidateQueries({ queryKey: ["device-rollout-packages"] });
+                        void qc.invalidateQueries({ queryKey: ["github-package-sync"] });
+                      }}
                     >
                       {packagesFetching ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -278,6 +309,25 @@ function SettingsPage() {
                       )}
                       Refresh
                     </Button>
+                    {canSyncGitHub && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={
+                          githubBusy || githubMutation.isPending || uploadMutation.isPending
+                        }
+                        onClick={() => githubMutation.mutate()}
+                      >
+                        {githubBusy || githubMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Github className="mr-2 h-4 w-4" />
+                        )}
+                        {githubBusy || githubMutation.isPending
+                          ? "Getting from GitHub…"
+                          : "Get from GitHub"}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       disabled={uploadMutation.isPending}
@@ -292,6 +342,30 @@ function SettingsPage() {
                     </Button>
                   </div>
                 </div>
+
+                {canSyncGitHub && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="rounded-md border bg-muted/30 p-3 text-sm"
+                  >
+                    <p
+                      className={
+                        githubSync?.state === "failed" || githubStatusError
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {githubStatusError
+                        ? "Unable to check GitHub import status. Refresh to retry."
+                        : (githubSync?.message ?? "Checking GitHub import availability…")}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Get published packages from GitHub and verify their signature before adding
+                      them here. Device rollout is a separate action.
+                    </p>
+                  </div>
+                )}
 
                 {latestPublishedPackage && (
                   <div className="rounded-md border bg-muted/30 p-4">
