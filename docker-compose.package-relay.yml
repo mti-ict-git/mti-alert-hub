@@ -1,0 +1,28 @@
+services:
+  package-relay:
+    build:
+      context: .
+      dockerfile: docker/package-relay/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    environment:
+      GITHUB_PACKAGE_REPOSITORY: ${GITHUB_PACKAGE_REPOSITORY:?Set OWNER/REPO}
+      PACKAGE_SIGNER_THUMBPRINT: ${AGENT_CODE_SIGNING_CERT_THUMBPRINT:?Set trusted signer thumbprint}
+      PACKAGE_POLL_SECONDS: "120"
+    secrets:
+      - github_package_download_token
+      - package_signing_ca
+    volumes:
+      - backend_local_packages:/packages
+
+secrets:
+  github_package_download_token:
+    file: ./secrets/github-package-download-token.txt
+  package_signing_ca:
+    file: ./secrets/package-signing-ca.pem

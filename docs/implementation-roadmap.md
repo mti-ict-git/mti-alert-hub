@@ -744,3 +744,11 @@ Phase 4 remains in progress. This slice does not claim production integration or
 
 - [x] Phase 4 toast renderer contract: Create/Edit/Detail/preview, API storage and sync, agent routing and offline reminder cache. Backend tests, 48 agent tests, production frontend build and rollback-only draft integration passed. See toast-authoring-contract.md.
 - [ ] Toast renderer acceptance: authenticated browser and installed-device Native/Custom/Auto delivery; local web service was unavailable during verification. No rollout performed.
+
+- [x] Phase 4 GitHub package relay implementation: local signed release publisher, outbound Docker worker, pinned signer verification and filesystem registry import. PowerShell syntax/mock checks and 10 worker unit tests passed; repository read-only access passed. Evidence: github-package-relay.md.
+- [ ] GitHub relay live acceptance: Docker image build, real MSI signature/CA verification, cloud publication and registry visibility. Docker unavailable locally; no production deployment or automatic device rollout.
+
+- [x] Phase 4 ordinary modal/fullscreen theme alignment and Critical/Emergency severity correction. Shared WPF shell/tokens, distinct severity icons, preserved callbacks; build and 54 tests passed, six production-surface fixture renders. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md.
+- [ ] Updated modal/fullscreen installed-agent acceptance: rebuild/install updated binary before repeating tests 3–5. This change did not replace the installed agent or modify wellness themes.
+
+- [x] Phase 4 focused preflight scenarios 3–5: fixed sticky severity and clipped scroll viewport in long modal/fullscreen content. Maintained WPF preflight: 12 render/theme/scroll/action cases passed; agent suite 54 passed. Evidence: MTI.Alert.Agent/Tests/NotificationPreflight/README.md and Presentation/Shell/MainMenu-design.md. Installed-device acceptance remains separate.

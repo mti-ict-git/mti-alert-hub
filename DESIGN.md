@@ -185,3 +185,9 @@ Sidebar decorative artwork now uses the user-supplied merdeka-battery-sidebar.pn
 
 
 Device audience selection is owned by components/common/DeviceAudiencePicker.tsx and shared by Wellness and Create Notification. Use hostname-first searchable checkbox rows, visible-result bulk actions, selected count and selected-hostname chips. Notification target selection occupies the full form width and shows loading/retry states.
+
+### Windows Agent notification surfaces — 2026-09-16
+
+The canonical WPF appearance owner remains AppearanceService (Shell* brushes, plus NotificationEmergencyBrush and NotificationWarningBrush); MainMenuStyles owns shared controls and scrollbars. ToastContent is the shared notification content primitive for toast, modal and fullscreen variants. Modal and fullscreen use the approved MTI Connect header/actions and retain existing interaction semantics. Critical/Emergency priority maps to an octagonal exclamation icon, explicit EMERGENCY label and red accent framing; Warning uses an amber triangle. Emergency color is #B91C1C in light mode and #F87171 in dark; Warning is #92400E / #FBBF24. Wellness surfaces retain their independent themes. See MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md for verification.
+
+For WPF modal/fullscreen notifications, priority banner and action footer remain visible while only message/instruction content scrolls. ToastContent owns these grid rows and uses the available viewport height; toast retains its compact content-height layout.

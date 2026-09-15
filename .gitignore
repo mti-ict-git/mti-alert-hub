@@ -34,3 +34,7 @@ MTI.Alert.Agent/
 *.njsproj
 *.sln
 *.sw?
+
+/secrets/
+
+__pycache__/

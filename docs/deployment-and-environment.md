@@ -479,3 +479,8 @@ Add environment-specific detail to this document when implementation begins, inc
 ### Local development API proxy
 
 Run `npm run dev:full` for frontend and backend together. The frontend defaults to same-origin `/api`; Vite proxies this prefix to `DEV_API_TARGET`, defaulting to `http://127.0.0.1:4019`. Set that variable when using a different backend port. An explicit process `VITE_API_URL` overrides this default. When starting Vite alone, set `VITE_API_URL=/api` to use the proxy. This permits a local frontend port such as 4198 without expanding backend CORS origins. The production reverse proxy remains the owner of `/api` after deployment.
+
+
+## Optional GitHub package relay
+
+Private GitHub Releases can transport locally signed MSI packages to the Docker filesystem registry using an outbound-only worker. Setup, trust material, Compose commands, version immutability and verification limits: [GitHub package relay](github-package-relay.md). Import does not trigger device rollout.
