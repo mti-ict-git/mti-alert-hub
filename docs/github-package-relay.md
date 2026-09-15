@@ -73,3 +73,9 @@ Do not use down -v: existing production package storage must be preserved.
 - Signature subprocess calls were mocked in unit tests. Real osslsigncode/MSI interoperability, Docker image build, CA-chain verification, GitHub upload and registry UI acceptance are still pending: Docker is unavailable on this laptop.
 - No release was created, no production deployment happened, and no device rollout was sent.
 - No API schema or database change: worker uses the existing filesystem registry and adjacent manifest contract.
+
+## Live small-file diagnostic — 2026-09-16
+
+A 79-byte non-sensitive text asset uploaded successfully using Windows PowerShell Invoke-WebRequest to a separate draft/prerelease diagnostic release (ID 389304265). It was left unpublished and is ignored by the worker. The agent-v1.0.16 draft already contained an uploaded 124,411,904-byte MSI and its 178-byte manifest. GitHub reported no branches and returned HTTP 409, Git Repository is empty, for its tag reference. An initial README commit is needed before publishing.
+
+Publisher now checks that the repository contains commits before upload, reports the failing stage/HTTP status with redacted message, and compares existing manifests by version/hash/signer instead of JSON whitespace/key order. PowerShell syntax and publisher mock tests passed, including draft resume with equivalent JSON formatting. No production package was published or replaced during the diagnostic. After creating README, retry the existing signed MSI with publish-agent-github.ps1; do not rebuild version 1.0.16 into different bytes.
