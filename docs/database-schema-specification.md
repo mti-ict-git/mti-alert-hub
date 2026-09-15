@@ -184,6 +184,7 @@ Key columns:
 - `title`
 - `body`
 - `instruction` nullable operator-authored action guidance rendered separately from the main body when present
+- `toast_renderer` text, not null, default Auto; allowed Auto/Native/Custom (migration 0018)
 - `toast_auto_dismiss_seconds` nullable per-notification Windows Agent toast display duration override, bounded to 1-60 seconds
 - `draft_schedule_json` nullable JSON snapshot for reminder recurrence authoring before publish
 - `wellness_program_json` nullable structured `Wellness Programs` payload for reminder-specialized authoring and publish snapshots
@@ -270,6 +271,7 @@ Key columns:
 - `body_snapshot`
 - `instruction_snapshot`
 - `windows_agent_presentation`
+- `toast_renderer` text, not null, default Auto; allowed Auto/Native/Custom (migration 0018)
 - `toast_auto_dismiss_seconds`
 - `wellness_program_json` nullable snapshot of the structured wellness payload synchronized to the Windows Agent
 - `valid_from`

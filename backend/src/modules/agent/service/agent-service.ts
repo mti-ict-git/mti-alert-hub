@@ -82,6 +82,7 @@ type AgentMessageRow = {
   priority: "Info" | "Warning" | "Critical";
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   requiresResponse: boolean;
   templateVersion: number | null;
   workflowSnapshot: unknown;
@@ -98,6 +99,7 @@ type OwnedAgentMessageRow = {
   priority: "Info" | "Warning" | "Critical";
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   requiresResponse: boolean;
   templateVersion: number | null;
   workflowSnapshot: unknown;
@@ -174,6 +176,7 @@ type AgentReminderPolicyRow = {
   instruction: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   requiresResponse: boolean;
   workflowId: string | null;
   isActive: boolean;
@@ -622,6 +625,7 @@ export class AgentService {
           arp.instruction_snapshot::text as instruction,
           arp.windows_agent_presentation::text as "windowsAgentPresentation",
           arp.toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
+          arp.toast_renderer as "toastRenderer",
           c.requires_response as "requiresResponse",
           c.workflow_id::text as "workflowId",
           arp.is_active as "isActive",
@@ -670,6 +674,7 @@ export class AgentService {
             instruction: row.instruction,
             windowsAgentPresentation: row.windowsAgentPresentation,
             toastAutoDismissSeconds: row.toastAutoDismissSeconds,
+            toastRenderer: row.toastRenderer ?? "Auto",
             wellnessProgram: parseWellnessProgramPayload(row.wellnessProgram),
             requiresResponse: row.requiresResponse,
             workflow,
@@ -1191,6 +1196,7 @@ export class AgentService {
           c.priority::text as priority,
           c.windows_agent_presentation::text as "windowsAgentPresentation",
           c.toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
+          c.toast_renderer as "toastRenderer",
           c.requires_response as "requiresResponse",
           cr.template_version_snapshot as "templateVersion",
           cr.workflow_snapshot_json as "workflowSnapshot",
@@ -1430,6 +1436,7 @@ export class AgentService {
           c.priority::text as priority,
           c.windows_agent_presentation::text as "windowsAgentPresentation",
           c.toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
+          c.toast_renderer as "toastRenderer",
           c.requires_response as "requiresResponse",
           cr.template_version_snapshot as "templateVersion",
           cr.workflow_snapshot_json as "workflowSnapshot",
@@ -1492,6 +1499,7 @@ export class AgentService {
         priority: row.priority,
         windowsAgentPresentation: row.windowsAgentPresentation,
         toastAutoDismissSeconds: row.toastAutoDismissSeconds,
+            toastRenderer: row.toastRenderer ?? "Auto",
         requiresResponse: row.requiresResponse,
         templateVersion: row.templateVersion,
         workflow: parseWorkflowSnapshot(row.workflowSnapshot),

@@ -1,3 +1,7 @@
+import {
+  ToastRendererField,
+  type ToastRenderer,
+} from "@/components/notifications/ToastRendererField";
 import { createFileRoute, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -18,10 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@/components/ui/radio-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -31,7 +32,12 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { devicesService } from "@/services/devices.service";
@@ -54,7 +60,15 @@ import type {
   WindowsAgentPresentation,
 } from "@/types";
 import { format } from "date-fns";
-import { AlertTriangle, MonitorSmartphone, MessageSquare, Pencil, Rocket, Users, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  MonitorSmartphone,
+  MessageSquare,
+  Pencil,
+  Rocket,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const WINDOWS_AGENT_PRESENTATIONS: WindowsAgentPresentation[] = ["Toast", "Modal", "Fullscreen"];
@@ -81,7 +95,10 @@ function NotificationDetailPage() {
   const search = useSearch({ from: "/_app/notifications/$id" });
   const navigate = useNavigate({ from: "/_app/notifications/$id" });
   const qc = useQueryClient();
-  const { data: n } = useQuery({ queryKey: ["notification", id], queryFn: () => notificationsService.get(id) });
+  const { data: n } = useQuery({
+    queryKey: ["notification", id],
+    queryFn: () => notificationsService.get(id),
+  });
   const { data: deliveryVisibility } = useQuery({
     queryKey: ["delivery-visibility", id],
     queryFn: () => notificationsService.deliveryVisibility(id),
@@ -130,36 +147,40 @@ function NotificationDetailPage() {
   const departments = organizationReference?.departments ?? [];
   const sections = organizationReference?.sections ?? [];
   const updateDraftMutation = useMutation({
-    mutationFn: (payload: EditDraftForm) =>
-      {
-        if (!n) {
-          throw new Error("Draft detail is still loading.");
-        }
+    mutationFn: (payload: EditDraftForm) => {
+      if (!n) {
+        throw new Error("Draft detail is still loading.");
+      }
 
-        return notificationsService.update(id, {
-          priority: payload.priority,
-          title: payload.title,
-          message: payload.message,
-          category: payload.category,
-          targetType: payload.targetType,
-          targetSite: payload.targetSite || undefined,
-          targetArea: payload.targetArea || undefined,
-          targetDepartment: payload.targetDepartment || undefined,
-          targetSection: payload.targetSection || undefined,
-          targetEmployeeId: payload.targetEmployeeId || undefined,
-          targetDeviceId: payload.targetDeviceId || undefined,
-          channels: payload.channels,
-          windowsAgentPresentation: payload.channels.includes("DesktopAgent")
-            ? getEffectiveWindowsAgentPresentation(
+      return notificationsService.update(id, {
+        priority: payload.priority,
+        title: payload.title,
+        message: payload.message,
+        category: payload.category,
+        targetType: payload.targetType,
+        targetSite: payload.targetSite || undefined,
+        targetArea: payload.targetArea || undefined,
+        targetDepartment: payload.targetDepartment || undefined,
+        targetSection: payload.targetSection || undefined,
+        targetEmployeeId: payload.targetEmployeeId || undefined,
+        targetDeviceId: payload.targetDeviceId || undefined,
+        channels: payload.channels,
+        windowsAgentPresentation: payload.channels.includes("DesktopAgent")
+          ? getEffectiveWindowsAgentPresentation(
               payload.priority,
               payload.channels.includes("DesktopAgent"),
               payload.windowsAgentPresentation,
             )
-            : null,
-          toastAutoDismissSeconds: parseToastAutoDismissSecondsInput(payload.toastAutoDismissSeconds),
-          requireAck: payload.requireAck,
-          workflowId: payload.requireAck ? payload.workflowId || null : null,
-          instruction: getInstructionMode(
+          : null,
+        toastAutoDismissSeconds:
+          payload.toastRenderer === "Native"
+            ? null
+            : parseToastAutoDismissSecondsInput(payload.toastAutoDismissSeconds),
+        toastRenderer: payload.toastRenderer,
+        requireAck: payload.requireAck,
+        workflowId: payload.requireAck ? payload.workflowId || null : null,
+        instruction:
+          getInstructionMode(
             payload.priority,
             payload.channels.includes("DesktopAgent"),
             getEffectiveWindowsAgentPresentation(
@@ -167,10 +188,12 @@ function NotificationDetailPage() {
               payload.channels.includes("DesktopAgent"),
               payload.windowsAgentPresentation,
             ),
+            payload.toastRenderer,
           ) === "blocked"
             ? ""
             : payload.instruction,
-          reminderSchedule: n.communicationType === "Reminder"
+        reminderSchedule:
+          n.communicationType === "Reminder"
             ? buildDraftReminderScheduleForUpdate({
                 scheduledAt: payload.reminderScheduledAt,
                 recurrenceRule: payload.reminderRecurrenceRule,
@@ -179,8 +202,8 @@ function NotificationDetailPage() {
                 validUntil: payload.reminderValidUntil,
               })
             : null,
-        });
-      },
+      });
+    },
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["notifications"] }),
@@ -263,9 +286,14 @@ function NotificationDetailPage() {
   const recipientRows =
     persistedRecipients.length > 0
       ? persistedRecipients
-      : previewRecipients.map((recipient, index) => mapPreviewRecipientToRecipient(id, recipient, index));
+      : previewRecipients.map((recipient, index) =>
+          mapPreviewRecipientToRecipient(id, recipient, index),
+        );
   const availableSections = useMemo(
-    () => sections.filter((item) => !draftForm?.targetDepartment || item.departmentId === draftForm.targetDepartment),
+    () =>
+      sections.filter(
+        (item) => !draftForm?.targetDepartment || item.departmentId === draftForm.targetDepartment,
+      ),
     [draftForm?.targetDepartment, sections],
   );
   const availableAreas = useMemo(
@@ -273,7 +301,8 @@ function NotificationDetailPage() {
     [areas, draftForm?.targetSite],
   );
   const availableDepartments = useMemo(
-    () => departments.filter((item) => !draftForm?.targetSite || item.siteId === draftForm.targetSite),
+    () =>
+      departments.filter((item) => !draftForm?.targetSite || item.siteId === draftForm.targetSite),
     [departments, draftForm?.targetSite],
   );
   const availableEmployees = useMemo(
@@ -316,11 +345,27 @@ function NotificationDetailPage() {
   const currentPriority = draftForm?.priority ?? normalizeEditablePriority(n?.priority ?? "Info");
   const draftHasDesktopAgentChannel = draftForm?.channels.includes("DesktopAgent") ?? false;
   const draftEffectivePresentation = draftForm
-    ? getEffectiveWindowsAgentPresentation(currentPriority, draftHasDesktopAgentChannel, draftForm.windowsAgentPresentation)
+    ? getEffectiveWindowsAgentPresentation(
+        currentPriority,
+        draftHasDesktopAgentChannel,
+        draftForm.windowsAgentPresentation,
+      )
     : "Toast";
   const draftInstructionMode = draftForm
-    ? getInstructionMode(currentPriority, draftHasDesktopAgentChannel, draftEffectivePresentation)
+    ? getInstructionMode(
+        currentPriority,
+        draftHasDesktopAgentChannel,
+        draftEffectivePresentation,
+        draftForm.toastRenderer,
+      )
     : "optional";
+  const draftDurationInvalid = Boolean(
+    draftForm &&
+    draftEffectivePresentation === "Toast" &&
+    draftForm.toastRenderer !== "Native" &&
+    draftForm.toastAutoDismissSeconds.trim() &&
+    parseToastAutoDismissSecondsInput(draftForm.toastAutoDismissSeconds) === null,
+  );
   const draftInstructionRequired = draftInstructionMode === "required";
   const draftInstructionBlocked = draftInstructionMode === "blocked";
   const draftDesktopToastOnlyDelivery =
@@ -370,17 +415,6 @@ function NotificationDetailPage() {
   }, [currentPriority, draftForm, draftHasDesktopAgentChannel]);
 
   useEffect(() => {
-    if (!draftForm || !draftInstructionBlocked || !draftForm.instruction) {
-      return;
-    }
-
-    setDraftForm({
-      ...draftForm,
-      instruction: "",
-    });
-  }, [draftForm, draftInstructionBlocked]);
-
-  useEffect(() => {
     if (!draftForm || !draftDesktopToastOnlyDelivery || !draftForm.requireAck) {
       return;
     }
@@ -418,8 +452,7 @@ function NotificationDetailPage() {
   const canCancel = ["Scheduled", "Queued", "Sending", "Active"].includes(n.status);
   const canPublish = isDraft;
   const scheduledPublishInvalid =
-    publishMode === "Scheduled" &&
-    (!scheduledPublishAt.trim() || !publishTimezone.trim());
+    publishMode === "Scheduled" && (!scheduledPublishAt.trim() || !publishTimezone.trim());
   const recurringPublishInvalid =
     publishMode === "Recurring" &&
     (!recurrenceRule.trim() ||
@@ -452,24 +485,33 @@ function NotificationDetailPage() {
       workflowId: n.workflowId ?? "",
       instruction: n.instruction ?? "",
       windowsAgentPresentation: n.windowsAgentPresentation ?? "Toast",
+      toastRenderer: n.toastRenderer ?? "Auto",
       toastAutoDismissSeconds:
         n.toastAutoDismissSeconds != null ? String(n.toastAutoDismissSeconds) : "",
-      reminderScheduledAt: n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "",
+      reminderScheduledAt: n.reminderSchedule?.scheduledAt
+        ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt)
+        : "",
       reminderRecurrenceRule: n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1",
       reminderTimezone: n.reminderSchedule?.timezone ?? getLocalTimeZone(),
       reminderExecutionMode: n.reminderSchedule?.executionMode ?? "ServerGenerated",
-      reminderValidUntil: n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "",
+      reminderValidUntil: n.reminderSchedule?.validUntil
+        ? toDateTimeLocalInput(n.reminderSchedule.validUntil)
+        : "",
     });
     setEditOpen(true);
   }
 
   function openPublishDialog() {
     setPublishMode(isReminder ? "Recurring" : "Now");
-    setScheduledPublishAt(n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "");
+    setScheduledPublishAt(
+      n.reminderSchedule?.scheduledAt ? toDateTimeLocalInput(n.reminderSchedule.scheduledAt) : "",
+    );
     setPublishTimezone(n.reminderSchedule?.timezone ?? getLocalTimeZone());
     setRecurrenceRule(n.reminderSchedule?.recurrenceRule ?? "FREQ=DAILY;INTERVAL=1");
     setExecutionMode(n.reminderSchedule?.executionMode ?? "ServerGenerated");
-    setValidUntil(n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "");
+    setValidUntil(
+      n.reminderSchedule?.validUntil ? toDateTimeLocalInput(n.reminderSchedule.validUntil) : "",
+    );
     setPublishOpen(true);
   }
 
@@ -490,8 +532,8 @@ function NotificationDetailPage() {
                 <XCircle className="mr-2 h-4 w-4" /> Cancel
               </Button>
             )}
-            {isDraft && (
-              n.wellnessProgram ? (
+            {isDraft &&
+              (n.wellnessProgram ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -508,8 +550,7 @@ function NotificationDetailPage() {
                 <Button variant="outline" size="sm" onClick={openEditDialog}>
                   <Pencil className="mr-2 h-4 w-4" /> Edit Draft
                 </Button>
-              )
-            )}
+              ))}
             <PriorityBadge priority={n.priority} />
             <StatusBadge status={n.status} />
           </>
@@ -517,10 +558,50 @@ function NotificationDetailPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-info"><Users className="h-4 w-4"/><span className="text-xs font-medium uppercase">Recipients</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.totalRecipients ?? 0}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-success"><MonitorSmartphone className="h-4 w-4"/><span className="text-xs font-medium uppercase">Windows Agent</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.deviceRecipients ?? 0}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-success"><MessageSquare className="h-4 w-4"/><span className="text-xs font-medium uppercase">WhatsApp</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.whatsappRecipients ?? 0}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-warning"><AlertTriangle className="h-4 w-4"/><span className="text-xs font-medium uppercase">Warnings</span></div><div className="mt-2 text-2xl font-semibold">{audiencePreview?.previewWarnings.length ?? 0}</div></CardContent></Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-info">
+              <Users className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase">Recipients</span>
+            </div>
+            <div className="mt-2 text-2xl font-semibold">
+              {audiencePreview?.totalRecipients ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-success">
+              <MonitorSmartphone className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase">Windows Agent</span>
+            </div>
+            <div className="mt-2 text-2xl font-semibold">
+              {audiencePreview?.deviceRecipients ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-success">
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase">WhatsApp</span>
+            </div>
+            <div className="mt-2 text-2xl font-semibold">
+              {audiencePreview?.whatsappRecipients ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase">Warnings</span>
+            </div>
+            <div className="mt-2 text-2xl font-semibold">
+              {audiencePreview?.previewWarnings.length ?? 0}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="mt-6">
@@ -543,23 +624,55 @@ function NotificationDetailPage() {
               <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
                 <Info label="Message" value={n.message} markdown />
                 <Info label="Instruction" value={n.instruction || "—"} markdown />
-                <Info label="Windows Agent Presentation" value={n.windowsAgentPresentation || "—"} />
+                {n.windowsAgentPresentation === "Toast" && (
+                  <Info
+                    label="Toast style"
+                    value={
+                      n.toastRenderer === "Custom"
+                        ? "MTI Connect"
+                        : n.toastRenderer === "Native"
+                          ? "Windows native"
+                          : "Auto (legacy)"
+                    }
+                  />
+                )}
+                <Info
+                  label="Windows Agent Presentation"
+                  value={n.windowsAgentPresentation || "—"}
+                />
                 <Info
                   label="Toast Auto Dismiss"
-                  value={formatToastAutoDismissSummary(n.windowsAgentPresentation, n.toastAutoDismissSeconds)}
+                  value={formatToastAutoDismissSummary(
+                    n.windowsAgentPresentation,
+                    n.toastAutoDismissSeconds,
+                    n.toastRenderer,
+                  )}
                 />
                 <Info label="Channels" value={n.channels.join(", ")} />
                 <Info label="Content Type" value={n.communicationType} />
                 <Info label="Require Ack" value={n.requireAck ? "Yes" : "No"} />
                 <Info label="Created By" value={n.createdBy} />
-                <Info label="Created At" value={format(new Date(n.createdAt), "dd MMM yyyy HH:mm")} />
-                {n.scheduledAt && <Info label="Scheduled At" value={format(new Date(n.scheduledAt), "dd MMM yyyy HH:mm")} />}
-                <Info label="Recipients" value={`${recipientCount || audiencePreview?.totalRecipients || 0}`} />
+                <Info
+                  label="Created At"
+                  value={format(new Date(n.createdAt), "dd MMM yyyy HH:mm")}
+                />
+                {n.scheduledAt && (
+                  <Info
+                    label="Scheduled At"
+                    value={format(new Date(n.scheduledAt), "dd MMM yyyy HH:mm")}
+                  />
+                )}
+                <Info
+                  label="Recipients"
+                  value={`${recipientCount || audiencePreview?.totalRecipients || 0}`}
+                />
               </CardContent>
             </Card>
             {n.reminderSchedule && (
               <Card className="mt-4">
-                <CardHeader><CardTitle className="text-base">Reminder Schedule</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Reminder Schedule</CardTitle>
+                </CardHeader>
                 <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
                   <Info label="Schedule Type" value={n.reminderSchedule.scheduleType} />
                   <Info label="Schedule Version" value={`${n.reminderSchedule.scheduleVersion}`} />
@@ -567,44 +680,51 @@ function NotificationDetailPage() {
                   <Info label="Timezone" value={n.reminderSchedule.timezone || "—"} />
                   <Info label="Execution Mode" value={n.reminderSchedule.executionMode || "—"} />
                   <Info label="Active Policy" value={n.reminderSchedule.isActive ? "Yes" : "No"} />
-                  <Info label="Valid From" value={formatOptionalDate(n.reminderSchedule.validFrom)} />
-                  <Info label="Valid Until" value={formatOptionalDate(n.reminderSchedule.validUntil)} />
+                  <Info
+                    label="Valid From"
+                    value={formatOptionalDate(n.reminderSchedule.validFrom)}
+                  />
+                  <Info
+                    label="Valid Until"
+                    value={formatOptionalDate(n.reminderSchedule.validUntil)}
+                  />
                 </CardContent>
               </Card>
             )}
             {n.wellnessProgram && (
               <Card className="mt-4">
-                <CardHeader><CardTitle className="text-base">Wellness Program</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Wellness Program</CardTitle>
+                </CardHeader>
                 <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
                   <Info label="Program Type" value={n.wellnessProgram.programType} />
                   <Info label="Theme" value={n.wellnessProgram.theme} />
                   <Info label="Layout" value={n.wellnessProgram.layoutVariant} />
                   <Info
                     label="Countdown Seconds"
-                    value={n.wellnessProgram.countdownSeconds != null ? `${n.wellnessProgram.countdownSeconds}` : "—"}
+                    value={
+                      n.wellnessProgram.countdownSeconds != null
+                        ? `${n.wellnessProgram.countdownSeconds}`
+                        : "—"
+                    }
                   />
-                  <Info
-                    label="Rotation Mode"
-                    value={n.wellnessProgram.rotationMode ?? "—"}
-                  />
-                  <Info
-                    label="Hero Asset"
-                    value={n.wellnessProgram.heroAssetUrl ?? "—"}
-                  />
+                  <Info label="Rotation Mode" value={n.wellnessProgram.rotationMode ?? "—"} />
+                  <Info label="Hero Asset" value={n.wellnessProgram.heroAssetUrl ?? "—"} />
                   <Info
                     label="Actions"
-                    value={n.wellnessProgram.actions.map((action) => action.label).join(", ") || "—"}
+                    value={
+                      n.wellnessProgram.actions.map((action) => action.label).join(", ") || "—"
+                    }
                   />
-                  <Info
-                    label="Step Count"
-                    value={`${n.wellnessProgram.steps?.length ?? 0}`}
-                  />
+                  <Info label="Step Count" value={`${n.wellnessProgram.steps?.length ?? 0}`} />
                 </CardContent>
               </Card>
             )}
             {audiencePreview && (
               <Card className="mt-4">
-                <CardHeader><CardTitle className="text-base">Channel Plan</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Channel Plan</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {audiencePreview.channelPlan.map((item) => (
@@ -633,133 +753,181 @@ function NotificationDetailPage() {
           </TabsContent>
 
           <TabsContent value="recipients" className="mt-4">
-            <Card><CardContent className="p-0">
-              <div className="overflow-x-auto">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Recipient Type</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Section</TableHead>
+                        <TableHead>Site</TableHead>
+                        <TableHead>Area</TableHead>
+                        <TableHead>Channels</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Response</TableHead>
+                        <TableHead>Ack</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recipientRows.map((recipient) => (
+                        <TableRow key={recipient.id}>
+                          <TableCell>{recipient.recipientType ?? "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {buildRecipientReference(recipient)}
+                          </TableCell>
+                          <TableCell>{recipient.name || "—"}</TableCell>
+                          <TableCell>{recipient.department || "—"}</TableCell>
+                          <TableCell>{recipient.section || "—"}</TableCell>
+                          <TableCell>{recipient.site || "—"}</TableCell>
+                          <TableCell>{recipient.area || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={recipient.deliveryStatus} />
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={formatResponseState(recipient.responseState)} />
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={recipient.ackStatus} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {recipientRows.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={11}
+                            className="py-8 text-center text-sm text-muted-foreground"
+                          >
+                            No recipient snapshots are available yet for this communication.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-4">
+            <Card>
+              <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Recipient Type</TableHead><TableHead>Reference</TableHead><TableHead>Name</TableHead><TableHead>Department</TableHead><TableHead>Section</TableHead><TableHead>Site</TableHead><TableHead>Area</TableHead><TableHead>Channels</TableHead><TableHead>Status</TableHead><TableHead>Response</TableHead><TableHead>Ack</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Target</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Detail</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recipientRows.map((recipient) => (
-                      <TableRow key={recipient.id}>
-                        <TableCell>{recipient.recipientType ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {buildRecipientReference(recipient)}
+                    {logs.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {format(new Date(l.time), "HH:mm:ss")}
                         </TableCell>
-                        <TableCell>{recipient.name || "—"}</TableCell>
-                        <TableCell>{recipient.department || "—"}</TableCell>
-                        <TableCell>{recipient.section || "—"}</TableCell>
-                        <TableCell>{recipient.site || "—"}</TableCell>
-                        <TableCell>{recipient.area || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
+                        <TableCell>{l.channel}</TableCell>
+                        <TableCell>{l.target}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={l.status} />
                         </TableCell>
-                        <TableCell><StatusBadge status={recipient.deliveryStatus} /></TableCell>
-                        <TableCell><StatusBadge status={formatResponseState(recipient.responseState)} /></TableCell>
-                        <TableCell><StatusBadge status={recipient.ackStatus} /></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{l.detail}</TableCell>
                       </TableRow>
                     ))}
-                    {recipientRows.length === 0 && (
+                    {logs.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={11} className="py-8 text-center text-sm text-muted-foreground">
-                          No recipient snapshots are available yet for this communication.
+                        <TableCell
+                          colSpan={5}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
+                          No delivery events have been recorded for this communication yet.
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
-              </div>
-            </CardContent></Card>
-          </TabsContent>
-
-          <TabsContent value="logs" className="mt-4">
-            <Card><CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow><TableHead>Time</TableHead><TableHead>Channel</TableHead><TableHead>Target</TableHead><TableHead>Status</TableHead><TableHead>Detail</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{format(new Date(l.time), "HH:mm:ss")}</TableCell>
-                      <TableCell>{l.channel}</TableCell>
-                      <TableCell>{l.target}</TableCell>
-                      <TableCell><StatusBadge status={l.status} /></TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{l.detail}</TableCell>
-                    </TableRow>
-                  ))}
-                  {logs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                        No delivery events have been recorded for this communication yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent></Card>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="responses" className="mt-4">
-            <Card><CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Recipient</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Response</TableHead>
-                    <TableHead>Actor</TableHead>
-                    <TableHead>Note</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {responses.map((response) => (
-                    <TableRow key={response.id}>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {format(new Date(response.respondedAt), "dd MMM HH:mm:ss")}
-                      </TableCell>
-                      <TableCell>{response.recipientName}</TableCell>
-                      <TableCell>{response.channel}</TableCell>
-                      <TableCell>
-                        <StatusBadge status="Responded" />
-                        <div className="mt-1 text-xs text-muted-foreground">{response.responseOptionKey}</div>
-                      </TableCell>
-                      <TableCell>{response.actorUserIdentifier || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {response.responseNote || "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {responses.length === 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                        {n.requireAck
-                          ? "No workflow responses have been recorded for this communication yet."
-                          : "This communication does not use a response workflow. Mark As Read and Dismiss activity appears in Delivery Logs instead."}
-                      </TableCell>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Recipient</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Response</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Note</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent></Card>
+                  </TableHeader>
+                  <TableBody>
+                    {responses.map((response) => (
+                      <TableRow key={response.id}>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {format(new Date(response.respondedAt), "dd MMM HH:mm:ss")}
+                        </TableCell>
+                        <TableCell>{response.recipientName}</TableCell>
+                        <TableCell>{response.channel}</TableCell>
+                        <TableCell>
+                          <StatusBadge status="Responded" />
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {response.responseOptionKey}
+                          </div>
+                        </TableCell>
+                        <TableCell>{response.actorUserIdentifier || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {response.responseNote || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {responses.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
+                          {n.requireAck
+                            ? "No workflow responses have been recorded for this communication yet."
+                            : "This communication does not use a response workflow. Mark As Read and Dismiss activity appears in Delivery Logs instead."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="ack" className="mt-4">
             <Card>
-              <CardHeader><CardTitle className="text-base">Acknowledgement Summary</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Acknowledgement Summary</CardTitle>
+              </CardHeader>
               <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-5">
                 {Object.entries(ackCounts).map(([k, v]) => (
                   <div key={k} className="rounded-md border p-3">
-                    <div className="text-xs uppercase text-muted-foreground">{k.replace(/([A-Z])/g, " $1").trim()}</div>
+                    <div className="text-xs uppercase text-muted-foreground">
+                      {k.replace(/([A-Z])/g, " $1").trim()}
+                    </div>
                     <div className="mt-1 text-2xl font-semibold">{v}</div>
                   </div>
                 ))}
               </CardContent>
               <CardContent className="pt-0 text-sm text-muted-foreground">
-                These counts now come from persisted recipient acknowledgement state and remain `0` until a delivery or response event updates the recipient snapshot.
+                These counts now come from persisted recipient acknowledgement state and remain `0`
+                until a delivery or response event updates the recipient snapshot.
               </CardContent>
             </Card>
           </TabsContent>
@@ -770,7 +938,9 @@ function NotificationDetailPage() {
                 {n.wellnessProgram && (
                   <>
                     <Card>
-                      <CardHeader><CardTitle className="text-base">Wellness Activity Summary</CardTitle></CardHeader>
+                      <CardHeader>
+                        <CardTitle className="text-base">Wellness Activity Summary</CardTitle>
+                      </CardHeader>
                       <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
                         {[
                           ["Triggered", wellnessMonitoring.counts.triggered],
@@ -780,7 +950,12 @@ function NotificationDetailPage() {
                           ["Completed", wellnessMonitoring.counts.completed],
                           ["Timed Out", wellnessMonitoring.counts.timedOut],
                           ["Step Advanced", wellnessMonitoring.counts.stepAdvanced],
-                          ["Compliance", wellnessMonitoring.completionRate != null ? `${wellnessMonitoring.completionRate}%` : "—"],
+                          [
+                            "Compliance",
+                            wellnessMonitoring.completionRate != null
+                              ? `${wellnessMonitoring.completionRate}%`
+                              : "—",
+                          ],
                         ].map(([label, value]) => (
                           <div key={label} className="rounded-md border p-3">
                             <div className="text-xs uppercase text-muted-foreground">{label}</div>
@@ -791,15 +966,20 @@ function NotificationDetailPage() {
                     </Card>
 
                     <Card>
-                      <CardHeader><CardTitle className="text-base">Wellness Compliance</CardTitle></CardHeader>
+                      <CardHeader>
+                        <CardTitle className="text-base">Wellness Compliance</CardTitle>
+                      </CardHeader>
                       <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <div className="rounded-md border p-4">
-                          <div className="text-xs uppercase text-muted-foreground">Observed Policies</div>
+                          <div className="text-xs uppercase text-muted-foreground">
+                            Observed Policies
+                          </div>
                           <div className="mt-1 text-2xl font-semibold">
                             {wellnessMonitoring.activePolicies}/{wellnessMonitoring.totalPolicies}
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Active policies against total synchronized policy rows for this wellness program.
+                            Active policies against total synchronized policy rows for this wellness
+                            program.
                           </p>
                         </div>
                         <div className="rounded-md border p-4">
@@ -812,7 +992,9 @@ function NotificationDetailPage() {
                           </p>
                         </div>
                         <div className="rounded-md border p-4">
-                          <div className="text-xs uppercase text-muted-foreground">Last Activity</div>
+                          <div className="text-xs uppercase text-muted-foreground">
+                            Last Activity
+                          </div>
                           <div className="mt-1 text-lg font-semibold">
                             {formatOptionalDate(wellnessMonitoring.lastActivityAt)}
                           </div>
@@ -826,7 +1008,9 @@ function NotificationDetailPage() {
                 )}
 
                 <Card>
-                  <CardHeader><CardTitle className="text-base">Reminder Policies</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle className="text-base">Reminder Policies</CardTitle>
+                  </CardHeader>
                   <CardContent className="p-0">
                     <Table>
                       <TableHeader>
@@ -850,26 +1034,40 @@ function NotificationDetailPage() {
 
                           return (
                             <TableRow key={policy.policyId}>
-                              <TableCell>{policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}</TableCell>
+                              <TableCell>
+                                {policy.deviceIdentifier ?? policy.hostname ?? policy.deviceId}
+                              </TableCell>
                               <TableCell>{policy.scheduleVersion}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground">{policy.recurrenceRule}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {policy.recurrenceRule}
+                              </TableCell>
                               <TableCell>{policy.timezone}</TableCell>
                               <TableCell>{formatOptionalDate(policy.validUntil)}</TableCell>
                               <TableCell>{formatOptionalDate(policy.lastSyncedAt)}</TableCell>
-                              <TableCell>{formatOptionalDate(deviceMonitoring?.lastActivityAt)}</TableCell>
+                              <TableCell>
+                                {formatOptionalDate(deviceMonitoring?.lastActivityAt)}
+                              </TableCell>
                               <TableCell>
                                 {deviceMonitoring?.lastEventType ? (
                                   <StatusBadge status={deviceMonitoring.lastEventType} />
-                                ) : "—"}
+                                ) : (
+                                  "—"
+                                )}
                               </TableCell>
-                              <TableCell><StatusBadge status={policy.isActive ? "Active" : "Cancelled"} /></TableCell>
+                              <TableCell>
+                                <StatusBadge status={policy.isActive ? "Active" : "Cancelled"} />
+                              </TableCell>
                             </TableRow>
                           );
                         })}
                         {(reminderActivity?.policies.length ?? 0) === 0 && (
                           <TableRow>
-                            <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                              No reminder policies have been materialized for this communication yet.
+                            <TableCell
+                              colSpan={9}
+                              className="py-8 text-center text-sm text-muted-foreground"
+                            >
+                              No reminder policies have been materialized for this communication
+                              yet.
                             </TableCell>
                           </TableRow>
                         )}
@@ -879,7 +1077,9 @@ function NotificationDetailPage() {
                 </Card>
 
                 <Card>
-                  <CardHeader><CardTitle className="text-base">Reminder Events</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle className="text-base">Reminder Events</CardTitle>
+                  </CardHeader>
                   <CardContent className="p-0">
                     <Table>
                       <TableHeader>
@@ -897,8 +1097,12 @@ function NotificationDetailPage() {
                             <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                               {format(new Date(event.occurredAt), "dd MMM HH:mm:ss")}
                             </TableCell>
-                            <TableCell>{event.deviceIdentifier ?? event.hostname ?? event.deviceId}</TableCell>
-                            <TableCell><StatusBadge status={event.eventType} /></TableCell>
+                            <TableCell>
+                              {event.deviceIdentifier ?? event.hostname ?? event.deviceId}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={event.eventType} />
+                            </TableCell>
                             <TableCell>{event.activeUserIdentifier || "—"}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {event.metadata ? JSON.stringify(event.metadata) : "—"}
@@ -907,7 +1111,10 @@ function NotificationDetailPage() {
                         ))}
                         {(reminderActivity?.events.length ?? 0) === 0 && (
                           <TableRow>
-                            <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                            <TableCell
+                              colSpan={5}
+                              className="py-8 text-center text-sm text-muted-foreground"
+                            >
                               No reminder events have been reported by Windows Agent yet.
                             </TableCell>
                           </TableRow>
@@ -919,7 +1126,9 @@ function NotificationDetailPage() {
 
                 {n.wellnessProgram && (
                   <Card>
-                    <CardHeader><CardTitle className="text-base">Recent Wellness Timeline</CardTitle></CardHeader>
+                    <CardHeader>
+                      <CardTitle className="text-base">Recent Wellness Timeline</CardTitle>
+                    </CardHeader>
                     <CardContent className="space-y-3">
                       {wellnessMonitoring.recentEvents.map((event) => (
                         <div key={event.eventId} className="rounded-md border p-3">
@@ -966,7 +1175,8 @@ function NotificationDetailPage() {
           <DialogHeader>
             <DialogTitle>Edit Draft</DialogTitle>
             <DialogDescription>
-              Update the standard notification fields that are already supported by the current backend slice.
+              Update the standard notification fields that are already supported by the current
+              backend slice.
             </DialogDescription>
           </DialogHeader>
           {draftForm && (
@@ -988,7 +1198,8 @@ function NotificationDetailPage() {
                   onChange={(event) => setDraftForm({ ...draftForm, message: event.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters. {draftForm.message.trim().length}/{MESSAGE_MAX_LENGTH}
+                  Keep the Windows Agent message concise. Maximum {MESSAGE_MAX_LENGTH} characters.{" "}
+                  {draftForm.message.trim().length}/{MESSAGE_MAX_LENGTH}
                 </p>
               </div>
 
@@ -1001,10 +1212,14 @@ function NotificationDetailPage() {
                       setDraftForm({ ...draftForm, priority: value as EditablePriority })
                     }
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {EDITABLE_PRIORITIES.map((priority) => (
-                        <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                        <SelectItem key={priority} value={priority}>
+                          {priority}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1017,11 +1232,17 @@ function NotificationDetailPage() {
                       setDraftForm({ ...draftForm, category: value as Category })
                     }
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {(["IT", "OHSE", "Security", "Operation", "HR", "General"] as Category[]).map((category) => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
+                      {(["IT", "OHSE", "Security", "Operation", "HR", "General"] as Category[]).map(
+                        (category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ),
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1033,11 +1254,13 @@ function NotificationDetailPage() {
                       setDraftForm({
                         ...draftForm,
                         targetType: value as EditableTargetType,
-                        targetSite: value === "Site" || value === "Area" ? draftForm.targetSite : "",
+                        targetSite:
+                          value === "Site" || value === "Area" ? draftForm.targetSite : "",
                         targetArea: value === "Area" ? draftForm.targetArea : "",
-                        targetDepartment: value === "Department" || value === "Section"
-                          ? draftForm.targetDepartment
-                          : "",
+                        targetDepartment:
+                          value === "Department" || value === "Section"
+                            ? draftForm.targetDepartment
+                            : "",
                         targetSection: value === "Section" ? draftForm.targetSection : "",
                         targetEmployeeId: value === "Employee" ? draftForm.targetEmployeeId : "",
                         targetDeviceId: value === "Device" ? draftForm.targetDeviceId : "",
@@ -1068,7 +1291,9 @@ function NotificationDetailPage() {
                     }
                     disabled={draftForm.targetType !== "Site" && draftForm.targetType !== "Area"}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
                     <SelectContent>
                       {sites.map((site) => (
                         <SelectItem key={site.id} value={site.id}>
@@ -1085,7 +1310,9 @@ function NotificationDetailPage() {
                     onValueChange={(value) => setDraftForm({ ...draftForm, targetArea: value })}
                     disabled={draftForm.targetType !== "Area"}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select area" />
+                    </SelectTrigger>
                     <SelectContent>
                       {availableAreas.map((area) => (
                         <SelectItem key={area.id} value={area.id}>
@@ -1104,12 +1331,18 @@ function NotificationDetailPage() {
                     onValueChange={(value) =>
                       setDraftForm({ ...draftForm, targetDepartment: value, targetSection: "" })
                     }
-                    disabled={draftForm.targetType !== "Department" && draftForm.targetType !== "Section"}
+                    disabled={
+                      draftForm.targetType !== "Department" && draftForm.targetType !== "Section"
+                    }
                   >
-                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
                     <SelectContent>
                       {availableDepartments.map((department) => (
-                        <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                        <SelectItem key={department.id} value={department.id}>
+                          {department.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1121,10 +1354,14 @@ function NotificationDetailPage() {
                     onValueChange={(value) => setDraftForm({ ...draftForm, targetSection: value })}
                     disabled={draftForm.targetType !== "Section" || !draftForm.targetDepartment}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select section" />
+                    </SelectTrigger>
                     <SelectContent>
                       {availableSections.map((section) => (
-                        <SelectItem key={section.id} value={section.id}>{section.name}</SelectItem>
+                        <SelectItem key={section.id} value={section.id}>
+                          {section.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1133,10 +1370,14 @@ function NotificationDetailPage() {
                   <Label>Target Employee</Label>
                   <Select
                     value={draftForm.targetEmployeeId}
-                    onValueChange={(value) => setDraftForm({ ...draftForm, targetEmployeeId: value })}
+                    onValueChange={(value) =>
+                      setDraftForm({ ...draftForm, targetEmployeeId: value })
+                    }
                     disabled={draftForm.targetType !== "Employee"}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
                     <SelectContent>
                       {availableEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
@@ -1153,7 +1394,9 @@ function NotificationDetailPage() {
                     onValueChange={(value) => setDraftForm({ ...draftForm, targetDeviceId: value })}
                     disabled={draftForm.targetType !== "Device"}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select device" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select device" />
+                    </SelectTrigger>
                     <SelectContent>
                       {devices.map((device) => (
                         <SelectItem key={device.id} value={device.deviceId}>
@@ -1189,7 +1432,8 @@ function NotificationDetailPage() {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Current go-live scope exposes: {EDITABLE_CHANNELS.map((channel) => channel.label).join(", ")}.
+                  Current go-live scope exposes:{" "}
+                  {EDITABLE_CHANNELS.map((channel) => channel.label).join(", ")}.
                 </p>
               </div>
 
@@ -1206,7 +1450,9 @@ function NotificationDetailPage() {
                     }
                     disabled={currentPriority === "Warning"}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {WINDOWS_AGENT_PRESENTATIONS.filter((presentation) =>
                         currentPriority === "Warning" ? presentation === "Modal" : true,
@@ -1225,29 +1471,47 @@ function NotificationDetailPage() {
                 </div>
               )}
 
-              {draftForm.channels.includes("DesktopAgent") && draftEffectivePresentation === "Toast" && (
-                <div className="space-y-2">
-                  <Label>Toast Auto Dismiss Seconds</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={60}
-                    step={1}
-                    value={draftForm.toastAutoDismissSeconds}
-                    onChange={(event) =>
-                      setDraftForm({
-                        ...draftForm,
-                        toastAutoDismissSeconds: event.target.value,
-                      })
-                    }
-                    placeholder="Default 5"
-                    className="max-w-[12rem]"
+              {draftForm.channels.includes("DesktopAgent") &&
+                draftEffectivePresentation === "Toast" && (
+                  <ToastRendererField
+                    value={draftForm.toastRenderer}
+                    onChange={(toastRenderer) => setDraftForm({ ...draftForm, toastRenderer })}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Optional server-side override for Windows Agent toast duration. Leave empty to use the agent default of 5 seconds.
-                  </p>
-                </div>
-              )}
+                )}
+              {draftForm.channels.includes("DesktopAgent") &&
+                draftEffectivePresentation === "Toast" &&
+                draftForm.toastRenderer !== "Native" && (
+                  <div className="space-y-2">
+                    <Label>Auto-dismiss after (seconds)</Label>
+                    {draftDurationInvalid && (
+                      <p role="alert" className="text-xs text-destructive">
+                        Enter a whole number from 1 to 60.
+                      </p>
+                    )}
+                    <Input
+                      type="number"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={draftForm.toastAutoDismissSeconds}
+                      onChange={(event) =>
+                        setDraftForm({
+                          ...draftForm,
+                          toastAutoDismissSeconds: event.target.value,
+                        })
+                      }
+                      placeholder={
+                        draftForm.toastRenderer === "Custom" ? "Default 5" : "Windows duration"
+                      }
+                      className="max-w-[12rem]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {draftForm.toastRenderer === "Custom"
+                        ? "Leave empty for 5 seconds."
+                        : "Empty uses Windows native; an explicit duration uses MTI Connect."}
+                    </p>
+                  </div>
+                )}
 
               <div className="space-y-2">
                 <Label>
@@ -1262,7 +1526,11 @@ function NotificationDetailPage() {
                   }
                   disabled={draftInstructionBlocked}
                   previewEmptyText="Instruction preview will appear here."
-                  placeholder={draftInstructionBlocked ? "Instruction is disabled for Info toast notifications." : undefined}
+                  placeholder={
+                    draftInstructionBlocked
+                      ? "Instruction is disabled for Info toast notifications."
+                      : undefined
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
                   {draftInstructionBlocked
@@ -1291,7 +1559,7 @@ function NotificationDetailPage() {
                       requireAck: nextChecked,
                       workflowId:
                         nextChecked && !draftForm.workflowId
-                          ? workflows[0]?.id ?? ""
+                          ? (workflows[0]?.id ?? "")
                           : nextChecked
                             ? draftForm.workflowId
                             : "",
@@ -1306,7 +1574,8 @@ function NotificationDetailPage() {
                   <div>
                     <div className="text-sm font-medium">Reminder Recurrence</div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Edit the recurring reminder definition here so publish becomes a final confirmation step.
+                      Edit the recurring reminder definition here so publish becomes a final
+                      confirmation step.
                     </p>
                   </div>
 
@@ -1355,7 +1624,9 @@ function NotificationDetailPage() {
                           })
                         }
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
                           <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
@@ -1384,7 +1655,9 @@ function NotificationDetailPage() {
                     value={draftForm.workflowId}
                     onValueChange={(value) => setDraftForm({ ...draftForm, workflowId: value })}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select workflow" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select workflow" />
+                    </SelectTrigger>
                     <SelectContent>
                       {workflows.map((workflow) => (
                         <SelectItem key={workflow.id} value={workflow.id}>
@@ -1398,7 +1671,6 @@ function NotificationDetailPage() {
                   </p>
                 </div>
               )}
-
             </div>
           )}
           <DialogFooter>
@@ -1410,6 +1682,7 @@ function NotificationDetailPage() {
               disabled={
                 !draftForm ||
                 !draftForm.title.trim() ||
+                draftDurationInvalid ||
                 !draftForm.message.trim() ||
                 draftForm.channels.length === 0 ||
                 (draftForm.requireAck && !draftForm.workflowId) ||
@@ -1430,7 +1703,8 @@ function NotificationDetailPage() {
           <DialogHeader>
             <DialogTitle>Publish Communication</DialogTitle>
             <DialogDescription>
-              This confirms the latest audience preview and sends the draft into the live delivery flow.
+              This confirms the latest audience preview and sends the draft into the live delivery
+              flow.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
@@ -1438,7 +1712,9 @@ function NotificationDetailPage() {
               <Label>Publish Mode</Label>
               <RadioGroup
                 value={publishMode}
-                onValueChange={(value) => setPublishMode(value as "Now" | "Scheduled" | "Recurring")}
+                onValueChange={(value) =>
+                  setPublishMode(value as "Now" | "Scheduled" | "Recurring")
+                }
                 className="grid grid-cols-1 gap-2"
               >
                 <Label className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
@@ -1526,15 +1802,17 @@ function NotificationDetailPage() {
                       value={executionMode}
                       onValueChange={(value) => setExecutionMode(value as ScheduleExecutionMode)}
                     >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ServerGenerated">ServerGenerated</SelectItem>
                         <SelectItem value="AgentLocalRoutine">AgentLocalRoutine</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      `AgentLocalRoutine` keeps the server as source of truth, but Windows Agent executes
-                      the reminder locally from a synchronized policy.
+                      `AgentLocalRoutine` keeps the server as source of truth, but Windows Agent
+                      executes the reminder locally from a synchronized policy.
                     </p>
                   </div>
                 </div>
@@ -1588,11 +1866,29 @@ function NotificationDetailPage() {
                   <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
                     <div className="font-medium">AgentLocalRoutine Guardrails</div>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-                      <li>{agentLocalRoutineGuardrails.hasDesktopAgentChannel ? "OK" : "Missing"}: Desktop Agent channel must remain enabled.</li>
-                      <li>{agentLocalRoutineGuardrails.hasEligibleDeviceAudience ? "OK" : "Missing"}: audience preview must resolve to at least one eligible Windows Agent device.</li>
-                      <li>{agentLocalRoutineGuardrails.hasValidUntil ? "OK" : "Missing"}: validity window is required so the local policy remains bounded.</li>
-                      <li>{agentLocalRoutineGuardrails.isRoutinePriority ? "OK" : "Missing"}: routine reminders should not use Emergency or Critical priority.</li>
-                      <li>{agentLocalRoutineGuardrails.usesExplicitDeviceTarget ? "Good practice" : "Recommended"}: target a specific Device when the routine should be bound to a known Windows Agent endpoint.</li>
+                      <li>
+                        {agentLocalRoutineGuardrails.hasDesktopAgentChannel ? "OK" : "Missing"}:
+                        Desktop Agent channel must remain enabled.
+                      </li>
+                      <li>
+                        {agentLocalRoutineGuardrails.hasEligibleDeviceAudience ? "OK" : "Missing"}:
+                        audience preview must resolve to at least one eligible Windows Agent device.
+                      </li>
+                      <li>
+                        {agentLocalRoutineGuardrails.hasValidUntil ? "OK" : "Missing"}: validity
+                        window is required so the local policy remains bounded.
+                      </li>
+                      <li>
+                        {agentLocalRoutineGuardrails.isRoutinePriority ? "OK" : "Missing"}: routine
+                        reminders should not use Emergency or Critical priority.
+                      </li>
+                      <li>
+                        {agentLocalRoutineGuardrails.usesExplicitDeviceTarget
+                          ? "Good practice"
+                          : "Recommended"}
+                        : target a specific Device when the routine should be bound to a known
+                        Windows Agent endpoint.
+                      </li>
                     </ul>
                   </div>
                 )}
@@ -1629,9 +1925,9 @@ function NotificationDetailPage() {
                 ? "Publishing..."
                 : publishMode === "Recurring"
                   ? "Publish Recurring Reminder"
-                : publishMode === "Scheduled"
-                  ? "Schedule"
-                  : "Publish Now"}
+                  : publishMode === "Scheduled"
+                    ? "Schedule"
+                    : "Publish Now"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1642,14 +1938,13 @@ function NotificationDetailPage() {
           <DialogHeader>
             <DialogTitle>Cancel Communication</DialogTitle>
             <DialogDescription>
-              This stops future delivery for the current communication and marks pending Windows Agent jobs as cancelled in backend tracking.
+              This stops future delivery for the current communication and marks pending Windows
+              Agent jobs as cancelled in backend tracking.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
             <div className="font-medium">{n.title}</div>
-            <p className="mt-1 text-muted-foreground">
-              Current status: {n.status}
-            </p>
+            <p className="mt-1 text-muted-foreground">Current status: {n.status}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelOpen(false)}>
@@ -1713,7 +2008,8 @@ function Info({
   );
 }
 
-type EditableTargetType = "All" | "Site" | "Area" | "Department" | "Section" | "Employee" | "Device";
+type EditableTargetType =
+  "All" | "Site" | "Area" | "Department" | "Section" | "Employee" | "Device";
 type EditablePriority = "Info" | "Warning" | "Critical";
 
 type EditDraftForm = {
@@ -1731,6 +2027,7 @@ type EditDraftForm = {
   channels: Channel[];
   windowsAgentPresentation: WindowsAgentPresentation;
   toastAutoDismissSeconds: string;
+  toastRenderer: ToastRenderer;
   requireAck: boolean;
   workflowId: string;
   instruction: string;
@@ -1750,7 +2047,9 @@ const EDITABLE_TARGET_TYPES: EditableTargetType[] = [
   "Section",
   "Employee",
   "Device",
-].filter((targetType) => !(DESKTOP_ONLY_LIVE_PATH && targetType === "Employee")) as EditableTargetType[];
+].filter(
+  (targetType) => !(DESKTOP_ONLY_LIVE_PATH && targetType === "Employee"),
+) as EditableTargetType[];
 const EDITABLE_CHANNEL_OPTIONS: Array<{ key: Channel; label: string }> = [
   { key: "DesktopAgent", label: "Desktop Agent" },
   { key: "WhatsApp", label: "WhatsApp" },
@@ -1800,6 +2099,7 @@ function getInstructionMode(
   priority: Notification["priority"],
   hasDesktopAgentChannel: boolean,
   presentation: WindowsAgentPresentation,
+  renderer: ToastRenderer = "Auto",
 ) {
   if (!hasDesktopAgentChannel) {
     return "optional" as const;
@@ -1809,7 +2109,7 @@ function getInstructionMode(
     return "required" as const;
   }
 
-  if (priority === "Info" && presentation === "Toast") {
+  if (priority === "Info" && presentation === "Toast" && renderer !== "Custom") {
     return "blocked" as const;
   }
 
@@ -1822,18 +2122,21 @@ function parseToastAutoDismissSecondsInput(value: string) {
     return null;
   }
 
-  const parsed = Number.parseInt(trimmed, 10);
+  const parsed = Number(trimmed);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 60 ? parsed : null;
 }
 
 function formatToastAutoDismissSummary(
   presentation: Notification["windowsAgentPresentation"],
   toastAutoDismissSeconds: Notification["toastAutoDismissSeconds"],
+  renderer: ToastRenderer = "Auto",
 ) {
   if (presentation !== "Toast") {
     return "—";
   }
 
+  if (renderer === "Native" || (renderer === "Auto" && toastAutoDismissSeconds == null))
+    return "Managed by Windows";
   return `${toastAutoDismissSeconds ?? 5}s${toastAutoDismissSeconds == null ? " (default)" : ""}`;
 }
 
@@ -1887,7 +2190,9 @@ function isValidDraftReminderForm(form: EditDraftForm) {
   }
 
   if (form.reminderScheduledAt && form.reminderValidUntil) {
-    return new Date(form.reminderValidUntil).getTime() > new Date(form.reminderScheduledAt).getTime();
+    return (
+      new Date(form.reminderValidUntil).getTime() > new Date(form.reminderScheduledAt).getTime()
+    );
   }
 
   return true;
@@ -1999,6 +2304,8 @@ function formatResponseState(state: Recipient["responseState"]) {
   }
 }
 
-function mapPreviewChannelToChannel(channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage") {
+function mapPreviewChannelToChannel(
+  channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage",
+) {
   return channel === "WindowsAgent" ? "DesktopAgent" : channel;
 }

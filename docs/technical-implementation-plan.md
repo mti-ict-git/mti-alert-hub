@@ -293,3 +293,8 @@ The current repository already leans toward TypeScript for the admin application
 - Do not add approval gates to MVP publication unless the specification is updated.
 - Treat Windows Agent desktop targeting as device-centric and location-oriented for MVP.
 - Keep site and area as the primary scope dimensions for device-targeted desktop delivery.
+
+
+## Explicit toast renderer — Phase 4
+
+Toast authoring now distinguishes Auto, Windows native and MTI Connect custom across frontend, API and agent. Rules, compatibility and verification: [Toast authoring contract](toast-authoring-contract.md).

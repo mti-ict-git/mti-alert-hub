@@ -452,3 +452,8 @@ The user requested removal of the remaining Departments menu and relocation of m
 ## Create Notification device audience (2026-09-14)
 
 Device targeting supports multiple explicit device identifiers using the existing targets API. The picker follows Wellness: search hostname/user/site/department, select or clear visible results, clear all and selected-hostname chips. At least one device is required; changing target type clears device selection. Confirmation shows count and hostnames. The current shared device list loads up to 200 devices and Select Visible applies only to loaded search results; this is disclosed beside the picker.
+
+
+## Explicit toast renderer — Phase 4
+
+Toast authoring now distinguishes Auto, Windows native and MTI Connect custom across frontend, API and agent. Rules, compatibility and verification: [Toast authoring contract](toast-authoring-contract.md).

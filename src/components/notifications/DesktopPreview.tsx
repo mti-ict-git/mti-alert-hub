@@ -1,3 +1,5 @@
+import { ToastPreview } from "./ToastPreview";
+import type { ToastRenderer } from "./ToastRendererField";
 import type { Priority, WellnessProgram } from "@/types";
 import {
   Siren,
@@ -18,6 +20,7 @@ export function DesktopPreview({
   instruction,
   presentation = "Modal",
   toastAutoDismissSeconds,
+  toastRenderer = "Auto",
   wellnessProgram,
 }: {
   title: string;
@@ -26,6 +29,7 @@ export function DesktopPreview({
   instruction?: string;
   presentation?: "Toast" | "Modal" | "Fullscreen";
   toastAutoDismissSeconds?: number | null;
+  toastRenderer?: ToastRenderer;
   wellnessProgram?: WellnessProgram | null;
 }) {
   if (wellnessProgram) {
@@ -251,7 +255,18 @@ export function DesktopPreview({
   }
 
   const isCritical = priority === "Emergency" || priority === "Critical";
-  const isToast = presentation === "Toast";
+  if (presentation === "Toast")
+    return (
+      <ToastPreview
+        title={title}
+        message={message}
+        instruction={instruction}
+        priority={priority}
+        renderer={toastRenderer}
+        seconds={toastAutoDismissSeconds}
+      />
+    );
+  const isToast = false;
   const Icon = isCritical ? Siren : priority === "Warning" ? TriangleAlert : Info;
   const border = isCritical
     ? "border-emergency"

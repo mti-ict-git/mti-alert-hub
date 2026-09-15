@@ -1,3 +1,7 @@
+import {
+  ToastRendererField,
+  type ToastRenderer,
+} from "@/components/notifications/ToastRendererField";
 import { DeviceAudiencePicker } from "@/components/common/DeviceAudiencePicker";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
@@ -131,6 +135,7 @@ function CreateNotificationPage() {
   const [windowsAgentPresentation, setWindowsAgentPresentation] =
     useState<WindowsAgentPresentation>("Toast");
   const [toastAutoDismissSeconds, setToastAutoDismissSeconds] = useState("");
+  const [toastRenderer, setToastRenderer] = useState<ToastRenderer>("Auto");
   const [requireAck, setRequireAck] = useState(false);
   const [workflowId, setWorkflowId] = useState("");
   const [scheduleLater, setScheduleLater] = useState(false);
@@ -201,6 +206,7 @@ function CreateNotificationPage() {
     priority,
     hasDesktopAgentChannel,
     effectiveWindowsAgentPresentation,
+    toastRenderer,
   );
   const instructionRequired = instructionMode === "required";
   const instructionBlocked = instructionMode === "blocked";
@@ -218,12 +224,6 @@ function CreateNotificationPage() {
       setWindowsAgentPresentation("Modal");
     }
   }, [hasDesktopAgentChannel, priority, windowsAgentPresentation]);
-
-  useEffect(() => {
-    if (instructionBlocked && instruction) {
-      setInstruction("");
-    }
-  }, [instruction, instructionBlocked]);
 
   useEffect(() => {
     if (!desktopToastOnlyDelivery || !requireAck) {
@@ -341,7 +341,11 @@ function CreateNotificationPage() {
       targetDeviceIds: targetType === "Device" ? deviceIds : undefined,
       channels,
       windowsAgentPresentation: hasDesktopAgentChannel ? effectiveWindowsAgentPresentation : null,
-      toastAutoDismissSeconds: parseToastAutoDismissSecondsInput(toastAutoDismissSeconds),
+      toastAutoDismissSeconds:
+        toastRenderer === "Native"
+          ? null
+          : parseToastAutoDismissSecondsInput(toastAutoDismissSeconds),
+      toastRenderer,
       requireAck,
       workflowId: requireAck ? workflowId || null : null,
       instruction: instructionBlocked ? "" : instruction,
@@ -367,7 +371,13 @@ function CreateNotificationPage() {
     (targetType === "Section" && Boolean(section)) ||
     (targetType === "Employee" && Boolean(employeeId)) ||
     (targetType === "Device" && deviceIds.length > 0 && !devicesLoading && !devicesError);
+  const durationInvalid =
+    effectiveWindowsAgentPresentation === "Toast" &&
+    toastRenderer !== "Native" &&
+    toastAutoDismissSeconds.trim() !== "" &&
+    parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) === null;
   const canSubmit =
+    !durationInvalid &&
     title &&
     message &&
     message.trim().length <= MESSAGE_MAX_LENGTH &&
@@ -795,24 +805,35 @@ function CreateNotificationPage() {
             )}
 
             {hasDesktopAgentChannel && effectiveWindowsAgentPresentation === "Toast" && (
-              <div className="space-y-2">
-                <Label>Toast Auto Dismiss Seconds</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={60}
-                  step={1}
-                  value={toastAutoDismissSeconds}
-                  onChange={(event) => setToastAutoDismissSeconds(event.target.value)}
-                  placeholder="Default 5"
-                  className="max-w-[12rem]"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Optional server-side override for Windows Agent toast duration. Leave empty to use
-                  the agent default of 5 seconds.
-                </p>
-              </div>
+              <ToastRendererField value={toastRenderer} onChange={setToastRenderer} />
             )}
+            {hasDesktopAgentChannel &&
+              effectiveWindowsAgentPresentation === "Toast" &&
+              toastRenderer !== "Native" && (
+                <div className="space-y-2">
+                  <Label>Auto-dismiss after (seconds)</Label>
+                  {durationInvalid && (
+                    <p role="alert" className="text-xs text-destructive">
+                      Enter a whole number from 1 to 60.
+                    </p>
+                  )}
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    step={1}
+                    value={toastAutoDismissSeconds}
+                    onChange={(event) => setToastAutoDismissSeconds(event.target.value)}
+                    placeholder={toastRenderer === "Custom" ? "Default 5" : "Windows duration"}
+                    className="max-w-[12rem]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {toastRenderer === "Custom"
+                      ? "Leave empty for 5 seconds. Mark as read is optional; use Modal for required acknowledgement."
+                      : "Empty uses Windows native; an explicit duration uses MTI Connect."}
+                  </p>
+                </div>
+              )}
 
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
@@ -961,16 +982,20 @@ function CreateNotificationPage() {
                     priority={priority}
                     instruction={instructionBlocked ? "" : instruction}
                     presentation={effectiveWindowsAgentPresentation}
+                    toastRenderer={toastRenderer}
                     toastAutoDismissSeconds={parseToastAutoDismissSecondsInput(
                       toastAutoDismissSeconds,
                     )}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {`Windows Agent presentation: ${effectiveWindowsAgentPresentation}${
-                      effectiveWindowsAgentPresentation === "Toast"
-                        ? ` · auto-dismiss ${parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5}s`
-                        : ""
-                    }`}
+                    {effectiveWindowsAgentPresentation === "Toast"
+                      ? toastRenderer === "Native" ||
+                        (toastRenderer === "Auto" && !toastAutoDismissSeconds)
+                        ? "Windows native · duration managed by Windows"
+                        : "MTI Connect · auto-dismiss " +
+                          (parseToastAutoDismissSecondsInput(toastAutoDismissSeconds) ?? 5) +
+                          "s"
+                      : "Windows Agent presentation: " + effectiveWindowsAgentPresentation}
                   </p>
                 </div>
               )}
@@ -1076,6 +1101,7 @@ function getInstructionMode(
   priority: Priority,
   hasDesktopAgentChannel: boolean,
   presentation: WindowsAgentPresentation,
+  renderer: ToastRenderer = "Auto",
 ) {
   if (!hasDesktopAgentChannel) {
     return "optional" as const;
@@ -1085,7 +1111,7 @@ function getInstructionMode(
     return "required" as const;
   }
 
-  if (priority === "Info" && presentation === "Toast") {
+  if (priority === "Info" && presentation === "Toast" && renderer !== "Custom") {
     return "blocked" as const;
   }
 
@@ -1098,7 +1124,7 @@ function parseToastAutoDismissSecondsInput(value: string) {
     return null;
   }
 
-  const parsed = Number.parseInt(trimmed, 10);
+  const parsed = Number(trimmed);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 60 ? parsed : null;
 }
 

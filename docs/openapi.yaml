@@ -2285,6 +2285,11 @@ components:
               allOf:
                 - $ref: "#/components/schemas/WindowsAgentPresentation"
               nullable: true
+            toastRenderer:
+              type: string
+              enum: [Auto, Native, Custom]
+              default: Auto
+              description: Explicit toast renderer. Auto preserves legacy duration-based selection; Native uses Windows duration; Custom defaults to 5 seconds. Applies only to Toast.
             toastAutoDismissSeconds:
               type: integer
               nullable: true
@@ -2366,7 +2371,7 @@ components:
         instruction:
           type: string
           nullable: true
-          description: Optional instruction text. When the Windows Agent channel is enabled, `Info + Toast` is normalized to `null` and `Warning` requires a non-empty instruction.
+          description: Optional instruction text. When the Windows Agent channel is enabled, Info + Toast is normalized to null unless toastRenderer is Custom and `Warning` requires a non-empty instruction.
         channelSelections:
           type: array
           items:
@@ -2383,6 +2388,11 @@ components:
             - $ref: "#/components/schemas/WindowsAgentPresentation"
           nullable: true
           description: Optional Windows Agent presentation override. `Warning` is normalized to `Modal` when the desktop channel is selected.
+        toastRenderer:
+          type: string
+          enum: [Auto, Native, Custom]
+          default: Auto
+          description: Explicit toast renderer. Auto preserves legacy duration-based selection; Native uses Windows duration; Custom defaults to 5 seconds. Applies only to Toast.
         toastAutoDismissSeconds:
           type: integer
           nullable: true
@@ -2428,7 +2438,7 @@ components:
         instruction:
           type: string
           nullable: true
-          description: Optional instruction text. When the Windows Agent channel is enabled, `Info + Toast` is normalized to `null` and `Warning` requires a non-empty instruction.
+          description: Optional instruction text. When the Windows Agent channel is enabled, Info + Toast is normalized to null unless toastRenderer is Custom and `Warning` requires a non-empty instruction.
         channelSelections:
           type: array
           items:
@@ -2445,6 +2455,11 @@ components:
             - $ref: "#/components/schemas/WindowsAgentPresentation"
           nullable: true
           description: Optional Windows Agent presentation override. `Warning` is normalized to `Modal` when the desktop channel is selected.
+        toastRenderer:
+          type: string
+          enum: [Auto, Native, Custom]
+          default: Auto
+          description: Explicit toast renderer. Auto preserves legacy duration-based selection; Native uses Windows duration; Custom defaults to 5 seconds. Applies only to Toast.
         toastAutoDismissSeconds:
           type: integer
           nullable: true
@@ -4445,6 +4460,11 @@ components:
           $ref: "#/components/schemas/Priority"
         windowsAgentPresentation:
           $ref: "#/components/schemas/WindowsAgentPresentation"
+        toastRenderer:
+          type: string
+          enum: [Auto, Native, Custom]
+          default: Auto
+          description: Explicit toast renderer. Auto preserves legacy duration-based selection; Native uses Windows duration; Custom defaults to 5 seconds. Applies only to Toast.
         toastAutoDismissSeconds:
           type: integer
           nullable: true
@@ -4518,6 +4538,11 @@ components:
           nullable: true
         windowsAgentPresentation:
           $ref: "#/components/schemas/WindowsAgentPresentation"
+        toastRenderer:
+          type: string
+          enum: [Auto, Native, Custom]
+          default: Auto
+          description: Explicit toast renderer. Auto preserves legacy duration-based selection; Native uses Windows duration; Custom defaults to 5 seconds. Applies only to Toast.
         toastAutoDismissSeconds:
           type: integer
           nullable: true

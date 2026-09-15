@@ -56,6 +56,7 @@ type CreateCommunicationDraftInput = {
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   toastAutoDismissSeconds?: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
   wellnessProgram?: WellnessProgramInput | null;
@@ -74,6 +75,7 @@ type UpdateCommunicationDraftInput = {
   workflowId?: string | null;
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   toastAutoDismissSeconds?: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   deliveryStrategy?: DeliveryStrategy | null;
   reminderSchedule?: ReminderDraftScheduleInput | null;
   wellnessProgram?: WellnessProgramInput | null;
@@ -193,6 +195,7 @@ type CommunicationDetailRow = CommunicationSummaryRow & {
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   deliveryStrategy: DeliveryStrategy | null;
   draftReminderSchedule: unknown | null;
   wellnessProgram: unknown | null;
@@ -399,6 +402,7 @@ type CommunicationWriteModel = {
   workflowId: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   deliveryStrategy: DeliveryStrategy | null;
   targets: TargetRule[];
   reminderSchedule: ReminderDraftSchedule | null;
@@ -510,7 +514,8 @@ export class CommunicationDraftService {
           delivery_strategy,
           scheduled_at,
           draft_schedule_json,
-          wellness_program_json
+          wellness_program_json,
+          toast_renderer
         )
         values (
           $1::uuid,
@@ -530,7 +535,8 @@ export class CommunicationDraftService {
           $14,
           $15::timestamptz,
           $16::jsonb,
-          $17::jsonb
+          $17::jsonb,
+          $18
         )
         returning id::text as id
       `,
@@ -552,6 +558,7 @@ export class CommunicationDraftService {
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
         writeModel.wellnessProgram ? JSON.stringify(writeModel.wellnessProgram) : null,
+        writeModel.toastRenderer ?? "Auto",
       ],
     );
     const communicationId = insertedRows[0]?.id;
@@ -1162,7 +1169,8 @@ export class CommunicationDraftService {
           delivery_strategy = $14,
           scheduled_at = $15::timestamptz,
           draft_schedule_json = $16::jsonb,
-          wellness_program_json = $17::jsonb
+          wellness_program_json = $17::jsonb,
+          toast_renderer = $18
         where id::text = $1
       `,
       [
@@ -1183,6 +1191,7 @@ export class CommunicationDraftService {
         writeModel.reminderSchedule?.scheduledAt ?? null,
         writeModel.reminderSchedule ? JSON.stringify(writeModel.reminderSchedule) : null,
         writeModel.wellnessProgram ? JSON.stringify(writeModel.wellnessProgram) : null,
+        writeModel.toastRenderer ?? "Auto",
       ],
     );
 
@@ -1359,7 +1368,8 @@ export class CommunicationDraftService {
           delivery_strategy,
           scheduled_at,
           draft_schedule_json,
-          wellness_program_json
+          wellness_program_json,
+          toast_renderer
         )
         values (
           $1::uuid,
@@ -1379,7 +1389,8 @@ export class CommunicationDraftService {
           $14,
           $15::timestamptz,
           $16::jsonb,
-          $17::jsonb
+          $17::jsonb,
+          $18
         )
         returning id::text as id
       `,
@@ -1401,6 +1412,7 @@ export class CommunicationDraftService {
         existing.scheduledAt,
         existing.draftReminderSchedule ? JSON.stringify(existing.draftReminderSchedule) : null,
         existing.wellnessProgram ? JSON.stringify(existing.wellnessProgram) : null,
+        existing.toastRenderer ?? "Auto",
       ],
     );
     const duplicatedId = insertedRows[0]?.id;
@@ -1862,6 +1874,7 @@ export class CommunicationDraftService {
       requiresResponse: detail.requiresResponse,
       windowsAgentPresentation: detail.windowsAgentPresentation,
       toastAutoDismissSeconds: detail.toastAutoDismissSeconds,
+      toastRenderer: detail.toastRenderer ?? "Auto",
       deliveryStrategy: detail.deliveryStrategy,
       schedule: schedule ?? parseReminderDraftScheduleRecord(detail.draftReminderSchedule),
       wellnessProgram: parseWellnessProgramRecord(detail.wellnessProgram),
@@ -1903,6 +1916,7 @@ export class CommunicationDraftService {
           workflow_id::text as "workflowId",
           windows_agent_presentation::text as "windowsAgentPresentation",
           toast_auto_dismiss_seconds as "toastAutoDismissSeconds",
+          toast_renderer as "toastRenderer",
           delivery_strategy::text as "deliveryStrategy",
           draft_schedule_json as "draftReminderSchedule",
           wellness_program_json as "wellnessProgram",
@@ -2130,6 +2144,7 @@ export class CommunicationDraftService {
       workflowId: input.workflowId ?? null,
       windowsAgentPresentation: input.windowsAgentPresentation ?? null,
       toastAutoDismissSeconds: input.toastAutoDismissSeconds ?? null,
+      toastRenderer: input.toastRenderer ?? "Auto",
       deliveryStrategy: input.deliveryStrategy ?? null,
       reminderSchedule: input.reminderSchedule ?? null,
       wellnessProgram: input.wellnessProgram ?? null,
@@ -2164,6 +2179,7 @@ export class CommunicationDraftService {
         input.toastAutoDismissSeconds === undefined
           ? existing.toastAutoDismissSeconds
           : input.toastAutoDismissSeconds,
+      toastRenderer: input.toastRenderer ?? existing.toastRenderer ?? "Auto",
       deliveryStrategy:
         input.deliveryStrategy === undefined ? existing.deliveryStrategy : input.deliveryStrategy,
       reminderSchedule:
@@ -2190,6 +2206,7 @@ export class CommunicationDraftService {
     workflowId: string | null;
     windowsAgentPresentation: WindowsAgentPresentation | null;
     toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
     deliveryStrategy: DeliveryStrategy | null;
     reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null;
     wellnessProgram: WellnessProgramInput | null;
@@ -2278,6 +2295,7 @@ export class CommunicationDraftService {
       instruction: normalizedInstruction,
       windowsAgentPresentation: finalWindowsAgentPresentation,
       toastAutoDismissSeconds: finalToastAutoDismissSeconds,
+      toastRenderer: input.toastRenderer ?? "Auto",
     });
 
     if (template) {
@@ -2317,6 +2335,7 @@ export class CommunicationDraftService {
       workflowId: finalWorkflowId,
       windowsAgentPresentation: normalizedWindowsAgentAuthoring.windowsAgentPresentation,
       toastAutoDismissSeconds: normalizedWindowsAgentAuthoring.toastAutoDismissSeconds,
+      toastRenderer: normalizedWindowsAgentAuthoring.windowsAgentPresentation === "Toast" ? (input.toastRenderer ?? "Auto") : "Auto",
       deliveryStrategy: finalDeliveryStrategy,
       reminderSchedule,
       wellnessProgram,
@@ -2362,12 +2381,13 @@ function normalizeToastAutoDismissSeconds(value: number | null | undefined) {
   return Number.isInteger(value) && value >= 1 && value <= 60 ? value : null;
 }
 
-function normalizeWindowsAgentAuthoringRules(options: {
+export function normalizeWindowsAgentAuthoringRules(options: {
   priority: Priority;
   channelSelections: Channel[];
   instruction: string | null;
   windowsAgentPresentation: WindowsAgentPresentation | null;
   toastAutoDismissSeconds: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
 }) {
   if (!options.channelSelections.includes("WindowsAgent")) {
     return {
@@ -2397,9 +2417,9 @@ function normalizeWindowsAgentAuthoringRules(options: {
     const normalizedPresentation = options.windowsAgentPresentation ?? "Toast";
     if (normalizedPresentation === "Toast") {
       return {
-        instruction: null,
+        instruction: options.toastRenderer === "Custom" ? options.instruction : null,
         windowsAgentPresentation: "Toast" as const,
-        toastAutoDismissSeconds: options.toastAutoDismissSeconds,
+        toastAutoDismissSeconds: options.toastRenderer === "Native" ? null : options.toastRenderer === "Custom" ? (options.toastAutoDismissSeconds ?? 5) : options.toastAutoDismissSeconds,
       };
     }
 
@@ -2415,7 +2435,7 @@ function normalizeWindowsAgentAuthoringRules(options: {
     instruction: options.instruction,
     windowsAgentPresentation: normalizedPresentation,
     toastAutoDismissSeconds:
-      normalizedPresentation === "Toast" ? options.toastAutoDismissSeconds : null,
+      normalizedPresentation === "Toast" ? (options.toastRenderer === "Native" ? null : options.toastRenderer === "Custom" ? (options.toastAutoDismissSeconds ?? 5) : options.toastAutoDismissSeconds) : null,
   };
 }
 
@@ -3848,7 +3868,8 @@ async function materializeAgentReminderPolicies(
           wellness_program_json,
           valid_from,
           valid_until,
-          is_active
+          is_active,
+          toast_renderer
         )
         values (
           $1::uuid,
@@ -3865,7 +3886,8 @@ async function materializeAgentReminderPolicies(
           $12::jsonb,
           $13::timestamptz,
           $14::timestamptz,
-          true
+          true,
+          $15
         )
       `,
       [
@@ -3885,6 +3907,7 @@ async function materializeAgentReminderPolicies(
           : null,
         effectiveValidFrom.toISOString(),
         effectiveValidUntil.toISOString(),
+        options.communication.toastRenderer ?? "Auto",
       ],
     );
   }

@@ -302,6 +302,7 @@ export interface Notification {
   channels: Channel[];
   windowsAgentPresentation?: WindowsAgentPresentation | null;
   toastAutoDismissSeconds?: number | null;
+  toastRenderer?: "Auto" | "Native" | "Custom";
   requireAck: boolean;
   scheduledAt?: string | null;
   instruction?: string;

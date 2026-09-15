@@ -737,3 +737,10 @@ Phase 4 remains in progress. This slice does not claim production integration or
 - [x] Phase 4 Windows Agent main-menu design integration: approved tray shell, scoped themed controls, persistent appearance picker, existing command bindings, and collapsed wellness launcher. Build and 42 regression tests passed; production-window fixture render/command/scroll checks passed. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md. Installed-agent acceptance and rollout remain pending.
 
 - [x] Phase 4 Windows Agent About and notification-history design alignment: shared menu controls/activity template, both themes, empty history, preserved command bindings, and work-area sizing. Build, 42 tests, and isolated production-window render checks passed. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md.
+
+- [x] Phase 4 custom WPF toast design integration: MTI Connect header, themed content/actions, bounded body, original event handlers and timer. Build, 42 regression tests and isolated light/dark renders passed. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md. Live delivery acceptance remains pending.
+
+- [x] Phase 4 local toast preview launcher: custom 5s/30s and Windows native test buttons beside existing wellness previews; debug-local routing, build and expanded-panel render verified. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md.
+
+- [x] Phase 4 toast renderer contract: Create/Edit/Detail/preview, API storage and sync, agent routing and offline reminder cache. Backend tests, 48 agent tests, production frontend build and rollback-only draft integration passed. See toast-authoring-contract.md.
+- [ ] Toast renderer acceptance: authenticated browser and installed-device Native/Custom/Auto delivery; local web service was unavailable during verification. No rollout performed.
