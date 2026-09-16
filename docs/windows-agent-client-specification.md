@@ -783,3 +783,8 @@ The main caution is to keep the implementation:
 For the most practical execution order, endpoint-by-endpoint success criteria, and first integration test loop, use:
 
 - `docs/windows-agent-integration-checklist.md`
+
+
+## Wellness scheduling after Windows sign-in (2026-09-16)
+
+See [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.

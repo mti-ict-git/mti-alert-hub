@@ -16,11 +16,14 @@ import {
   buildWellnessRecurrenceRule,
   formatWellnessRecurrenceSummary,
   type WellnessRecurrenceUnit,
+  type WellnessScheduleBasis,
 } from "@/lib/wellness-authoring";
 import { UTC_OFFSET_TIME_ZONE_OPTIONS, normalizeUtcOffsetTimeZone } from "@/lib/timezone-options";
 import type { WellnessDistributionMode } from "@/types";
 
 type WellnessScheduleFieldsProps = {
+  scheduleBasis?: WellnessScheduleBasis;
+  onScheduleBasisChange?: (value: WellnessScheduleBasis) => void;
   scheduledAt: string;
   onScheduledAtChange: (value: string) => void;
   validUntil: string;
@@ -42,15 +45,49 @@ type WellnessScheduleFieldsProps = {
 
 export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
   const timezoneId = useId();
+  const intervalMinutes =
+    Number(props.recurrenceInterval) *
+    (props.recurrenceUnit === "Day" ? 1440 : props.recurrenceUnit === "Hour" ? 60 : 1);
+  const invalidSessionInterval =
+    props.scheduleBasis === "WindowsSignIn" &&
+    (!Number.isInteger(Number(props.recurrenceInterval)) ||
+      intervalMinutes < 1 ||
+      intervalMinutes > 10080);
   const recurrenceSummary = formatWellnessRecurrenceSummary(
     buildWellnessRecurrenceRule({
       interval: Number.parseInt(props.recurrenceInterval || "1", 10) || 1,
       unit: props.recurrenceUnit,
+      basis: props.scheduleBasis,
     }),
   );
 
   return (
     <div className="space-y-5">
+      {props.onScheduleBasisChange && (
+        <div className="space-y-2">
+          <Label>Schedule basis</Label>
+          <Select
+            value={props.scheduleBasis ?? "Fixed"}
+            onValueChange={(value) => props.onScheduleBasisChange?.(value as WellnessScheduleBasis)}
+          >
+            <SelectTrigger aria-label="Schedule basis">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Fixed">Fixed schedule</SelectItem>
+              <SelectItem value="WindowsSignIn">After Windows sign-in</SelectItem>
+            </SelectContent>
+          </Select>
+          {props.scheduleBasis === "WindowsSignIn" && (
+            <p className="text-xs text-muted-foreground">
+              The first reminder follows one interval after Windows sign-in or program activation,
+              whichever is later. Lock/unlock does not reset it. After unlock or resume, wait one
+              minute and show at most one overdue reminder. Requires an updated Windows Agent; older
+              agents skip this schedule. Maximum interval: 7 days.
+            </p>
+          )}
+        </div>
+      )}
       <div className="space-y-3 rounded-xl border border-sky-100 bg-sky-50/50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -73,7 +110,11 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
 
             return (
               <Button
-                key={preset.label}
+                key={
+                  props.scheduleBasis === "WindowsSignIn" && preset.unit === "Day"
+                    ? "24 hours"
+                    : preset.label
+                }
                 type="button"
                 variant={isActive ? "default" : "outline"}
                 size="sm"
@@ -83,7 +124,9 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
                   props.onRecurrenceUnitChange(preset.unit);
                 }}
               >
-                {preset.label}
+                {props.scheduleBasis === "WindowsSignIn" && preset.unit === "Day"
+                  ? "24 hours"
+                  : preset.label}
               </Button>
             );
           })}
@@ -95,6 +138,17 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
             <Input
               type="number"
               min={1}
+              max={
+                props.scheduleBasis === "WindowsSignIn"
+                  ? 10080 /
+                    (props.recurrenceUnit === "Day"
+                      ? 1440
+                      : props.recurrenceUnit === "Hour"
+                        ? 60
+                        : 1)
+                  : undefined
+              }
+              aria-invalid={invalidSessionInterval || undefined}
               step={1}
               value={props.recurrenceInterval}
               onChange={(event) => props.onRecurrenceIntervalChange(event.target.value)}
@@ -121,16 +175,26 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
         </div>
       </div>
 
+      {invalidSessionInterval && (
+        <p role="alert" className="text-sm text-destructive">
+          Enter a whole-number interval between 1 minute and 7 days.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>First Occurrence</Label>
+          <Label>
+            {props.scheduleBasis === "WindowsSignIn" ? "Available from" : "First Occurrence"}
+          </Label>
           <Input
             type="datetime-local"
             value={props.scheduledAt}
             onChange={(event) => props.onScheduledAtChange(event.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Optional. Leave empty to let the routine start as soon as it is published.
+            {props.scheduleBasis === "WindowsSignIn"
+              ? "Optional activation date. This is not a fixed reminder time."
+              : "Optional. Leave empty to let the routine start as soon as it is published."}
           </p>
         </div>
 
@@ -180,7 +244,9 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Fixed UTC offset used for every device in this wellness schedule.
+            {props.scheduleBasis === "WindowsSignIn"
+              ? "Reminder intervals use elapsed time and do not depend on timezone."
+              : "Fixed UTC offset used for every device in this wellness schedule."}
           </p>
         </div>
 
@@ -192,55 +258,57 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
         )}
       </div>
 
-      <div className="space-y-3 rounded-xl border p-4">
-        <div>
-          <div className="text-sm font-medium">Distribution Mode</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Control whether all selected devices share the same first occurrence or receive a
-            staggered local start window.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Distribution</Label>
-            <Select
-              value={props.distributionMode}
-              onValueChange={(value) =>
-                props.onDistributionModeChange(value as WellnessDistributionMode)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Synchronized">Synchronized</SelectItem>
-                <SelectItem value="Staggered">Staggered</SelectItem>
-              </SelectContent>
-            </Select>
+      {props.scheduleBasis !== "WindowsSignIn" && (
+        <div className="space-y-3 rounded-xl border p-4">
+          <div>
+            <div className="text-sm font-medium">Distribution Mode</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Control whether all selected devices share the same first occurrence or receive a
+              staggered local start window.
+            </p>
           </div>
 
-          {props.distributionMode === "Staggered" && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Stagger Window (minutes)</Label>
-              <Input
-                type="number"
-                min={5}
-                max={720}
-                step={5}
-                value={props.staggerWindowMinutes}
-                onChange={(event) => props.onStaggerWindowMinutesChange(event.target.value)}
-              />
+              <Label>Distribution</Label>
+              <Select
+                value={props.distributionMode}
+                onValueChange={(value) =>
+                  props.onDistributionModeChange(value as WellnessDistributionMode)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Synchronized">Synchronized</SelectItem>
+                  <SelectItem value="Staggered">Staggered</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </div>
 
-        <p className="text-xs text-muted-foreground">
-          {props.distributionMode === "Synchronized"
-            ? "All selected devices follow the same schedule anchor."
-            : "Each selected device receives a deterministic offset inside the stagger window to avoid simultaneous prompts."}
-        </p>
-      </div>
+            {props.distributionMode === "Staggered" && (
+              <div className="space-y-2">
+                <Label>Stagger Window (minutes)</Label>
+                <Input
+                  type="number"
+                  min={5}
+                  max={720}
+                  step={5}
+                  value={props.staggerWindowMinutes}
+                  onChange={(event) => props.onStaggerWindowMinutesChange(event.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {props.distributionMode === "Synchronized"
+              ? "All selected devices follow the same schedule anchor."
+              : "Each selected device receives a deterministic offset inside the stagger window to avoid simultaneous prompts."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

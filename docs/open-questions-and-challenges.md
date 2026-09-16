@@ -178,3 +178,11 @@ This document records unresolved product and technical questions. No implementat
 
 - Risk: Remote update and uninstall capabilities for the Windows Agent could become an unsafe command-execution path if the system accepts arbitrary packages, weak signing, or under-scoped operator permissions.
 - Mitigation: Keep rollout centrally governed, distribute only approved package metadata, execute lifecycle actions through a dedicated updater component, verify version plus checksum plus signature before execution, and preserve endpoint-management tooling as the break-glass recovery path.
+
+## Users & Access — confirmed choices and remaining engineering gates
+
+The eight product choices are confirmed in users-access-contract.md section 12, including Viewer recipient
+details/export and mandatory login after role/scope changes. Do not reopen them as unanswered questions.
+Remaining engineering gates are listed in users-access-verification.md: verified GUID migration, complete
+route/job coverage, shared-object ownership, session consistency, agent-local deactivation and API/schema validation.
+No production administrator identity has been selected by this documentation task.

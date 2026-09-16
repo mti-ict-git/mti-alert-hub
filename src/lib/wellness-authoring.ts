@@ -1,3 +1,5 @@
+export type WellnessScheduleBasis = "Fixed" | "WindowsSignIn";
+
 export type WellnessRecurrenceUnit = "Minute" | "Hour" | "Day";
 
 export type WellnessRotationMode = "Fixed" | "Sequential" | "Random";
@@ -30,10 +32,17 @@ export const WELLNESS_RECURRENCE_PRESETS: readonly WellnessRecurrencePreset[] = 
 export function buildWellnessRecurrenceRule(input: {
   interval: number;
   unit: WellnessRecurrenceUnit;
+  basis?: WellnessScheduleBasis;
 }) {
   const normalizedInterval = Number.isFinite(input.interval)
     ? Math.max(1, Math.floor(input.interval))
     : 1;
+
+  if (input.basis === "WindowsSignIn") {
+    const minutes =
+      normalizedInterval * (input.unit === "Day" ? 1440 : input.unit === "Hour" ? 60 : 1);
+    return "FREQ=WINDOWS_SIGNIN;INTERVAL=" + minutes;
+  }
 
   return `FREQ=${RECURRENCE_FREQUENCY_BY_UNIT[input.unit]};INTERVAL=${normalizedInterval}`;
 }
@@ -41,6 +50,7 @@ export function buildWellnessRecurrenceRule(input: {
 export function parseWellnessRecurrenceRule(rule: string | null | undefined): {
   interval: number;
   unit: WellnessRecurrenceUnit;
+  basis: WellnessScheduleBasis;
 } | null {
   if (!rule?.trim()) {
     return null;
@@ -57,6 +67,16 @@ export function parseWellnessRecurrenceRule(rule: string | null | undefined): {
       }),
   );
 
+  if (parts.get("FREQ") === "WINDOWS_SIGNIN") {
+    const minutes = Number(parts.get("INTERVAL"));
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) return null;
+    return {
+      interval: minutes % 60 === 0 ? minutes / 60 : minutes,
+      unit: minutes % 60 === 0 ? "Hour" : "Minute",
+      basis: "WindowsSignIn",
+    };
+  }
+
   const unit = RECURRENCE_UNIT_BY_FREQUENCY[parts.get("FREQ") ?? ""];
   const interval = Number.parseInt(parts.get("INTERVAL") ?? "", 10);
 
@@ -67,6 +87,7 @@ export function parseWellnessRecurrenceRule(rule: string | null | undefined): {
   return {
     interval,
     unit,
+    basis: "Fixed",
   };
 }
 
@@ -74,6 +95,15 @@ export function formatWellnessRecurrenceSummary(rule: string | null | undefined)
   const parsed = parseWellnessRecurrenceRule(rule);
   if (!parsed) {
     return "Custom recurrence";
+  }
+
+  if (parsed.basis === "WindowsSignIn") {
+    return (
+      "After Windows sign-in · every " +
+      parsed.interval +
+      " " +
+      pluralizeUnit(parsed.unit, parsed.interval)
+    );
   }
 
   if (parsed.interval === 1) {

@@ -30,48 +30,50 @@ export type WellnessFamilyDefinition = {
 const STRETCHING_STEPS = [
   {
     stepKey: "neck",
-    title: "Leher (Neck Stretch)",
-    description: "Miringkan kepala perlahan ke kanan dan kiri. Tahan tiap sisi sampai leher terasa meregang nyaman.",
+    title: "Neck stretch",
+    description:
+      "Slowly tilt your head to each side. Hold each side until you feel a comfortable stretch in your neck.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 1,
   },
   {
     stepKey: "shoulders",
-    title: "Bahu",
-    description: "Angkat bahu ke arah telinga, tahan sebentar, lalu turunkan perlahan sambil rileks.",
+    title: "Shoulders",
+    description:
+      "Raise your shoulders toward your ears, hold briefly, then lower them slowly and relax.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 2,
   },
   {
     stepKey: "upper-back",
-    title: "Punggung Atas",
-    description: "Rentangkan lengan ke depan untuk meregangkan punggung atas.",
+    title: "Upper back",
+    description: "Extend your arms forward to stretch your upper back.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 3,
   },
   {
     stepKey: "lower-back",
-    title: "Punggung Bawah",
-    description: "Condongkan badan dan jaga punggung bawah tetap nyaman.",
+    title: "Lower back",
+    description: "Lean forward gently, keeping your lower back comfortable.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 4,
   },
   {
     stepKey: "wrists",
-    title: "Pergelangan Tangan",
-    description: "Luruskan lengan dan putar pergelangan tangan dengan lembut.",
+    title: "Wrist stretch",
+    description: "Straighten your arms and gently rotate your wrists.",
     assetUrl: null,
     durationSeconds: 20,
     sortOrder: 5,
   },
   {
     stepKey: "move",
-    title: "Berdiri & Bergerak",
-    description: "Berdiri sejenak lalu gerakkan kaki secara bergantian.",
+    title: "Stand and move",
+    description: "Stand up briefly and move your legs one at a time.",
     assetUrl: null,
     durationSeconds: 30,
     sortOrder: 6,
@@ -130,7 +132,7 @@ function createStretchingProgram(variant: "B1" | "B2"): WellnessProgram {
       {
         actionKey: isCompactOverview ? "start-stretching-overview" : "start-stretching",
         kind: "Start",
-        label: isCompactOverview ? "Mulai" : "Start Stretching",
+        label: "Start Stretching",
         style: "Primary",
         snoozeMinutes: null,
       },
@@ -167,7 +169,7 @@ const FAMILY_CATALOG: Record<WellnessFamily, WellnessFamilyDefinition> = {
       "Longer guided stretching routines for posture resets. Best used less often than eye breaks.",
     title: "Office Stretching",
     message: "Take 2 - 3 minutes to stretch and reset your posture.",
-    instruction: "Lakukan perlahan dan nyaman. Jangan sampai menimbulkan nyeri.",
+    instruction: "Move slowly and comfortably. Stop if you feel pain.",
     recommendedInterval: 2,
     recommendedUnit: "Hour",
     variantKeys: ["B1", "B2"],
@@ -200,7 +202,8 @@ const TEMPLATE_CATALOG: Record<WellnessTemplateKey, WellnessTemplateDefinition> 
     key: "A3",
     label: "A3 - Eye Break Completion",
     family: "Eye Break",
-    description: "Blue completion card that closes the eye-break flow with a simple confirmation state.",
+    description:
+      "Blue completion card that closes the eye-break flow with a simple confirmation state.",
     title: "Give Your Eyes a Break",
     message: "Look away from your screen.",
     instruction: "Blink, relax, and refresh before you continue working.",
@@ -220,25 +223,34 @@ const TEMPLATE_CATALOG: Record<WellnessTemplateKey, WellnessTemplateDefinition> 
     key: "B1",
     label: "B1 - Office Stretching Hero Start Card",
     family: "Office Stretching",
-    description: "Green hero-led stretching start card with the richer checklist-style overview shell.",
+    description:
+      "Green hero-led stretching start card with the richer checklist-style overview shell.",
     title: "Office Stretching",
-    message: "2 - 3 Menit",
-    instruction: "Lakukan perlahan dan nyaman. Jangan sampai menimbulkan nyeri.",
+    message: "2 - 3 minutes",
+    instruction: "Move slowly and comfortably. Stop if you feel pain.",
     wellnessProgram: createStretchingProgram("B1"),
   },
   B2: {
     key: "B2",
     label: "B2 - Office Stretching Start Card",
     family: "Office Stretching",
-    description: "Green stretching entry card that invites the device user to start the guided routine.",
+    description:
+      "Green stretching entry card that invites the device user to start the guided routine.",
     title: "Office Stretching",
-    message: "2 - 3 Menit",
-    instruction: "Lakukan perlahan dan nyaman. Jangan sampai menimbulkan nyeri.",
+    message: "2 - 3 minutes",
+    instruction: "Move slowly and comfortably. Stop if you feel pain.",
     wellnessProgram: createStretchingProgram("B2"),
   },
 };
 
-export const WELLNESS_TEMPLATE_KEYS = ["A1", "A2", "A3", "A4", "B1", "B2"] as const satisfies readonly WellnessTemplateKey[];
+export const WELLNESS_TEMPLATE_KEYS = [
+  "A1",
+  "A2",
+  "A3",
+  "A4",
+  "B1",
+  "B2",
+] as const satisfies readonly WellnessTemplateKey[];
 
 export function getWellnessTemplate(key: WellnessTemplateKey): WellnessTemplateDefinition {
   const template = TEMPLATE_CATALOG[key];
@@ -280,7 +292,8 @@ export function buildWellnessProgramFromSelection(input: {
 }) {
   const family = getWellnessFamily(input.family);
   const normalizedVariantKeys = input.variantKeys.filter((key) => family.variantKeys.includes(key));
-  const selectedVariantKeys = normalizedVariantKeys.length > 0 ? normalizedVariantKeys : [family.variantKeys[0]];
+  const selectedVariantKeys =
+    normalizedVariantKeys.length > 0 ? normalizedVariantKeys : [family.variantKeys[0]];
   const baseTemplate = getWellnessTemplate(selectedVariantKeys[0]);
 
   return {
@@ -370,7 +383,9 @@ export function inferWellnessTemplateKey(input: {
   return null;
 }
 
-function inferEyeBreakVariantKey(layoutVariant: "ReminderCard" | "CountdownCard" | "OverviewCard" | "CompletionCard"): WellnessTemplateKey {
+function inferEyeBreakVariantKey(
+  layoutVariant: "ReminderCard" | "CountdownCard" | "OverviewCard" | "CompletionCard",
+): WellnessTemplateKey {
   switch (layoutVariant) {
     case "ReminderCard":
       return "A1";

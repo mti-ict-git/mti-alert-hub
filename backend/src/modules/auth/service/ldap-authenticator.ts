@@ -64,7 +64,14 @@ export class LdapAuthenticator {
       const searchResult = await client.search(config.LDAP_SEARCH_BASE, {
         scope: "sub",
         filter: searchFilter,
-        attributes: ["cn", "displayName", "mail", "memberOf", "sAMAccountName", "userPrincipalName"],
+        attributes: [
+          "cn",
+          "displayName",
+          "mail",
+          "memberOf",
+          "sAMAccountName",
+          "userPrincipalName",
+        ],
       });
 
       const firstEntry = searchResult.searchEntries.at(0) as LdapSearchEntry | undefined;
@@ -122,7 +129,11 @@ export class LdapAuthenticator {
 
     try {
       await client.bind(config.LDAP_BIND_DN, config.LDAP_BIND_PASSWORD);
-      const firstEntry = await findFirstDirectoryEntry(client, config.LDAP_SEARCH_BASE, trimmedUsername);
+      const firstEntry = await findFirstDirectoryEntry(
+        client,
+        config.LDAP_SEARCH_BASE,
+        trimmedUsername,
+      );
       if (!firstEntry) {
         return null;
       }
@@ -152,7 +163,7 @@ export class LdapAuthenticator {
   }
 }
 
-function createLdapClient(url: string, env: BackendEnv) {
+export function createLdapClient(url: string, env: BackendEnv) {
   return new Client({
     url,
     timeout: 5000,
@@ -163,11 +174,7 @@ function createLdapClient(url: string, env: BackendEnv) {
   });
 }
 
-async function findFirstDirectoryEntry(
-  client: Client,
-  searchBase: string,
-  username: string,
-) {
+async function findFirstDirectoryEntry(client: Client, searchBase: string, username: string) {
   const searchResult = await client.search(searchBase, {
     scope: "sub",
     filter: buildDirectoryUserSearchFilter(username),
@@ -199,7 +206,7 @@ function buildDirectoryUserSearchFilter(username: string) {
   ].join("");
 }
 
-function normalizeGroupValues(value: string | string[] | undefined): string[] {
+export function normalizeGroupValues(value: string | string[] | undefined): string[] {
   if (!value) {
     return [];
   }
@@ -207,7 +214,7 @@ function normalizeGroupValues(value: string | string[] | undefined): string[] {
   return Array.isArray(value) ? value : [value];
 }
 
-function normalizeOptionalScalar(value: string | string[] | undefined): string | null {
+export function normalizeOptionalScalar(value: string | string[] | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -219,7 +226,10 @@ function normalizeOptionalScalar(value: string | string[] | undefined): string |
   return value;
 }
 
-function enforceAllowedGroups(rawAllowedGroups: string | undefined, memberOf: string[]): void {
+export function enforceAllowedGroups(
+  rawAllowedGroups: string | undefined,
+  memberOf: string[],
+): void {
   if (!rawAllowedGroups) {
     return;
   }
@@ -254,7 +264,10 @@ function parseAllowedGroups(rawAllowedGroups: string): string[] {
     try {
       const parsed = JSON.parse(trimmedValue) as unknown;
       if (Array.isArray(parsed)) {
-        return parsed.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean);
+        return parsed
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean);
       }
     } catch {
       // Fall through to the delimiter-based parsing rules below.
@@ -273,13 +286,10 @@ function parseAllowedGroups(rawAllowedGroups: string): string[] {
 }
 
 function normalizeDnValue(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function escapeLdapFilter(value: string): string {
+export function escapeLdapFilter(value: string): string {
   return value.replace(/[\\()*\0]/g, (character) => {
     switch (character) {
       case "\\":

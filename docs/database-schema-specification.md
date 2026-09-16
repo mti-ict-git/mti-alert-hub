@@ -623,3 +623,16 @@ Uses existing sites/areas/departments/sections status, source_system, parent for
 ### Device placement management
 
 No new columns or migration. PATCH updates devices.site_id, area_id, location_label, ownership_mode and updated_at only. primary_employee_id and last_directory_department remain unchanged. Placement optimistic concurrency compares the four placement values rather than updated_at, which also changes on heartbeat. Audit writes share the device transaction. No communication-recipient or reminder-policy table is modified.
+
+## Proposed Users & Access extension (review draft)
+
+See [users-access-contract.md](users-access-contract.md), sections 8 and 13.
+Extend existing users/user_scopes rather than creating duplicate identity tables. Proposed changes include
+immutable directory identity, Pending-compatible role constraints, five built-in roles, revision/versioning,
+shared PostgreSQL admin_sessions and idempotency records. No migration is implemented by this contract.
+Legacy Department/Section grants require reviewed conversion, not implicit Global access.
+
+
+### Windows sign-in wellness recurrence (2026-09-16)
+
+The existing recurrence_rule text field may contain FREQ=WINDOWS_SIGNIN;INTERVAL=N for wellness AgentLocalRoutine policies. N is 1-10080 minutes; this application extension needs no schema migration. See wellness-windows-sign-in-schedule.md for execution and compatibility rules.

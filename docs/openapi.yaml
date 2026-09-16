@@ -4,6 +4,8 @@ info:
   version: 0.3.0
   description: |
     Authoritative API contract for the MTI Alert central server.
+    Proposed Users & Access endpoints and auth extensions are documented in
+    users-access-contract.md (sections 9 and 13); they are not active endpoints in this version.
 
     This contract covers:
     - admin authentication and scope-aware operations
@@ -2558,6 +2560,7 @@ components:
           nullable: true
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
           nullable: true
         timezone:
           type: string
@@ -2585,6 +2588,7 @@ components:
           nullable: true
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
         timezone:
           type: string
           description: Valid IANA timezone identifier. Wellness authoring uses fixed whole-hour UTC-offset identifiers while displaying operator-facing labels from UTC-12 through UTC+14.
@@ -2721,6 +2725,7 @@ components:
           nullable: true
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
           nullable: true
         timezone:
           type: string
@@ -2766,6 +2771,7 @@ components:
           type: integer
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
         timezone:
           type: string
         validFrom:
@@ -3058,6 +3064,7 @@ components:
           type: integer
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
         timezone:
           type: string
         validFrom:
@@ -4584,6 +4591,7 @@ components:
           type: integer
         recurrenceRule:
           type: string
+          description: Fixed recurrence rule, or application extension FREQ=WINDOWS_SIGNIN;INTERVAL=N (1-10080 minutes) for wellness AgentLocalRoutine only. No stagger; session lock/resume grace and catch-up semantics are specified in wellness-windows-sign-in-schedule.md.
         timezone:
           type: string
         validFrom:

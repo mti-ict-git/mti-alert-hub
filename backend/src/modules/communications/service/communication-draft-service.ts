@@ -1,3 +1,4 @@
+import { validateWindowsSignInSchedule } from "./windows-sign-in-schedule.js";
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
@@ -2206,7 +2207,7 @@ export class CommunicationDraftService {
     workflowId: string | null;
     windowsAgentPresentation: WindowsAgentPresentation | null;
     toastAutoDismissSeconds: number | null;
-  toastRenderer?: "Auto" | "Native" | "Custom";
+    toastRenderer?: "Auto" | "Native" | "Custom";
     deliveryStrategy: DeliveryStrategy | null;
     reminderSchedule: ReminderDraftScheduleInput | ReminderDraftSchedule | null;
     wellnessProgram: WellnessProgramInput | null;
@@ -2288,6 +2289,13 @@ export class CommunicationDraftService {
       input.wellnessProgram,
     );
 
+    validateWindowsSignInSchedule(
+      reminderSchedule?.recurrenceRule,
+      reminderSchedule?.executionMode,
+      reminderSchedule?.distributionMode,
+      Boolean(wellnessProgram),
+    );
+
     const normalizedInstruction = normalizeNullableText(input.instruction);
     const normalizedWindowsAgentAuthoring = normalizeWindowsAgentAuthoringRules({
       priority: input.priority,
@@ -2335,7 +2343,10 @@ export class CommunicationDraftService {
       workflowId: finalWorkflowId,
       windowsAgentPresentation: normalizedWindowsAgentAuthoring.windowsAgentPresentation,
       toastAutoDismissSeconds: normalizedWindowsAgentAuthoring.toastAutoDismissSeconds,
-      toastRenderer: normalizedWindowsAgentAuthoring.windowsAgentPresentation === "Toast" ? (input.toastRenderer ?? "Auto") : "Auto",
+      toastRenderer:
+        normalizedWindowsAgentAuthoring.windowsAgentPresentation === "Toast"
+          ? (input.toastRenderer ?? "Auto")
+          : "Auto",
       deliveryStrategy: finalDeliveryStrategy,
       reminderSchedule,
       wellnessProgram,
@@ -2419,7 +2430,12 @@ export function normalizeWindowsAgentAuthoringRules(options: {
       return {
         instruction: options.toastRenderer === "Custom" ? options.instruction : null,
         windowsAgentPresentation: "Toast" as const,
-        toastAutoDismissSeconds: options.toastRenderer === "Native" ? null : options.toastRenderer === "Custom" ? (options.toastAutoDismissSeconds ?? 5) : options.toastAutoDismissSeconds,
+        toastAutoDismissSeconds:
+          options.toastRenderer === "Native"
+            ? null
+            : options.toastRenderer === "Custom"
+              ? (options.toastAutoDismissSeconds ?? 5)
+              : options.toastAutoDismissSeconds,
       };
     }
 
@@ -2435,7 +2451,13 @@ export function normalizeWindowsAgentAuthoringRules(options: {
     instruction: options.instruction,
     windowsAgentPresentation: normalizedPresentation,
     toastAutoDismissSeconds:
-      normalizedPresentation === "Toast" ? (options.toastRenderer === "Native" ? null : options.toastRenderer === "Custom" ? (options.toastAutoDismissSeconds ?? 5) : options.toastAutoDismissSeconds) : null,
+      normalizedPresentation === "Toast"
+        ? options.toastRenderer === "Native"
+          ? null
+          : options.toastRenderer === "Custom"
+            ? (options.toastAutoDismissSeconds ?? 5)
+            : options.toastAutoDismissSeconds
+        : null,
   };
 }
 
@@ -3136,6 +3158,12 @@ function validatePublishRequest(
           message: "Recurring publish mode requires an executionMode value.",
         });
       }
+      validateWindowsSignInSchedule(
+        recurrenceRule,
+        input.executionMode,
+        distributionMode,
+        Boolean(wellnessProgram),
+      );
       if (distributionMode === "Staggered") {
         if (
           staggerWindowMinutes === null ||

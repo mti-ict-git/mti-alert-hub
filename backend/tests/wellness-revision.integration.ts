@@ -276,8 +276,45 @@ try {
     "Legacy history must remain stored",
   );
 
+  const sessionSchedule = { ...schedule, recurrenceRule: "FREQ=WINDOWS_SIGNIN;INTERVAL=60" };
+  await assert.rejects(
+    service.reviseWellnessProgram(
+      draft.id,
+      {
+        ...both,
+        reminderSchedule: {
+          ...sessionSchedule,
+          distributionMode: "Staggered",
+          staggerWindowMinutes: 30,
+        },
+      },
+      3,
+      actor,
+    ),
+    { code: "WINDOWS_SIGN_IN_SCHEDULE_INVALID" },
+  );
+  await service.reviseWellnessProgram(
+    draft.id,
+    {
+      ...both,
+      reminderSchedule: sessionSchedule,
+    },
+    3,
+    actor,
+  );
+  const sessionPolicies = (await agent.listReminderPolicies("fixture")).items.filter(
+    (p) => p.communicationId === draft.id && p.isActive,
+  );
+  assert.equal(sessionPolicies.length, 1);
+  assert.equal(sessionPolicies[0].recurrenceRule, sessionSchedule.recurrenceRule);
+  assert.equal(sessionPolicies[0].scheduleVersion, 4);
+  assert.equal(
+    (await service.getCommunicationDetail(draft.id)).schedule?.recurrenceRule,
+    sessionSchedule.recurrenceRule,
+  );
+
   await service.cancelCommunication(draft.id, actor);
-  await assert.rejects(service.reviseWellnessProgram(draft.id, both, 3, actor), {
+  await assert.rejects(service.reviseWellnessProgram(draft.id, both, 4, actor), {
     code: "WELLNESS_NOT_EDITABLE",
   });
   console.log(

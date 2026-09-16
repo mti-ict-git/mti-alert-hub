@@ -45,3 +45,15 @@ Organization uses the existing authored Radix Select from components/ui/select. 
 ## Package Registry GitHub import
 
 Settings uses the shared Button, semantic colors, TanStack Query and Sonner. CentralAdmin can request a worker import; persistent live status covers queued, running, completed, partial failure, offline and request failure. Active work disables duplicate clicks and is restored by status polling after refresh. Package lists invalidate on completion. GitHub tokens and configuration remain server-side. Import does not initiate a rollout. See docs/github-package-relay.md.
+
+## Proposed Users & Access workflow
+
+Screen-level behavior is specified in docs/users-access-ux-contract.md, with product/security rules in
+docs/users-access-contract.md. This is a reviewed documentation draft, not an implemented screen.
+Reuse existing Settings shell and shared controls; English copy, server pagination and explicit session-loss
+feedback apply. Product decisions remain fixed in the contract's eight-answer decision table.
+
+
+## Wellness scheduling after Windows sign-in (2026-09-16)
+
+See [Wellness sign-in schedule](docs/wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.

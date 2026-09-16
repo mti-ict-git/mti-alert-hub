@@ -110,3 +110,24 @@ Verification: backend typecheck passed; 2 service tests cover offline rejection,
 API documentation check: the new endpoint parses successfully. Strict validation of the full OpenAPI document encounters a pre-existing duplicate mapping key (deviceId), reproduced on HEAD before these changes; this task did not alter that unrelated schema.
 
 Configuration correction: uploader and worker now share GIT_REPO_URL; the duplicate GITHUB_PACKAGE_REPOSITORY variable was removed. Server .env is still separate from the laptop and is not populated by git pull. Certificate verification is unchanged; removal was not applied.
+
+## Redeploy script
+
+Run from the existing production checkout:
+
+    bash scripts/redeploy-docker.sh
+
+To use images already built locally:
+
+    bash scripts/redeploy-docker.sh --no-build
+
+If production uses a custom Compose project, append --project-name EXISTING_PROJECT.
+The script does not pull source. It validates configuration and required files without printing secrets,
+requires existing services and the same named package volume, builds before replacing containers,
+waits for backend/frontend health, reloads Nginx upstream DNS in the existing gateway, starts relay,
+checks its heartbeat and probes frontend/API through the gateway.
+No migrations, database repair, volume deletion or device rollout is performed.
+Relay startup can automatically import published GitHub packages. A successful heartbeat does not
+prove a successful signature verification/import; check Package Registry for that result.
+Failure after container replacement can leave a partial deployment; no automatic rollback is attempted.
+Local validation: Bash syntax and --help passed. Actual Docker redeploy remains server-side.

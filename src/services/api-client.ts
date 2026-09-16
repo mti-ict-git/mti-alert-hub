@@ -3,7 +3,8 @@ import { sessionService } from "@/services/session.service";
 const configuredBaseUrl = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env
   .VITE_API_URL;
 
-const BASE_URL = configuredBaseUrl ?? (typeof window !== "undefined" ? "/api" : "http://127.0.0.1:4000");
+const BASE_URL =
+  configuredBaseUrl ?? (typeof window !== "undefined" ? "/api" : "http://127.0.0.1:4000");
 
 type ApiErrorPayload = {
   code?: string;
@@ -63,13 +64,24 @@ async function tryParseErrorPayload(response: Response): Promise<ApiErrorPayload
 
 export const apiClient = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  post: <T>(path: string, body?: unknown, headers?: HeadersInit) =>
+    request<T>(path, {
+      method: "POST",
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
   postRaw: <T>(path: string, body?: BodyInit, headers?: HeadersInit) =>
     request<T>(path, { method: "POST", body, headers }),
-  patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) }),
+  patch: <T>(path: string, body?: unknown, headers?: HeadersInit) =>
+    request<T>(path, {
+      method: "PATCH",
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
   put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body) }),
+    request<T>(path, {
+      method: "PUT",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

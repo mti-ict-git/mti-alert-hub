@@ -298,3 +298,16 @@ The current repository already leans toward TypeScript for the admin application
 ## Explicit toast renderer — Phase 4
 
 Toast authoring now distinguishes Auto, Windows native and MTI Connect custom across frontend, API and agent. Rules, compatibility and verification: [Toast authoring contract](toast-authoring-contract.md).
+
+## Phase 4 Users & Access design proposal
+
+The Phase 1 global access placeholder remains current code, not the intended production authorization model.
+[users-access-contract.md](users-access-contract.md) defines the confirmed role/scope direction and proposed
+PostgreSQL session/version enforcement; [users-access-ux-contract.md](users-access-ux-contract.md) specifies screens.
+Implement in dependency order: identity mapping/bootstrap -> storage/session versioning -> complete route/job
+permission and scope enforcement -> UI -> migration/security/staging acceptance. No partial UI-only cutover.
+
+
+## Wellness scheduling after Windows sign-in (2026-09-16)
+
+See [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.

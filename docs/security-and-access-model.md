@@ -50,3 +50,7 @@ This document captures the current security posture for the desktop-first releas
 ### Organization master edits
 
 GET /organization and POST/PATCH /organization/{kind}[/{id}] require CentralAdmin through the server role guard. Reference endpoints keep existing read contracts. External-owned entries cannot be modified through organization management, even by CentralAdmin. Edit requests require matching updatedAt and audit writes are transactional.
+
+## Proposed Users & Access extension
+
+See [users-access-contract.md](users-access-contract.md) for the Phase 4 draft role/permission matrix, scope, bootstrap and session-revocation contract. It is not implemented. Current AccessProfileService still defaults authenticated directory users to CentralAdmin/Global; removing that default with a reviewed bootstrap is an explicit acceptance requirement.

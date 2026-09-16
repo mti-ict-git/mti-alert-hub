@@ -457,3 +457,16 @@ Device targeting supports multiple explicit device identifiers using the existin
 ## Explicit toast renderer — Phase 4
 
 Toast authoring now distinguishes Auto, Windows native and MTI Connect custom across frontend, API and agent. Rules, compatibility and verification: [Toast authoring contract](toast-authoring-contract.md).
+
+## Proposed Users & Access (draft)
+
+[users-access-contract.md](users-access-contract.md) proposes five built-in roles, permission-based guards, location scope and user administration. This draft extends the three-role baseline only after reviewed migration/cutover; it does not change current runtime behavior. AD remains the identity provider. Custom roles and group mapping are deferred.
+
+### Office Stretching language
+
+Built-in B1/B2 Office Stretching templates, agent previews, routine controls and completion copy use English. Existing saved content requires explicit revision; no automatic translation is applied to user-authored programs. See office-stretching-english.md for verification and release requirements.
+
+
+## Wellness scheduling after Windows sign-in (2026-09-16)
+
+See [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.

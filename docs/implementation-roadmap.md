@@ -686,19 +686,19 @@ Prepare the platform for broader rollout and future channels.
 - [x] Revise MTI Connect application mark into a two-person handshake with M silhouette; regenerate exports and verify live desktop/mobile display. Evidence: warehouse-theme-review.md, handshake revision.
 
 
-### Services theme adoption — 2026-09-13
+### Services theme adoption â€” 2026-09-13
 
 - [x] Create the ordered adoption checklist and implement S1 sidebar styling with local browser and build verification.
-- [x] Complete S2–S6 header, cards/tabs, tables/filters, forms/dialogs and local cross-screen verification. Evidence: services-theme-checklist.md (production build, targeted lint, seven route components with isolated fixtures at desktop/mobile and dark theme; whole-project type/audit limits recorded).
+- [x] Complete S2â€“S6 header, cards/tabs, tables/filters, forms/dialogs and local cross-screen verification. Evidence: services-theme-checklist.md (production build, targeted lint, seven route components with isolated fixtures at desktop/mobile and dark theme; whole-project type/audit limits recorded).
 
 Scope, canonical owners and exact verification limits: [Services theme checklist](services-theme-checklist.md). Phase 4 remains in progress.
 
-### UI polish and consistency — 2026-09-13
+### UI polish and consistency â€” 2026-09-13
 
-- [x] P1 — Notification table density, column visibility, sticky identity/header and active filter summaries.
-- [x] P2 — Apply shared table/filter patterns to Employees, Devices, Wellness Programs and Reports; add Devices search.
-- [x] P3 — Refine page hierarchy, status icon/text pairing, empty results and dashboard attention hierarchy; mark illustrative data.
-- [x] P4 — Verify local interactions and responsive/dark layout with isolated read-only fixtures; record build/lint and existing type/audit limitations in services-theme-checklist.md.
+- [x] P1 â€” Notification table density, column visibility, sticky identity/header and active filter summaries.
+- [x] P2 â€” Apply shared table/filter patterns to Employees, Devices, Wellness Programs and Reports; add Devices search.
+- [x] P3 â€” Refine page hierarchy, status icon/text pairing, empty results and dashboard attention hierarchy; mark illustrative data.
+- [x] P4 â€” Verify local interactions and responsive/dark layout with isolated read-only fixtures; record build/lint and existing type/audit limitations in services-theme-checklist.md.
 
 Phase 4 remains in progress. This slice does not claim production integration or resolve the previously recorded project-wide type/audit backlog.
 
@@ -720,7 +720,7 @@ Phase 4 remains in progress. This slice does not claim production integration or
 
 - [x] Phase 4 login slideshow: show arrows on image-panel hover or keyboard focus, retain visible touch controls and respect reduced motion. Targeted lint and production build verified.
 
-- [x] Phase 4 Devices density follow-up: collapsible filters, reduced duplicate headings and shared toolbar action/summary slots. Browser verified Online filter and visible chip after collapse, table top at 403px for 1357×983 viewport, and no page overflow at 390px. Targeted lint and production build passed.
+- [x] Phase 4 Devices density follow-up: collapsible filters, reduced duplicate headings and shared toolbar action/summary slots. Browser verified Online filter and visible chip after collapse, table top at 403px for 1357Ã—983 viewport, and no page overflow at 390px. Targeted lint and production build passed.
 
 - [x] Phase 4 Organization management implementation: new Management menu, master tab groups, parent navigation, search/status filters, usage/source labels, create/edit/deactivate/reactivate, CentralAdmin API, audit and stale-write guards. Backend typecheck, frontend targeted lint, six unit tests and rollback-only PostgreSQL integration passed. Browser acceptance awaits re-login after backend restart; see organization-management.md. Physical production edits are not claimed verified.
 
@@ -749,10 +749,47 @@ Phase 4 remains in progress. This slice does not claim production integration or
 - [ ] GitHub relay live acceptance: Docker image build, real MSI signature/CA verification, cloud publication and registry visibility. Docker unavailable locally; no production deployment or automatic device rollout.
 
 - [x] Phase 4 ordinary modal/fullscreen theme alignment and Critical/Emergency severity correction. Shared WPF shell/tokens, distinct severity icons, preserved callbacks; build and 54 tests passed, six production-surface fixture renders. Evidence: MTI.Alert.Agent/Presentation/Shell/MainMenu-design.md.
-- [ ] Updated modal/fullscreen installed-agent acceptance: rebuild/install updated binary before repeating tests 3–5. This change did not replace the installed agent or modify wellness themes.
+- [ ] Updated modal/fullscreen installed-agent acceptance: rebuild/install updated binary before repeating tests 3â€“5. This change did not replace the installed agent or modify wellness themes.
 
-- [x] Phase 4 focused preflight scenarios 3–5: fixed sticky severity and clipped scroll viewport in long modal/fullscreen content. Maintained WPF preflight: 12 render/theme/scroll/action cases passed; agent suite 54 passed. Evidence: MTI.Alert.Agent/Tests/NotificationPreflight/README.md and Presentation/Shell/MainMenu-design.md. Installed-device acceptance remains separate.
+- [x] Phase 4 focused preflight scenarios 3â€“5: fixed sticky severity and clipped scroll viewport in long modal/fullscreen content. Maintained WPF preflight: 12 render/theme/scroll/action cases passed; agent suite 54 passed. Evidence: MTI.Alert.Agent/Tests/NotificationPreflight/README.md and Presentation/Shell/MainMenu-design.md. Installed-device acceptance remains separate.
 
 - [x] Phase 4 manual GitHub Package Registry import: CentralAdmin button/API, shared-volume request coalescing, heartbeat availability, persistent status and completion refresh. Backend typecheck, 2 queue tests, 13 worker tests, targeted lint and frontend production build passed. Browser acceptance requires renewed local login; production Docker execution remains unverified. See github-package-relay.md.
 
 - [x] Phase 4 repository configuration correction: uploader and worker now use GIT_REPO_URL with HTTPS/SSH/OWNER-REPO parsing. 15 worker tests passed. Certificate verification and PEM configuration remain unchanged; requested removal is pending approval after automatic review rejection.
+
+- [x] Phase 4 redeploy helper: scripts/redeploy-docker.sh validates configuration/existing package volume, supports --no-build and explicit project name, preserves gateway identity with DNS reload, checks services and relay heartbeat. Bash syntax/help passed locally; live Docker execution pending server. See github-package-relay.md.
+
+- [ ] Phase 4 Users & Access contract: English draft created in users-access-contract.md. Full active-phase/source verification, API/schema reconciliation and review remain outstanding. The draft records the observed auto-admin resolver and proposed authorization behavior; documentation-only, no runtime changes.
+- [ ] Review Users & Access contract decisions and inventory all routes/jobs before implementation.
+- [ ] Implement persistence, permissions/scopes, session revocation and reviewed admin bootstrap; replace auto-admin resolver only at tested cutover.
+- [ ] Implement Users/role matrix UI and complete security, concurrency and staging acceptance. AD group mapping/custom roles remain subsequent scope.
+
+### Users & Access contract review â€” 2026-09-16
+
+- [x] Documentation deliverable: reconcile existing identity/schema/auth sources and the eight confirmed product decisions;
+  complete English screen/interaction and technical draft. Evidence: users-access-verification.md and
+  users-access-ux-contract.md. Document checks passed; no runtime acceptance is claimed.
+- [x] User approved the completed contract package and authorized implementation in this task.
+- [ ] Complete route/service/job authorization coverage and migration/bootstrap validation before implementation cutover.
+- [ ] Implement and verify storage, API/session authorization, UI, and staging acceptance as separate delivery steps.
+
+Output: a review-ready documentation package. Phase 4 remains In Progress.
+
+- [x] Phase 4 Office Stretching English copy: B1/B2 catalog and preview, routine/completion controls, and B2 bitmap labels translated. Release build and 54 agent tests passed; targeted lint and source scan passed. Live installed-agent acceptance remains pending. Evidence: docs/office-stretching-english.md.
+
+### Users & Access foundation implementation
+
+- [x] Implement and challenge the isolated permission/session/access-mutation foundation.
+  Evidence: users-access-implementation.md; real portable PostgreSQL transaction/audit/concurrency tests passed.
+- [ ] Complete LDAP/bootstrap and full route/job scope enforcement before replacing legacy authentication.
+- [ ] Complete and mount Users & Access UI, API schemas, browser acceptance and reviewed cutover.
+Feature status remains In Progress. The foundation milestone does not authorize production activation.
+
+
+### Phase 4 - Wellness after Windows sign-in (2026-09-16)
+
+- [x] Implement session-based wellness scheduling in the editor, backend validation/policy sync, and Windows agent.
+- [x] Verify: 67 agent tests, 6 Node tests, rollback-only PostgreSQL revision/sync test, real WTS logon query, backend typecheck, targeted lint, frontend build, and browser edit/conflict/save/reopen checks. Frontend-wide typecheck retains 72 existing diagnostics.
+- [ ] Pilot installed-package lock/sleep/hibernate/offline restart/new-logon acceptance and production deployment.
+
+Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md). Phase 4 remains in progress.
