@@ -793,3 +793,14 @@ Feature status remains In Progress. The foundation milestone does not authorize 
 - [ ] Pilot installed-package lock/sleep/hibernate/offline restart/new-logon acceptance and production deployment.
 
 Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md). Phase 4 remains in progress.
+
+- [x] Users & Access migration 0019 applied to production with explicit user authorization on 2026-09-16. Ledger/table verification and unchanged user role/status counts passed; see users-access-implementation.md. Runtime cutover remains pending.
+
+
+### Phase 4 - Package Registry latest version selection
+
+- [x] Sort inspected packages by numeric MSI product version instead of reverse filename order. The existing Settings latest-package card and package list consume this API ordering. Canonical uploads no longer outrank newer versioned GitHub relay imports.
+- Verification: four package-order regression tests passed, covering mixed filenames, numeric version segments, missing metadata, timestamps and deterministic ties. Backend typecheck passed.
+- Updated source contracts: docs/github-package-relay.md and docs/openapi.yaml.
+- Production deployment remains outstanding; no package files or rollout intents were changed.
+- Lint: new comparator and test have no diagnostics; the existing device-action-service.ts control-character validation regex still triggers no-control-regex (present in HEAD before this change). Whitespace check passed.

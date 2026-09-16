@@ -1023,6 +1023,7 @@ paths:
       summary: List locally published rollout MSI packages
       description: |
         Returns MSI packages currently available under `backend/local-packages` for operator-selected frontend rollout.
+        Results are ordered by numeric MSI product version descending, then modification time descending and filename ascending. Missing or malformed versions follow valid versions.
 
         Current Phase 4 note:
         - This is the admin-side convenience surface for rollout testing from the `Devices` page.

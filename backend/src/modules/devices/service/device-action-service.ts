@@ -1,3 +1,4 @@
+import { comparePublishedPackages } from "./package-order.js";
 import { DevicePlacementService, placementUpdate } from "./device-placement-service.js";
 import type { z } from "zod";
 import { createHash } from "node:crypto";
@@ -166,8 +167,7 @@ export class DeviceActionService {
       .filter(
         (entry: Dirent<string>) => entry.isFile() && entry.name.toLowerCase().endsWith(".msi"),
       )
-      .map((entry: Dirent<string>) => entry.name)
-      .sort((left: string, right: string) => right.localeCompare(left));
+      .map((entry: Dirent<string>) => entry.name);
 
     const inspectedPackages = await Promise.all(
       files.map(async (fileName: string) => {
@@ -175,7 +175,7 @@ export class DeviceActionService {
       }),
     );
 
-    return inspectedPackages;
+    return inspectedPackages.sort(comparePublishedPackages);
   }
 
   async uploadLocalPackage(

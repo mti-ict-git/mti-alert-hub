@@ -131,3 +131,8 @@ Relay startup can automatically import published GitHub packages. A successful h
 prove a successful signature verification/import; check Package Registry for that result.
 Failure after container replacement can leave a partial deployment; no automatic rollback is attempted.
 Local validation: Bash syntax and --help passed. Actual Docker redeploy remains server-side.
+
+
+## Package Registry ordering
+
+The registry orders packages by numeric MSI product version descending, then modification time descending and filename ascending for ties. Missing or malformed versions follow valid versions. Latest Published Package therefore means the highest available product version, independent of canonical upload names versus versioned relay names. Importing an older package later does not make it the latest version. No packages are renamed and no rollout is started by this ordering.

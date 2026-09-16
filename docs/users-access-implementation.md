@@ -46,4 +46,15 @@ The approved contract remains the product target. Do not deploy this as complete
 7. Browser acceptance, migration dry run against representative legacy records and staging/cutover review.
 
 The existing resolver and application login path are unchanged in this slice. No admin was created,
-no production migration executed, and no device notification or upgrade was sent.
+no device notification or upgrade was sent. Production schema application is recorded below.
+
+
+## Authorized production schema application — 2026-09-16
+
+The user explicitly requested execution of the database migration. The configured production database
+reported migrations 0001–0018 applied with matching checksums and only 0019 pending.
+Migration 0019 committed at 2026-09-16 11:28:34 UTC using one transaction, a 5-second lock timeout,
+and a 60-second statement timeout. The migration ledger and both new tables were verified after commit.
+User counts grouped by status and role were identical before and after migration.
+This applies the schema foundation only: authentication cutover, new API registration, and UI activation
+remain incomplete. No existing user was promoted or disabled by this migration.
