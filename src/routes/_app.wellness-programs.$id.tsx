@@ -55,6 +55,7 @@ import {
   formatWellnessRecurrenceSummary,
   parseWellnessRecurrenceRule,
   type WellnessRecurrenceUnit,
+  type WellnessScheduleBasis,
 } from "@/lib/wellness-authoring";
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 import { isCancellableNotificationStatus } from "@/lib/notification-status";
@@ -166,6 +167,7 @@ function WellnessProgramDetailPage() {
   const [validUntil, setValidUntil] = useState("");
   const [neverExpires, setNeverExpires] = useState(true);
   const [timezone, setTimezone] = useState(getLocalUtcOffsetTimeZone());
+  const [scheduleBasis, setScheduleBasis] = useState<WellnessScheduleBasis>("Fixed");
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
   const [distributionMode, setDistributionMode] = useState<WellnessDistributionMode>("Staggered");
@@ -185,12 +187,13 @@ function WellnessProgramDetailPage() {
         recurrenceRule: buildWellnessRecurrenceRule({
           interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
           unit: recurrenceUnit,
+          basis: scheduleBasis,
         }),
         timezone: timezone.trim(),
         executionMode: "AgentLocalRoutine",
-        distributionMode,
+        distributionMode: scheduleBasis === "WindowsSignIn" ? "Synchronized" : distributionMode,
         staggerWindowMinutes:
-          distributionMode === "Staggered"
+          scheduleBasis !== "WindowsSignIn" && distributionMode === "Staggered"
             ? Number.parseInt(staggerWindowMinutes || "30", 10) || 30
             : null,
         validUntil: neverExpires ? null : normalizeScheduledDateTime(validUntil),
@@ -312,20 +315,32 @@ function WellnessProgramDetailPage() {
   const hasDesktopAgentChannel = notification.channels.includes("DesktopAgent");
   const isRoutinePriority =
     notification.priority !== "Emergency" && notification.priority !== "Critical";
-  const nextRunWindowSummary = summarizeNextRunWindow(policyScheduleInsights);
+  const isSignInSchedule =
+    parseWellnessRecurrenceRule(notification.reminderSchedule?.recurrenceRule)?.basis ===
+    "WindowsSignIn";
+  const nextRunWindowSummary = isSignInSchedule
+    ? "Determined on each device after Windows sign-in"
+    : summarizeNextRunWindow(policyScheduleInsights);
   const canPublish = notification.status === "Draft";
   const canCancel = isCancellableNotificationStatus(notification.status);
   const recurrenceSummary = formatWellnessRecurrenceSummary(
     buildWellnessRecurrenceRule({
       interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
       unit: recurrenceUnit,
+      basis: scheduleBasis,
     }),
   );
   const publishInvalid =
     !timezone.trim() ||
     !Number.isFinite(Number.parseInt(recurrenceInterval || "", 10)) ||
     Number.parseInt(recurrenceInterval || "", 10) < 1 ||
-    (distributionMode === "Staggered" &&
+    (scheduleBasis === "WindowsSignIn" &&
+      Number(recurrenceInterval) *
+        (recurrenceUnit === "Day" ? 1440 : recurrenceUnit === "Hour" ? 60 : 1) >
+        10080) ||
+    !Number.isInteger(Number(recurrenceInterval)) ||
+    (scheduleBasis !== "WindowsSignIn" &&
+      distributionMode === "Staggered" &&
       (!Number.isFinite(Number.parseInt(staggerWindowMinutes || "", 10)) ||
         Number.parseInt(staggerWindowMinutes || "", 10) < 5 ||
         Number.parseInt(staggerWindowMinutes || "", 10) > 720)) ||
@@ -482,7 +497,7 @@ function WellnessProgramDetailPage() {
           icon={ShieldCheck}
           title="Policies"
           value={`${monitoring.activePolicies}/${monitoring.totalPolicies}`}
-          description="Active / synchronized policies"
+          description="Active / total policies"
         />
         <SummaryCard
           icon={Activity}
@@ -562,7 +577,7 @@ function WellnessProgramDetailPage() {
                   value={formatUtcOffsetTimeZone(notification.reminderSchedule?.timezone)}
                 />
                 <Info
-                  label="First occurrence"
+                  label={isSignInSchedule ? "Available from" : "First occurrence"}
                   value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)}
                 />
                 <Info
@@ -640,7 +655,7 @@ function WellnessProgramDetailPage() {
                 value={notification.reminderSchedule?.scheduleType ?? "Recurring"}
               />
               <Info
-                label="First Occurrence"
+                label={isSignInSchedule ? "Available from" : "First Occurrence"}
                 value={formatOptionalDate(notification.reminderSchedule?.scheduledAt)}
               />
               <Info
@@ -1113,6 +1128,8 @@ function WellnessProgramDetailPage() {
             </div>
 
             <WellnessScheduleFields
+              scheduleBasis={scheduleBasis}
+              onScheduleBasisChange={setScheduleBasis}
               scheduledAt={scheduledAt}
               onScheduledAtChange={setScheduledAt}
               validUntil={validUntil}
@@ -1230,6 +1247,7 @@ function WellnessProgramDetailPage() {
     setNeverExpires(!item.reminderSchedule?.validUntil);
     setTimezone(normalizeUtcOffsetTimeZone(item.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(item.reminderSchedule?.recurrenceRule);
+    setScheduleBasis(recurrence?.basis ?? "Fixed");
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
     setDistributionMode(item.reminderSchedule?.distributionMode ?? "Staggered");
@@ -1514,7 +1532,7 @@ function getNextPolicyOccurrenceUtc(
   }
 
   const recurrence = parseWellnessRecurrenceRule(policy.recurrenceRule);
-  if (!recurrence) {
+  if (!recurrence || recurrence.basis === "WindowsSignIn") {
     return null;
   }
 

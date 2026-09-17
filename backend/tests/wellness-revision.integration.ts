@@ -313,6 +313,19 @@ try {
     sessionSchedule.recurrenceRule,
   );
 
+  // A published revision is authoritative even when the stored draft is stale.
+  await db.query(
+    "update communications set draft_schedule_json=jsonb_set(draft_schedule_json,'{recurrenceRule}','\"FREQ=HOURLY;INTERVAL=9\"'::jsonb) where id::text=$1",
+    [draft.id],
+  );
+  const copied = await service.duplicateDraft(draft.id);
+  assert.equal(copied.status, "Draft");
+  assert.equal(copied.schedule?.recurrenceRule, sessionSchedule.recurrenceRule);
+  assert.equal(copied.schedule?.scheduleVersion, 0);
+  assert.equal(copied.schedule?.isActive, false);
+  const copiedAgain = await service.duplicateDraft(copied.id);
+  assert.equal(copiedAgain.schedule?.recurrenceRule, sessionSchedule.recurrenceRule);
+
   await service.cancelCommunication(draft.id, actor);
   await assert.rejects(service.reviseWellnessProgram(draft.id, both, 4, actor), {
     code: "WELLNESS_NOT_EDITABLE",

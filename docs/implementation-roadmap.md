@@ -830,3 +830,7 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 - [ ] Coordinated backend/frontend production redeploy and live access acceptance. Readiness inventoried 60 legacy active communications and 149 active rollout intents requiring authorization review; no notification or upgrade was initiated by migration.
 
 - 2026-09-17: Investigated wellness scheduling on MTI-NB-373; installed agent and production events verify Triggered/Displayed/Started for the observed version 2 policy. Original 08:48 failure remains unconfirmed; synchronization label and clock skew findings recorded in `wellness-scheduling-diagnostic-2026-09-17.md`. No production mutation or rollout performed.
+
+- 2026-09-17: Fixed wellness duplicate/publish loss of Windows sign-in basis and misleading schedule/count labels. Backend typecheck, targeted lint, frontend build, three schedule tests and rollback-only duplicate/revision integration passed. See `wellness-windows-sign-in-schedule.md`; production redeploy remains pending.
+
+- 2026-09-17: Isolated actual-browser publish regression passed for Windows sign-in basis preservation, activation label, seven-day validation, and serialized publish payload. No API request reached production.

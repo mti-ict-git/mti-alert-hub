@@ -1388,6 +1388,12 @@ export class CommunicationDraftService {
       Boolean(existing.wellnessProgram),
       "draft",
     );
+    const sourceSchedule =
+      (await this.getLatestCommunicationSchedule(communicationId)) ??
+      parseReminderDraftScheduleRecord(existing.draftReminderSchedule);
+    const duplicateSchedule = sourceSchedule
+      ? { ...sourceSchedule, isActive: false, scheduleVersion: 0 }
+      : null;
     const targets = await this.listTargets(communicationId);
     await this.audiencePreviewService.validateTargetAccess(targets);
     const insertedRows = await this.database.query<{ id: string }>(
@@ -1452,7 +1458,7 @@ export class CommunicationDraftService {
         existing.toastAutoDismissSeconds,
         existing.deliveryStrategy,
         existing.scheduledAt,
-        existing.draftReminderSchedule ? JSON.stringify(existing.draftReminderSchedule) : null,
+        duplicateSchedule ? JSON.stringify(duplicateSchedule) : null,
         existing.wellnessProgram ? JSON.stringify(existing.wellnessProgram) : null,
         existing.toastRenderer ?? "Auto",
       ],

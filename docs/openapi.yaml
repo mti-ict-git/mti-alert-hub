@@ -374,7 +374,7 @@ paths:
     post:
       tags: [Communications]
       summary: Duplicate a communication draft
-      description: Creates a new draft from an existing communication while preserving allowed policy snapshots and references.
+      description: Creates a new draft from an existing communication while preserving allowed policy snapshots and references. The latest published schedule takes precedence over stale draft scheduling, including Windows sign-in recurrence. The copied schedule is inactive at version zero until explicitly published.
       operationId: duplicateCommunicationDraft
       x-implementation-phase: Phase 1
       parameters:

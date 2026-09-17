@@ -36,3 +36,13 @@ Verified locally on 2026-09-16:
 - On one pilot device, publish a 2-minute sign-in schedule. Check lock/unlock, sleep, hibernate, agent restart while offline, and logout/new login. Verify no prompt during lock, grace after resume, one catch-up, and the next full interval.
 - Polling runs every 30 seconds, so observed dispatch may trail the one-minute grace or due time by up to 30 seconds.
 - Confirm event queue flush after reconnection and cancellation received on next policy sync. Do not infer exact sleep-vs-hibernate classification: both resume paths intentionally share the same behavior.
+
+## Duplicate and publish correction — 2026-09-17
+
+Duplicate uses the latest published schedule, falling back to the draft schedule only when no published schedule exists. The copy remains an inactive draft at schedule version zero. Create/edit and the publish dialog preserve the schedule basis, interval, timezone and validity. Windows sign-in publication forces synchronized distribution with no stagger; the publish dialog rejects non-integer or greater-than-seven-day session intervals. The detail view labels activation as Available from and does not invent a shared next-run timestamp for per-session schedules. Policy counts are labeled Active / total rather than claiming synchronization.
+
+No migration or agent change is required for this correction. Redeploy both backend and frontend. Programs already published as fixed schedules are not silently rewritten: explicitly edit/review/publish the intended schedule. No production program was modified during verification.
+
+Verification: backend typecheck and targeted ESLint passed; frontend production build passed; three schedule unit tests passed. Rollback-only PostgreSQL integration passed, including a conflicting stale draft versus published sign-in schedule, duplicate-of-duplicate, inactive/version-zero reset and policy serialization. No fixture writes were committed and no agent was notified.
+
+Browser verification: `scripts/verify-wellness-publish-ui.ts` passed against an isolated local frontend with all API calls intercepted. The actual publish dialog retained Windows sign-in, displayed Available from, disabled publication above seven days, and submitted WINDOWS_SIGNIN/120 with synchronized distribution and null stagger. Reporting-unavailable responses were intentional fixtures. Existing development hydration warnings were observed. Run with a local frontend at 127.0.0.1:4207 and Playwright available via `PLAYWRIGHT_MODULE` or an installed `playwright` package.
