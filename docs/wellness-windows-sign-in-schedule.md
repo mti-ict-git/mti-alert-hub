@@ -1,10 +1,13 @@
+# Current contract update (2026-09-17)
+The receipt-anchor and device-reporting extension in [wellness-policy-application-reporting.md](wellness-policy-application-reporting.md) supersedes the initial anchor behavior below. That extension requires migration 0021 and Agent 1.0.18 or later; earlier no-migration statements below describe the original feature only.
+
 # Wellness scheduling after Windows sign-in
 
 Phase 4 hardening; supplements wellness-program-revisions.md and wellness-policy-only-delivery-fix.md.
 
 ## Contract
 - Operators choose Fixed schedule or After Windows sign-in in the wellness editor.
-- The first occurrence is one interval after the later of the Windows user logon time and policy activation. Subsequent occurrences are one interval after the last actual trigger.
+- The first occurrence is one interval after the later of first local receipt of this policy version, the Windows user logon time and policy activation. Subsequent occurrences are one interval after the last actual trigger.
 - Interval is an integer from 1 to 10080 minutes. The same interval controls first delay and repetition.
 - Lock/unlock and agent restart preserve the anchor. A new Windows logon session resets it.
 - Locked/disconnected sessions do not display reminders. Unlock and sleep/hibernate resume impose a one-minute grace period. At most one overdue occurrence per policy is emitted, then cadence resumes from that actual trigger. There is no backlog replay.

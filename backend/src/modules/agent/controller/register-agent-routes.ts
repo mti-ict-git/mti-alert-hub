@@ -1,3 +1,4 @@
+import { policyApplicationSchema } from "../service/policy-application-service.js";
 import type { IncomingMessage } from "node:http";
 import { z } from "zod";
 
@@ -97,11 +98,13 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
       path: "/agent/packages/local/{fileName}",
       allowAnonymous: true,
       async handler({ params, response }) {
-        const packageAsset = await options.deviceActionService.readLocalPackage(params.fileName ?? "");
+        const packageAsset = await options.deviceActionService.readLocalPackage(
+          params.fileName ?? "",
+        );
         response.statusCode = 200;
         response.setHeader("content-type", "application/x-msi");
         response.setHeader("content-length", String(packageAsset.contentLength));
-        response.setHeader("content-disposition", `inline; filename=\"${packageAsset.fileName}\"`);
+        response.setHeader("content-disposition", `inline; filename="${packageAsset.fileName}"`);
         response.setHeader("cache-control", "public, max-age=300");
         response.setHeader("last-modified", packageAsset.lastModifiedAt);
         response.end(packageAsset.content);
@@ -247,11 +250,7 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
         const sessionToken = requireAgentSessionToken(request.headers.authorization);
         const payload = validateWithSchema(agentLifecycleEventRequestSchema, await json());
 
-        await options.agentService.reportDisplayed(
-          sessionToken,
-          params.messageId ?? "",
-          payload,
-        );
+        await options.agentService.reportDisplayed(sessionToken, params.messageId ?? "", payload);
         return {
           statusCode: 204,
         };
@@ -290,6 +289,21 @@ export function registerAgentRoutes(options: RegisterAgentRoutesOptions): AppRou
             },
           ),
         };
+      },
+    },
+    {
+      method: "POST",
+      path: "/agent/reminder-policies/{policyId}/application",
+      allowAnonymous: true,
+      async handler({ json, params, request }) {
+        const sessionToken = requireAgentSessionToken(request.headers.authorization);
+        const payload = validateWithSchema(policyApplicationSchema, await json());
+        await options.agentService.reportPolicyApplication(
+          sessionToken,
+          params.policyId ?? "",
+          payload,
+        );
+        return { statusCode: 204 };
       },
     },
     {

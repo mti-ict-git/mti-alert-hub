@@ -1,3 +1,7 @@
+import {
+  savePolicyApplication,
+  type PolicyApplicationReport,
+} from "./policy-application-service.js";
 import { afterCommit } from "../../../infrastructure/db/contextual-database.js";
 import {
   JobAuthorizationService,
@@ -619,6 +623,19 @@ export class AgentService {
         });
       }
     });
+  }
+
+  async reportPolicyApplication(
+    sessionToken: string,
+    policyId: string,
+    report: PolicyApplicationReport,
+  ) {
+    const session = await this.requireSession(sessionToken, { renew: true });
+    if (this.managedAuthorization)
+      await new JobAuthorizationService(this.database).deactivateUnauthorizedPolicies(
+        session.device.id,
+      );
+    await savePolicyApplication(this.database, session.device.id, policyId, report);
   }
 
   async listReminderPolicies(sessionToken: string, since?: string | null) {

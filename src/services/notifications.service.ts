@@ -155,6 +155,8 @@ type ApiResponseListResponse = {
 };
 
 type ApiReminderPolicySummary = {
+  agentVersion?: string | null;
+  application?: import("@/lib/policy-application").PolicyApplication | null;
   policyId: string;
   deviceId: string;
   deviceIdentifier?: string | null;

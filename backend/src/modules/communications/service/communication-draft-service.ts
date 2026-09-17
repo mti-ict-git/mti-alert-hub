@@ -232,6 +232,12 @@ type CommunicationScheduleDetailRow = {
 type ReminderDraftSchedule = CommunicationScheduleDetailRow;
 
 type ReminderPolicySummaryRow = {
+  agentVersion: string | null;
+  application:
+    | ({
+        receivedAt: string;
+      } & import("../../agent/service/policy-application-service.js").PolicyApplicationReport)
+    | null;
   policyId: string;
   deviceId: string;
   deviceIdentifier: string | null;
@@ -1869,9 +1875,17 @@ export class CommunicationDraftService {
             arp.valid_until::text as "validUntil",
             arp.is_active as "isActive",
             arp.last_synced_at::text as "lastSyncedAt",
+            d.agent_version::text as "agentVersion",
+            case when app.policy_id is not null then json_build_object(
+              'protocolVersion',app.protocol_version,'scheduleVersion',app.schedule_version,
+              'appliedAt',app.applied_at,'reportedAt',app.reported_at,'receivedAt',app.received_at,
+              'state',app.state,'nextRunAt',app.next_run_at,'agentVersion',app.agent_version
+            ) else null end as application,
             arp.updated_at::text as "updatedAt",
             arp.wellness_program_json as "wellnessProgram"
           from public.agent_reminder_policies arp
+          left join public.agent_reminder_policy_applications app
+            on app.policy_id=arp.id and app.schedule_version=arp.schedule_version
           inner join public.communication_schedules cs on cs.id = arp.communication_schedule_id
           left join public.devices d on d.id = arp.device_id
           left join public.sites s on s.id = d.site_id

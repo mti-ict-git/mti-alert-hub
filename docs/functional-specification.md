@@ -470,3 +470,9 @@ Built-in B1/B2 Office Stretching templates, agent previews, routine controls and
 ## Wellness scheduling after Windows sign-in (2026-09-16)
 
 See [Wellness sign-in schedule](wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.
+
+
+## Phase 4 - Policy receipt and device schedule reporting (2026-09-17)
+The first Windows-sign-in interval starts at the later of first persistence of the policy version and Available from. A later Windows logon resets the interval; same-version sync, process restart, unlock and hibernate do not reset it. New schedule versions receive a new receipt anchor.
+The agent asynchronously reports persisted policy application and its actual next occurrence, independently of wellness interaction events. The web monitoring view uses current-version device reports and explicitly distinguishes missing confirmation, unsupported agents and stale reports. Server sync timestamps are not proof of application.
+Contract: `wellness-policy-application-reporting.md` in the parent application docs. Requires backend migration 0021 and a newly signed Windows Agent 1.0.18 or later. Production migration, package publication and pilot remain pending. Verification evidence is recorded in the parent contract document; this does not close Phase 4.

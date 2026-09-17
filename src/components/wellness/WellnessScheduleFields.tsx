@@ -80,10 +80,11 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
           </Select>
           {props.scheduleBasis === "WindowsSignIn" && (
             <p className="text-xs text-muted-foreground">
-              The first reminder follows one interval after Windows sign-in or program activation,
-              whichever is later. Lock/unlock does not reset it. After unlock or resume, wait one
-              minute and show at most one overdue reminder. Requires an updated Windows Agent; older
-              agents skip this schedule. Maximum interval: 7 days.
+              The first reminder follows one interval after the agent receives this policy or
+              Available from, whichever is later. A new Windows sign-in resets the interval.
+              Lock/unlock does not reset it. After unlock or resume, wait one minute and show at
+              most one overdue reminder. Requires Windows Agent 1.0.18 or later for receipt-based
+              scheduling and application confirmation. Maximum interval: 7 days.
             </p>
           )}
         </div>

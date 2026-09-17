@@ -838,3 +838,13 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 - 2026-09-17: Fixed standalone Docker migration/backend environment forwarding to use parsed dotenv exports, resolving literal wrapper quotes in LDAP credentials. Bash syntax and fake-Docker launch regression passed; deployment documentation updated. Production container recreation remains pending.
 
 - 2026-09-17: Fixed AD GUID revalidation using a binary LDAP equality filter. Actual read-only Andre search/resolve roundtrip, eight policy tests, backend typecheck and targeted lint passed. No access grant performed; backend redeploy pending. See `users-access-implementation.md`.
+
+
+## Phase 4 - Policy receipt and device schedule reporting (2026-09-17)
+The first Windows-sign-in interval starts at the later of first persistence of the policy version and Available from. A later Windows logon resets the interval; same-version sync, process restart, unlock and hibernate do not reset it. New schedule versions receive a new receipt anchor.
+The agent asynchronously reports persisted policy application and its actual next occurrence, independently of wellness interaction events. The web monitoring view uses current-version device reports and explicitly distinguishes missing confirmation, unsupported agents and stale reports. Server sync timestamps are not proof of application.
+Contract: `wellness-policy-application-reporting.md` in the parent application docs. Requires backend migration 0021 and a newly signed Windows Agent 1.0.18 or later. Production migration, package publication and pilot remain pending. Verification evidence is recorded in the parent contract document; this does not close Phase 4.
+
+- [x] Implement receipt anchoring, asynchronous device application reporting and evidence-based monitoring states. Verification: 69 agent tests, six report/status regression tests, backend typecheck, Vite build and targeted lint passed.
+- [ ] Run PostgreSQL integration verification when database connectivity is restored (attempt timed out before writes).
+- [ ] Deploy migration 0021/backend/frontend and publish a new signed agent; verify the physical-device pilot. Not performed during implementation.

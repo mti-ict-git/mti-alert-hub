@@ -1500,6 +1500,33 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /agent/reminder-policies/{policyId}/application:
+    post:
+      tags: [Agent]
+      summary: Confirm a persisted policy version and report the device schedule
+      operationId: reportAgentPolicyApplication
+      security:
+        - AgentSessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ReminderPolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyApplicationReport"
+      responses:
+        "204":
+          description: Current report saved, or older report ignored
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
   /agent/reminder-policies/{policyId}/events:
     post:
       tags: [Agent]
@@ -3507,6 +3534,71 @@ components:
         isActive:
           type: boolean
 
+    PolicyApplicationReport:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, scheduleVersion, appliedAt, reportedAt, state, nextRunAt, agentVersion]
+      properties:
+        protocolVersion:
+          type: integer
+          enum: [1]
+        scheduleVersion:
+          type: integer
+          minimum: 1
+        appliedAt:
+          type: string
+          format: date-time
+          description: First local persistence time of this schedule version.
+        reportedAt:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [Scheduled, WaitingForSession, WaitingForAuthorization, Unsupported, NoOccurrence]
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Required non-null only for Scheduled; must be inside policy validity.
+        agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+
+    PolicyApplicationEvidence:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, scheduleVersion, appliedAt, reportedAt, state, nextRunAt, agentVersion, receivedAt]
+      properties:
+        receivedAt:
+          type: string
+          format: date-time
+        protocolVersion:
+          type: integer
+          enum: [1]
+        scheduleVersion:
+          type: integer
+          minimum: 1
+        appliedAt:
+          type: string
+          format: date-time
+          description: First local persistence time of this schedule version.
+        reportedAt:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [Scheduled, WaitingForSession, WaitingForAuthorization, Unsupported, NoOccurrence]
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Required non-null only for Scheduled; must be inside policy validity.
+        agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+
     ReminderPolicySummary:
       type: object
       required:
@@ -3517,6 +3609,15 @@ components:
         - timezone
         - isActive
       properties:
+        agentVersion:
+          type: string
+          nullable: true
+        application:
+          nullable: true
+          description: Latest matching-version device report. Null means application has not been confirmed. Reports older than ten minutes are stale.
+          allOf:
+            - $ref: "#/components/schemas/PolicyApplicationEvidence"
+
         policyId:
           type: string
         deviceId:
