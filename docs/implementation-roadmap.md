@@ -851,3 +851,6 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [ ] Redeploy backend/frontend and publish a new signed agent; verify the physical-device pilot. Not performed during migration.
 
 - [x] Fix startup classification of the policy-application device endpoint and run route-policy checks during Docker image build. Verification: reproduced missing manifest entry, nine tests passed, backend compilation and compiled agent-route registration passed. Agent-session checks remain enforced. Server redeployment is pending. See wellness-policy-application-reporting.md.
+
+- [x] Correct standalone Docker package-volume selection and restore package-relay lifecycle with shared storage. Bash syntax and fake-Docker environment/storage/relay regression suites passed. Operator mount evidence confirms split volumes caused the backend/worker disconnect; package file contents and live recovery remain unverified. See deployment-and-environment.md.
+- [ ] Deploy the corrected script with the existing Compose package volume and verify package visibility plus GitHub import. No server mutations performed during source repair.
