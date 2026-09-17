@@ -138,6 +138,7 @@ bash scripts/deploy-docker.sh --with-postgres
 bash scripts/deploy-docker.sh status
 bash scripts/deploy-docker.sh logs --follow
 bash scripts/deploy-docker.sh stop
+bash scripts/deploy-docker.sh --skip-migrations
 ```
 
 5. `docker compose` remains available as a fallback for the existing baseline:
@@ -155,6 +156,9 @@ docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.wi
 Implementation notes:
 - `scripts/deploy-docker.sh` auto-detects the env file in this order: repo `.env.docker`, repo `.env`, `$HOME/.env.docker`, `$HOME/.env`; use `--env-file` to override it explicitly
 - `scripts/deploy-docker.sh` runs backend migrations before the backend container is started
+- when a host already has a trusted schema state but the migration runner cannot proceed, `scripts/deploy-docker.sh --skip-migrations` can bypass the pre-start migration step explicitly
+- `scripts/deploy-docker.sh` now fails early when `BACKEND_HOST_PORT`, `FRONTEND_HOST_PORT`, or `POSTGRES_HOST_PORT` are already occupied, and prints the current listener/container owner when that information is available
+- when the conflicting listener is another Docker container that already publishes the same host port, `scripts/deploy-docker.sh` now removes that old Docker port owner automatically before starting the replacement service
 - the frontend container builds TanStack Start with `NITRO_PRESET=node-server` so it can run as a normal Node SSR process inside Docker
 - the admin browser path now goes through an `nginx` gateway that proxies same-origin `/api/*` requests to the internal backend service, avoiding mixed-content and CORS issues when the public site is served over HTTPS
 - public rollout package links under `/agent/packages/*` must be proxied by the same gateway to the backend service; otherwise package metadata can resolve in admin while direct package URLs still return the frontend `404` page
