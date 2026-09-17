@@ -1,6 +1,6 @@
 # Users & Access cutover runbook
 
-Status: **Source ready for coordinated production cutover; production migration and redeploy pending.**
+Status: **Migration 0020 applied and readiness passed; coordinated production redeploy pending.**
 
 The user explicitly approved source activation after the earlier automatic review hold. The default backend now uses persistent managed authentication, registers Users & Access routes and applies the closed administrative permission/resource manifest. Queued agent delivery authorization is enabled. There is no runtime option or environment toggle that restores the legacy auto-admin login path.
 
@@ -52,3 +52,11 @@ Missing or invalid publishing/rollout provenance is denied. Existing scheduled c
 Role/scope edits, disabling and explicit session revocation change authorizationVersion. Queued work created under the older version is blocked. The first device sync deactivates invalid local reminder policies and records the transition atomically in the audit log. Already synchronized offline policies cannot be recalled until that device reconnects; already accepted updater commands cannot be recalled by server token revocation.
 
 Do not roll back to the old auto-admin authentication build. If cutover validation fails, keep administrative traffic stopped, preserve data, diagnose the explicit prerequisite failure and use the audited operator bootstrap only for the designated verified identity when needed. Any database restoration must be a separately reviewed operational recovery action.
+
+## Authorized production migration 0020 — 2026-09-17
+
+The user explicitly requested production migration execution. Preflight confirmed migrations 0001–0019 applied with matching SHA-256 checksums, exactly 0020 pending, and no unknown ledger entries. Migration 0020 committed at 2026-09-17 04:41:48.818 UTC in one transaction with a 5-second lock timeout and 60-second statement timeout. The migration ledger was updated in that transaction. User IDs, roles, statuses, authorization versions and revisions were verified unchanged.
+
+Post-commit read-only readiness passed: ready=true, verifiedAdministrators=1, legacyCommunications=60, legacyRollouts=149. The legacy counts identify active work without managed authorization provenance; these require review/new authorized publication or rollout after cutover. No ownership was guessed or backfilled. Migration execution did not redeploy containers, send notifications, or initiate device upgrades.
+
+Migration 0020 is now applied in production; earlier pending-migration statements are historical. The remaining production step is coordinated backend/frontend redeploy followed by live acceptance.
