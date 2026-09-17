@@ -847,4 +847,5 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 
 - [x] Implement receipt anchoring, asynchronous device application reporting and evidence-based monitoring states. Verification: 69 agent tests, six report/status regression tests, backend typecheck, Vite build and targeted lint passed.
 - [ ] Run PostgreSQL integration verification when database connectivity is restored (attempt timed out before writes).
-- [ ] Deploy migration 0021/backend/frontend and publish a new signed agent; verify the physical-device pilot. Not performed during implementation.
+- [x] Apply migration 0021 to the configured ictMTIAlertHub database. Completed 2026-09-17T10:48:56.249Z through the project runner; checksum, nine columns, primary/foreign keys and check constraints verified read-only.
+- [ ] Redeploy backend/frontend and publish a new signed agent; verify the physical-device pilot. Not performed during migration.

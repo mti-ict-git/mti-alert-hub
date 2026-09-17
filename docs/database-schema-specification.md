@@ -646,3 +646,7 @@ The existing recurrence_rule text field may contain FREQ=WINDOWS_SIGNIN;INTERVAL
 
 ## Policy application evidence (0021, Phase 4)
 `agent_reminder_policy_applications` stores one latest report per policy (FK cascade delete), with schedule_version, protocol_version=1, applied_at, reported_at, server received_at, state, nullable next_run_at and agent_version. Only an owning device with an active matching policy version may report. Reads join the current schedule version. No existing last_synced_at values are backfilled as confirmations. See wellness-policy-application-reporting.md. Migration has not been applied to production during source implementation.
+
+
+## Migration 0021 applied (2026-09-17)
+Following explicit operator authorization, the project migration runner applied `0021_phase4_policy_application_reports.up.sql` to the configured `ictMTIAlertHub` database at `2026-09-17T10:48:56.249Z`. Preflight verified matching checksums for migrations 0001-0020 and only 0021 pending. Post-apply read-only verification confirmed the migration checksum, nine columns, primary key, cascading policy foreign key and both check constraints. The new table contained zero reports immediately after migration. No backend/frontend redeploy or agent rollout was performed. Earlier connectivity failures describe the previous implementation attempt.

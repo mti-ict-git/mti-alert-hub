@@ -18,3 +18,7 @@ Deploy migration/backend first, then frontend, then a newly versioned signed age
 - PostgreSQL integration test was attempted but connection to the configured database timed out. No database migration or fixture write was performed. Run `node --import tsx backend/tests/policy-application.integration.ts` on a host with database connectivity; it applies any missing test DDL inside an outer rollback-only transaction.
 - Live browser/device end-to-end, physical lock/sleep/hibernate, migration deployment and production acceptance remain pilot checks. No production rollout is claimed.
 
+
+
+## Migration 0021 applied (2026-09-17)
+Following explicit operator authorization, the project migration runner applied `0021_phase4_policy_application_reports.up.sql` to the configured `ictMTIAlertHub` database at `2026-09-17T10:48:56.249Z`. Preflight verified matching checksums for migrations 0001-0020 and only 0021 pending. Post-apply read-only verification confirmed the migration checksum, nine columns, primary key, cascading policy foreign key and both check constraints. The new table contained zero reports immediately after migration. No backend/frontend redeploy or agent rollout was performed. Earlier connectivity failures describe the previous implementation attempt.
