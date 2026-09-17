@@ -147,6 +147,7 @@ export const nonAdministrativeRoutes = new Set([
   "POST /agent/messages/{messageId}/read",
   "POST /agent/messages/{messageId}/response",
   "POST /agent/reminder-policies/{policyId}/events",
+  "POST /agent/reminder-policies/{policyId}/application",
 ]);
 export const administrativeRoutePolicies: Readonly<Record<string, Policy>> = policies;
 

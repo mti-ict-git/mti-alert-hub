@@ -849,3 +849,5 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [ ] Run PostgreSQL integration verification when database connectivity is restored (attempt timed out before writes).
 - [x] Apply migration 0021 to the configured ictMTIAlertHub database. Completed 2026-09-17T10:48:56.249Z through the project runner; checksum, nine columns, primary/foreign keys and check constraints verified read-only.
 - [ ] Redeploy backend/frontend and publish a new signed agent; verify the physical-device pilot. Not performed during migration.
+
+- [x] Fix startup classification of the policy-application device endpoint and run route-policy checks during Docker image build. Verification: reproduced missing manifest entry, nine tests passed, backend compilation and compiled agent-route registration passed. Agent-session checks remain enforced. Server redeployment is pending. See wellness-policy-application-reporting.md.

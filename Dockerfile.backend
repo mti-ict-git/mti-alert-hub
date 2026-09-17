@@ -8,7 +8,7 @@ FROM deps AS builder
 WORKDIR /app
 
 COPY . .
-RUN npm run backend:build
+RUN node --import tsx --test backend/tests/access-route-policy.test.ts && npm run backend:build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

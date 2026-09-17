@@ -151,3 +151,51 @@ test("Resource denial prevents handlers even when the feature permission is gran
     { code: "NOT_FOUND" },
   );
 });
+
+test("Policy application is a device route and still requires an agent session", async () => {
+  const now = new Date().toISOString();
+  const payload = {
+    protocolVersion: 1,
+    scheduleVersion: 1,
+    appliedAt: now,
+    reportedAt: now,
+    state: "WaitingForSession",
+    nextRunAt: null,
+    agentVersion: "1.0.18",
+  };
+  let calls = 0;
+  const original = registerAgentRoutes({
+    agentService: {
+      async reportPolicyApplication(token: string, policyId: string, report: unknown) {
+        calls++;
+        if (token !== "valid-device-session")
+          throw Object.assign(new Error("Invalid agent session"), { code: "UNAUTHORIZED" });
+        assert.equal(policyId, "policy-fixture");
+        assert.deepEqual(report, payload);
+      },
+    },
+  } as never).find((route) => route.path === "/agent/reminder-policies/{policyId}/application")!;
+  assert.ok(original);
+  const [route] = protectAdministrativeRoutes([original], () => {
+    throw Error("Device route entered administrator policy");
+  });
+  assert.equal(route, original);
+  const context = (authorization?: string) =>
+    ({
+      request: { headers: { authorization } },
+      params: { policyId: "policy-fixture" },
+      json: async () => payload,
+    }) as unknown as AppRouteHandlerContext;
+  for (const header of [undefined, "Basic credentials", "Bearer"]) {
+    await assert.rejects(async () => route!.handler(context(header)), { code: "UNAUTHORIZED" });
+  }
+  assert.equal(calls, 0, "Missing bearer token must fail before service execution");
+  await assert.rejects(async () => route!.handler(context("Bearer invalid-device-session")), {
+    code: "UNAUTHORIZED",
+  });
+  assert.equal(calls, 1, "Bearer tokens must reach device-session validation");
+  assert.deepEqual(await route!.handler(context("Bearer valid-device-session")), {
+    statusCode: 204,
+  });
+  assert.equal(calls, 2);
+});
