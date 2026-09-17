@@ -508,3 +508,9 @@ Run `npm run dev:full` for frontend and backend together. The frontend defaults 
 ## Optional GitHub package relay
 
 Private GitHub Releases can transport locally signed MSI packages to the Docker filesystem registry using an outbound-only worker. Setup, trust material, Compose commands, version immutability and verification limits: [GitHub package relay](github-package-relay.md). Import does not trigger device rollout.
+
+## Standalone Docker dotenv forwarding correction (2026-09-17)
+
+`scripts/deploy-docker.sh` parses dotenv values once, strips matching enclosing quotes, and exports the parsed values. Both migration and backend launches pass `--env NAME` for the loaded keys so Docker inherits these values. They must not pass the raw dotenv file to `docker run --env-file`: Docker preserves enclosing quotes there, unlike the script parser. This caused the LDAP service-account password in the deployed backend to contain literal quote characters and fail authentication. Shell expansion, eval and sourcing credential files are not used; variable names are validated. Values are not copied into the new environment argument list or temporary files. Existing explicit runtime overrides remain unchanged.
+
+Verification: Bash syntax validation and `bash scripts/tests/deploy-docker-env.test.sh` passed. The test exercises the actual migration and backend launch functions with a fake Docker command, checking double/single quotes, spaces, literal dollar/hash/backtick characters, empty values, CRLF, duplicate keys, final lines without a newline, invalid keys, and name-only forwarding. No real deployment, migration or container recreation was performed during this fix. Existing containers retain their environment until recreated through the corrected deployment process; a restart alone does not update it.

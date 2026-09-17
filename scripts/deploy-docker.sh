@@ -28,6 +28,7 @@ BACKEND_PACKAGES_VOLUME="mti-alert-backend-local-packages"
 POSTGRES_DATA_VOLUME="mti-alert-postgres-data"
 
 RUNTIME_POSTGRES_URL=""
+DOCKER_ENV_ARGS=()
 
 usage() {
   cat <<'EOF'
@@ -88,6 +89,7 @@ trim() {
 load_env_file() {
   [[ -f "$ENV_FILE" ]] || fail "Env file not found: $ENV_FILE"
 
+  DOCKER_ENV_ARGS=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -z "$(trim "$line")" ]] && continue
@@ -98,6 +100,7 @@ load_env_file() {
     local value="${line#*=}"
     key="$(trim "$key")"
     value="$(trim "$value")"
+    [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || fail "Invalid environment variable name in env file."
 
     if [[ "$value" == \"*\" && "$value" == *\" ]]; then
       value="${value:1:${#value}-2}"
@@ -106,6 +109,9 @@ load_env_file() {
     fi
 
     export "$key=$value"
+    # Pass names only: Docker inherits the parsed values from this process.
+    # Raw --env-file would retain dotenv wrapping quotes in passwords.
+    DOCKER_ENV_ARGS+=(--env "$key")
   done <"$ENV_FILE"
 }
 
@@ -312,7 +318,7 @@ run_migrations() {
   docker run --rm \
     --name "$migration_container" \
     --network "$NETWORK_NAME" \
-    --env-file "$ENV_FILE" \
+    "${DOCKER_ENV_ARGS[@]}" \
     -e "POSTGRES_URL=$RUNTIME_POSTGRES_URL" \
     "$BACKEND_IMAGE" \
     sh -lc 'node backend/dist/scripts/run-migrations.js up'
@@ -330,7 +336,7 @@ start_backend() {
     --restart unless-stopped \
     --network "$NETWORK_NAME" \
     --network-alias backend \
-    --env-file "$ENV_FILE" \
+    "${DOCKER_ENV_ARGS[@]}" \
     -e "POSTGRES_URL=$RUNTIME_POSTGRES_URL" \
     -e "BACKEND_PORT=$BACKEND_INTERNAL_PORT" \
     -p "${BACKEND_HOST_PORT:-4019}:${BACKEND_INTERNAL_PORT}" \
