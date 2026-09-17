@@ -39,7 +39,9 @@ export type AppRoute = {
 type CreateServerOptions = {
   logger: Logger;
   routes: AppRoute[];
-  resolveSession: (sessionToken: string | undefined) => AdminSession | undefined;
+  resolveSession: (
+    sessionToken: string | undefined,
+  ) => AdminSession | undefined | Promise<AdminSession | undefined>;
   allowedOrigins?: string[];
 };
 
@@ -59,7 +61,7 @@ export function createHttpServer(options: CreateServerOptions) {
         return;
       }
 
-      auth = resolveAuthContext(request, options.resolveSession);
+      auth = await resolveAuthContext(request, options.resolveSession);
       const matchedRoute = options.routes
         .filter((candidate) => candidate.method === request.method)
         .map((candidate) => ({
@@ -180,9 +182,10 @@ function applyCorsHeaders(
   ],
 ) {
   const requestOrigin = request.headers.origin;
-  const allowOrigin = requestOrigin && allowedOrigins.includes(requestOrigin)
-    ? requestOrigin
-    : (allowedOrigins[0] ?? "http://localhost:8081");
+  const allowOrigin =
+    requestOrigin && allowedOrigins.includes(requestOrigin)
+      ? requestOrigin
+      : (allowedOrigins[0] ?? "http://localhost:8081");
 
   response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Origin", allowOrigin);
@@ -216,13 +219,13 @@ async function parseJsonBody(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-function resolveAuthContext(
+async function resolveAuthContext(
   request: IncomingMessage,
   resolveSession: CreateServerOptions["resolveSession"],
-): AuthContext | undefined {
+): Promise<AuthContext | undefined> {
   const authorizationHeader = request.headers.authorization;
   const sessionToken = extractBearerToken(authorizationHeader);
-  const session = resolveSession(sessionToken);
+  const session = await resolveSession(sessionToken);
   if (!session) {
     return undefined;
   }

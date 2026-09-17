@@ -1,3 +1,12 @@
+import { createHash } from "node:crypto";
+import { requiresEmergencyPermission } from "../../access/model/permission-catalog.js";
+import { communicationScopeSql } from "../../access/service/communication-access-service.js";
+import {
+  currentAccess,
+  locationScopeSql,
+  appendScopeWhere,
+  requireLocation,
+} from "../../access/service/access-context.js";
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import type {
@@ -106,6 +115,7 @@ export class AudiencePreviewService {
 
   async previewCommunicationAudience(communicationId: string) {
     const resolution = await this.resolveExecutionAudience(communicationId);
+    if (currentAccess()) await this.savePreviewReceipt(communicationId, resolution);
     return {
       totalRecipients: resolution.recipients.length,
       deviceRecipients: resolution.selectedChannels.includes("WindowsAgent")
@@ -114,8 +124,9 @@ export class AudiencePreviewService {
           ).length
         : 0,
       whatsappRecipients: resolution.selectedChannels.includes("WhatsApp")
-        ? resolution.recipients.filter((recipient) => recipient.availableChannels.includes("WhatsApp"))
-            .length
+        ? resolution.recipients.filter((recipient) =>
+            recipient.availableChannels.includes("WhatsApp"),
+          ).length
         : 0,
       previewWarnings: resolution.previewWarnings,
       channelPlan: resolution.channelPlan,
@@ -146,6 +157,7 @@ export class AudiencePreviewService {
       (communication.templateId
         ? await this.templateService.findTemplateById(communication.templateId)
         : null) ?? null;
+    await this.validateTargetAccess(targets);
     const resolution = await this.resolveRecipients(targets);
     const selectedChannels = normalizeChannelArray(communication.channelSelections);
     const recipientList = [...resolution.recipients.values()];
@@ -166,6 +178,109 @@ export class AudiencePreviewService {
     };
   }
 
+  private async previewDigest(id: string, resolution: ExecutionAudienceResolution) {
+    const [content] = await this.database.query(
+      "select title,body,instruction,priority,updated_at from public.communications where id=$1",
+      [id],
+    );
+    const recipients = resolution.recipients
+      .map((r) => [
+        r.recipientType,
+        r.deviceId,
+        r.employeeId,
+        r.siteId,
+        r.areaId,
+        r.availableChannels,
+      ])
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          content,
+          template: resolution.template,
+          channels: resolution.selectedChannels,
+          recipients,
+        }),
+      )
+      .digest("hex");
+  }
+  private async savePreviewReceipt(id: string, resolution: ExecutionAudienceResolution) {
+    const actor = currentAccess()!;
+    await this.database.query(
+      `insert into public.communication_preview_receipts(communication_id,user_id,authorization_version,audience_digest)
+      values($1,$2,$3,$4) on conflict(communication_id,user_id) do update set authorization_version=$3,audience_digest=$4,previewed_at=now()`,
+      [id, actor.userId, actor.authorizationVersion, await this.previewDigest(id, resolution)],
+    );
+  }
+  async requireEmergencyPreview(id: string, resolution: ExecutionAudienceResolution) {
+    const actor = currentAccess();
+    if (
+      !actor ||
+      !requiresEmergencyPermission(
+        resolution.priority,
+        resolution.template?.criticalBehaviorMode ?? null,
+      )
+    )
+      return;
+    const [receipt] = await this.database.query(
+      `select 1 from public.communication_preview_receipts where communication_id=$1 and user_id=$2 and authorization_version=$3 and audience_digest=$4 and previewed_at>now()-interval '15 minutes'`,
+      [id, actor.userId, actor.authorizationVersion, await this.previewDigest(id, resolution)],
+    );
+    if (!receipt)
+      throw new AppError({
+        statusCode: 409,
+        code: "PREVIEW_REQUIRED",
+        message:
+          "Refresh the audience preview and confirm the current emergency notification before publishing.",
+      });
+  }
+
+  async validateTargetAccess(targets: CommunicationTargetRow[]) {
+    const actor = currentAccess();
+    if (!actor) return;
+    for (const target of targets) {
+      if (!["Site", "Area", "Device", "Employee"].includes(target.targetType)) continue;
+      // Explicit identifiers are resolved before scope filtering. A mixed selection is rejected whole.
+      const lookup = {
+        Site: {
+          table: "sites",
+          site: "id",
+          area: "null::uuid",
+          match: "id::text=$1 or code=$1 or name ilike $2",
+        },
+        Area: {
+          table: "areas",
+          site: "site_id",
+          area: "id",
+          match: "id::text=$1 or code=$1 or name ilike $2",
+        },
+        Device: {
+          table: "devices",
+          site: "site_id",
+          area: "area_id",
+          match: "id::text=$1 or device_identifier=$1 or hostname ilike $2",
+        },
+        Employee: {
+          table: "employees",
+          site: "site_id",
+          area: "area_id",
+          match: "id::text=$1 or employee_number=$1 or full_name ilike $2",
+        },
+      }[target.targetType as "Site" | "Area" | "Device" | "Employee"];
+      const rows = await this.database.query<{ siteId: string | null; areaId: string | null }>(
+        `select ${lookup.site}::text as "siteId", ${lookup.area}::text as "areaId" from public.${lookup.table} where (${lookup.match})`,
+        [target.targetValue.trim(), `%${target.targetValue.trim()}%`],
+      );
+      if (!rows.length)
+        throw new AppError({
+          statusCode: 404,
+          code: "NOT_FOUND",
+          message: "The requested audience target was not found.",
+        });
+      for (const row of rows) requireLocation(row.siteId, row.areaId);
+    }
+  }
+
   private async getCommunication(communicationId: string) {
     const rows = await this.database.query<CommunicationPreviewRow>(
       `
@@ -175,7 +290,7 @@ export class AudiencePreviewService {
           template_id::text as "templateId",
           channel_selections_json as "channelSelections"
         from public.communications
-        where id::text = $1
+        where id::text = $1 and ${communicationScopeSql()}
         limit 1
       `,
       [communicationId],
@@ -230,7 +345,10 @@ export class AudiencePreviewService {
   }
 
   private async queryEmployeesByTarget(target: CommunicationTargetRow) {
-    const scope = buildEmployeeScope(target);
+    const scope = appendScopeWhere(
+      buildEmployeeScope(target),
+      locationScopeSql("e.site_id", "e.area_id"),
+    );
     return this.database.maybeQuery<EmployeeRecipientRow>(
       "employees",
       `
@@ -261,7 +379,10 @@ export class AudiencePreviewService {
   }
 
   private async queryDevicesByTarget(target: CommunicationTargetRow) {
-    const scope = buildDeviceScope(target);
+    const scope = appendScopeWhere(
+      buildDeviceScope(target),
+      locationScopeSql("dev.site_id", "dev.area_id"),
+    );
     return this.database.maybeQuery<DeviceRecipientRow>(
       "devices",
       `
@@ -317,7 +438,7 @@ export class AudiencePreviewService {
         left join public.areas a on a.id = e.area_id
         left join public.departments d on d.id = e.department_id
         left join public.sections sec on sec.id = e.section_id
-        where (ag.id::text = $1 or ag.name::text ilike $2)
+        where (ag.id::text = $1 or ag.name::text ilike $2) and ${locationScopeSql("e.site_id", "e.area_id")}
         order by e.full_name asc
       `,
       [trimmedValue, `%${trimmedValue}%`],
@@ -421,7 +542,9 @@ function buildNamedScope(options: {
 }
 
 function shouldResolveEmployees(targetType: TargetType) {
-  return ["All", "Site", "Area", "Department", "Section", "Employee", "Role", "Group"].includes(targetType);
+  return ["All", "Site", "Area", "Department", "Section", "Employee", "Role", "Group"].includes(
+    targetType,
+  );
 }
 
 function shouldResolveDevices(targetType: TargetType) {

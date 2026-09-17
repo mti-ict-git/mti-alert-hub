@@ -804,3 +804,23 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 - Updated source contracts: docs/github-package-relay.md and docs/openapi.yaml.
 - Production deployment remains outstanding; no package files or rollout intents were changed.
 - Lint: new comparator and test have no diagnostics; the existing device-action-service.ts control-character validation regex still triggers no-control-regex (present in HEAD before this change). Whitespace check passed.
+
+
+### Users & Access Settings UI — 2026-09-17
+- [x] Replace Settings role placeholder with Users & Access list, directory/editor/review flows and read-only role matrix.
+  Evidence: users-access-implementation.md; production build, targeted checks and isolated browser flow.
+- [x] Verify real AD and bootstrap the user-designated widji.santoso Global Administrator after VPN recovery.
+  Audited production bootstrap succeeded; isolated collision/rollback tests passed.
+- [x] Implement persistent-auth orchestration and asynchronous HTTP session support. Five auth unit tests and
+  eight PostgreSQL/HTTP tests passed; evidence in users-access-implementation.md.
+- [ ] Activate persistent-auth/API integration only after full route/job scope enforcement and acceptance.
+- [ ] Complete full route/job scope enforcement and integrated authorization acceptance before activation.
+
+### Phase 4 — Users & Access resource enforcement continuation (2026-09-17)
+
+- [x] Implement closed administrative route policies and scope-aware read/mutation foundations; isolated PostgreSQL/HTTP checks cover query counts, ID injection, placement, sessions and emergency bypasses. Evidence: users-access-implementation.md.
+- [x] Add contextual transactions with post-commit dispatch and atomic blocked-job auditing; unit and real PostgreSQL checks passed.
+- [x] Add role-aware UI controls and scoped recipient report with keyboard focus recovery; synthetic browser acceptance recorded in users-access-implementation.md.
+- [x] Prepare additive migration 0020 and read-only readiness/cutover runbook. No production application is claimed.
+- [x] Activate managed authentication as the default and remove the legacy auto-admin runtime fallback following explicit user approval. Startup enforces migration/admin prerequisites; backend build, targeted lint, authorization unit tests and isolated PostgreSQL acceptance passed. See users-access-cutover.md.
+- [ ] Production migration 0020, coordinated redeploy and live five-role/AD acceptance. Phase 4 remains In Progress.

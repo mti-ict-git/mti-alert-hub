@@ -1,4 +1,10 @@
-export type AdminRoleType = "CentralAdmin" | "LocalOperator" | "ManagementViewer";
+export type AdminRoleType =
+  | "CentralAdmin"
+  | "LocalOperator"
+  | "ManagementViewer"
+  | "ITOperator"
+  | "CommunicationOperator"
+  | "EmergencyOfficer";
 export type AdminScopeType = "Global" | "Site" | "Area" | "Department" | "Section";
 
 export type AdminScope = {

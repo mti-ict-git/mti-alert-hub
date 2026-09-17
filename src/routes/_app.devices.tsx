@@ -1,3 +1,6 @@
+import { PermissionAction } from "@/components/access/PermissionAction";
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
 import { DevicePlacementEditor } from "@/components/devices/DevicePlacementEditor";
 import { runDeviceRolloutBatch, type RolloutBatchResult } from "@/lib/device-bulk-rollout";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,6 +95,9 @@ type PendingApprovalFormState = {
 const NO_AREA_VALUE = "__none__";
 
 function DevicesPage() {
+  const { user } = useAuth();
+  const canEnroll =
+    can(user, "devices.enroll") && Boolean(user?.scopes?.some((s) => s.scopeType === "Global"));
   const qc = useQueryClient();
   const [placementTargets, setPlacementTargets] = useState<Device[]>([]);
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
@@ -147,6 +153,7 @@ function DevicesPage() {
   } = useQuery({
     queryKey: ["devices", "pending"],
     queryFn: devicesService.listPending,
+    enabled: canEnroll,
     refetchInterval: 8000,
   });
 
@@ -164,6 +171,7 @@ function DevicesPage() {
   } = useQuery({
     queryKey: ["device-rollout-packages"],
     queryFn: devicesService.listRolloutPackages,
+    enabled: can(user, "packages.read"),
     refetchInterval: 30000,
   });
 
@@ -462,9 +470,11 @@ function DevicesPage() {
       <Tabs defaultValue="approved" className="space-y-4">
         <TabsList>
           <TabsTrigger value="approved">Approved Devices</TabsTrigger>
-          <TabsTrigger value="pending">
-            Pending Approval ({pendingLoading || pendingError ? "—" : pendingCount})
-          </TabsTrigger>
+          {canEnroll && (
+            <TabsTrigger value="pending">
+              Pending Approval ({pendingLoading || pendingError ? "—" : pendingCount})
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="approved">
@@ -568,33 +578,39 @@ function DevicesPage() {
                     ),
                     actions: (
                       <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!selectedDevices.length}
-                          onClick={() => setPlacementTargets([...selectedDevices])}
-                        >
-                          Change placement
-                        </Button>
-                        {selectedDevices.length > 0 && (
+                        <PermissionAction permission="devices.placement">
                           <Button
-                            variant="ghost"
                             size="sm"
-                            onClick={() => setCheckedDevices({ page: approvedPageKey, ids: [] })}
+                            variant="outline"
+                            disabled={!selectedDevices.length}
+                            onClick={() => setPlacementTargets([...selectedDevices])}
                           >
-                            Clear selection
+                            Change placement
                           </Button>
+                        </PermissionAction>
+                        {selectedDevices.length > 0 && (
+                          <PermissionAction permission="devices.enroll">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCheckedDevices({ page: approvedPageKey, ids: [] })}
+                            >
+                              Clear selection
+                            </Button>
+                          </PermissionAction>
                         )}
-                        <Button
-                          size="sm"
-                          disabled={!selectedDevices.length}
-                          onClick={() => openRollout(selectedDevices)}
-                        >
-                          <Rocket className="mr-2 h-4 w-4" />
-                          {selectedDevices.length
-                            ? `Rollout selected (${selectedDevices.length})`
-                            : "Rollout selected"}
-                        </Button>
+                        <PermissionAction permission="rollouts.apply">
+                          <Button
+                            size="sm"
+                            disabled={!selectedDevices.length}
+                            onClick={() => openRollout(selectedDevices)}
+                          >
+                            <Rocket className="mr-2 h-4 w-4" />
+                            {selectedDevices.length
+                              ? `Rollout selected (${selectedDevices.length})`
+                              : "Rollout selected"}
+                          </Button>
+                        </PermissionAction>
                       </>
                     ),
                     columns: [
@@ -749,48 +765,56 @@ function DevicesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={device.status !== "Online" || testingDeviceId !== null}
-                              onClick={async () => {
-                                try {
-                                  setTestingDeviceId(device.id);
-                                  const result = await devicesService.sendTest(device.id);
-                                  await Promise.all([
-                                    qc.invalidateQueries({ queryKey: ["notifications"] }),
-                                    qc.invalidateQueries({ queryKey: ["devices"] }),
-                                  ]);
-                                  toast.success(`Test notification queued for ${result.hostname}`);
-                                } catch (error) {
-                                  toast.error(
-                                    error instanceof Error
-                                      ? error.message
-                                      : "Failed to send device test notification.",
-                                  );
-                                } finally {
-                                  setTestingDeviceId(null);
-                                }
-                              }}
-                            >
-                              {testingDeviceId === device.id ? (
-                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                              ) : (
-                                <Send className="mr-1 h-3 w-3" />
-                              )}
-                              Test
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setPlacementTargets([device])}
-                            >
-                              Edit placement
-                            </Button>
-                            <Button size="sm" onClick={() => openRollout([device])}>
-                              <Rocket className="mr-1 h-3 w-3" />
-                              Rollout
-                            </Button>
+                            <PermissionAction permission="devices.test">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={device.status !== "Online" || testingDeviceId !== null}
+                                onClick={async () => {
+                                  try {
+                                    setTestingDeviceId(device.id);
+                                    const result = await devicesService.sendTest(device.id);
+                                    await Promise.all([
+                                      qc.invalidateQueries({ queryKey: ["notifications"] }),
+                                      qc.invalidateQueries({ queryKey: ["devices"] }),
+                                    ]);
+                                    toast.success(
+                                      `Test notification queued for ${result.hostname}`,
+                                    );
+                                  } catch (error) {
+                                    toast.error(
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Failed to send device test notification.",
+                                    );
+                                  } finally {
+                                    setTestingDeviceId(null);
+                                  }
+                                }}
+                              >
+                                {testingDeviceId === device.id ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="mr-1 h-3 w-3" />
+                                )}
+                                Test
+                              </Button>
+                            </PermissionAction>
+                            <PermissionAction permission="devices.placement">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPlacementTargets([device])}
+                              >
+                                Edit placement
+                              </Button>
+                            </PermissionAction>
+                            <PermissionAction permission="rollouts.apply">
+                              <Button size="sm" onClick={() => openRollout([device])}>
+                                <Rocket className="mr-1 h-3 w-3" />
+                                Rollout
+                              </Button>
+                            </PermissionAction>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -836,17 +860,19 @@ function DevicesPage() {
                   <span className="text-sm text-muted-foreground">
                     {selectedPending.length} selected on this page
                   </span>
-                  <Button
-                    disabled={
-                      !selectedPending.length ||
-                      approvePendingMutation.isPending ||
-                      rejectPendingMutation.isPending
-                    }
-                    onClick={() => openApproval(selectedPending)}
-                  >
-                    <Check aria-hidden="true" />
-                    Approve selected ({selectedPending.length})
-                  </Button>
+                  <PermissionAction permission="devices.enroll">
+                    <Button
+                      disabled={
+                        !selectedPending.length ||
+                        approvePendingMutation.isPending ||
+                        rejectPendingMutation.isPending
+                      }
+                      onClick={() => openApproval(selectedPending)}
+                    >
+                      <Check aria-hidden="true" />
+                      Approve selected ({selectedPending.length})
+                    </Button>
+                  </PermissionAction>
                 </div>
                 <Table
                   workspace={{
@@ -959,27 +985,31 @@ function DevicesPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex justify-end gap-2">
-                              <Button
-                                size="sm"
-                                disabled={
-                                  request.requestStatus !== "Pending" ||
-                                  approvePendingMutation.isPending ||
-                                  rejectPendingMutation.isPending
-                                }
-                                onClick={() => openApproval([request])}
-                              >
-                                <Check className="mr-1 h-3 w-3" />
-                                Approve
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={rejectPendingMutation.isPending}
-                                onClick={() => rejectPendingMutation.mutate(request)}
-                              >
-                                <X className="mr-1 h-3 w-3" />
-                                Reject
-                              </Button>
+                              <PermissionAction permission="devices.enroll">
+                                <Button
+                                  size="sm"
+                                  disabled={
+                                    request.requestStatus !== "Pending" ||
+                                    approvePendingMutation.isPending ||
+                                    rejectPendingMutation.isPending
+                                  }
+                                  onClick={() => openApproval([request])}
+                                >
+                                  <Check className="mr-1 h-3 w-3" />
+                                  Approve
+                                </Button>
+                              </PermissionAction>
+                              <PermissionAction permission="devices.enroll">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={rejectPendingMutation.isPending}
+                                  onClick={() => rejectPendingMutation.mutate(request)}
+                                >
+                                  <X className="mr-1 h-3 w-3" />
+                                  Reject
+                                </Button>
+                              </PermissionAction>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1342,36 +1372,48 @@ function DevicesPage() {
           )}
 
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => previewMutation.mutate()}
-              disabled={!isRolloutFormValid(form) || rolloutBusy || rolloutResults.length > 0}
-            >
-              {previewMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Preview Rollout
-            </Button>
-            <Button
-              onClick={() => applyMutation.mutate()}
-              disabled={
-                !isRolloutFormValid(form) ||
-                rolloutBusy ||
-                rolloutResults.length > 0 ||
-                previewKey !== rolloutKey ||
-                !previewResults.length ||
-                previewResults.some((r) => !r.success)
-              }
-            >
-              {applyMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Rocket className="mr-2 h-4 w-4" />
-              )}
-              Apply Rollout to {rolloutTargets.length} device
-              {rolloutTargets.length === 1 ? "" : "s"}
-            </Button>
-            <Button variant="outline" disabled={rolloutBusy} onClick={() => setRolloutOpen(false)}>
-              Close
-            </Button>
+            <PermissionAction permission="rollouts.apply">
+              <Button
+                variant="outline"
+                onClick={() => previewMutation.mutate()}
+                disabled={!isRolloutFormValid(form) || rolloutBusy || rolloutResults.length > 0}
+              >
+                {previewMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Preview Rollout
+              </Button>
+            </PermissionAction>
+            <PermissionAction permission="rollouts.apply">
+              <Button
+                onClick={() => applyMutation.mutate()}
+                disabled={
+                  !isRolloutFormValid(form) ||
+                  rolloutBusy ||
+                  rolloutResults.length > 0 ||
+                  previewKey !== rolloutKey ||
+                  !previewResults.length ||
+                  previewResults.some((r) => !r.success)
+                }
+              >
+                {applyMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Rocket className="mr-2 h-4 w-4" />
+                )}
+                Apply Rollout to {rolloutTargets.length} device
+                {rolloutTargets.length === 1 ? "" : "s"}
+              </Button>
+            </PermissionAction>
+            <PermissionAction permission="rollouts.apply">
+              <Button
+                variant="outline"
+                disabled={rolloutBusy}
+                onClick={() => setRolloutOpen(false)}
+              >
+                Close
+              </Button>
+            </PermissionAction>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1527,29 +1569,31 @@ function DevicesPage() {
               {approvalResults.length ? "Close" : "Cancel"}
             </Button>
             {pendingSelections.length > 0 && (
-              <Button
-                onClick={() => {
-                  setApprovalProgress(0);
-                  approvePendingMutation.mutate({
-                    targets: [...pendingSelections],
-                    settings: { ...pendingForm },
-                  });
-                }}
-                disabled={
-                  !pendingSelections.length ||
-                  !pendingForm.siteId ||
-                  approvePendingMutation.isPending
-                }
-              >
-                {approvePendingMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="mr-2 h-4 w-4" />
-                )}
-                {approvePendingMutation.isPending
-                  ? `Approving ${approvalProgress}/${pendingSelections.length}…`
-                  : `${approvalResults.length ? "Retry" : "Approve"} ${pendingSelections.length} device(s)`}
-              </Button>
+              <PermissionAction permission="devices.enroll">
+                <Button
+                  onClick={() => {
+                    setApprovalProgress(0);
+                    approvePendingMutation.mutate({
+                      targets: [...pendingSelections],
+                      settings: { ...pendingForm },
+                    });
+                  }}
+                  disabled={
+                    !pendingSelections.length ||
+                    !pendingForm.siteId ||
+                    approvePendingMutation.isPending
+                  }
+                >
+                  {approvePendingMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="mr-2 h-4 w-4" />
+                  )}
+                  {approvePendingMutation.isPending
+                    ? `Approving ${approvalProgress}/${pendingSelections.length}…`
+                    : `${approvalResults.length ? "Retry" : "Approve"} ${pendingSelections.length} device(s)`}
+                </Button>
+              </PermissionAction>
             )}
           </DialogFooter>
         </DialogContent>

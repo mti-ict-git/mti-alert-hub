@@ -82,6 +82,10 @@ export interface WellnessProgram {
 }
 
 export interface User {
+  roleId?: import("@/services/access.service").AccessRole | "LocalOperator";
+  permissions?: string[];
+  authorizationVersion?: number;
+  scopes?: import("@/services/access.service").AccessScope[];
   id: string;
   username: string;
   name: string;
@@ -283,6 +287,7 @@ export interface DeviceRolloutApplyResponse {
 }
 
 export interface Notification {
+  authorizationState?: "Draft" | "Authorized" | "BlockedAuthorization";
   id: string;
   communicationType: CommunicationType;
   title: string;

@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/useAuth";
+import { canVisit } from "@/lib/access";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -46,6 +48,7 @@ const systemItems = [
 ];
 
 export function AppSidebar() {
+  const { user } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { setOpenMobile } = useSidebar();
   const activeItem = [...primaryItems, ...manageItems, ...systemItems]
@@ -62,26 +65,28 @@ export function AppSidebar() {
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu className="gap-0.5">
-          {items.map((item) => (
-            <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive(item.url)}
-                tooltip={item.title}
-                className="h-11 gap-3 rounded-sm px-4 text-[13px] font-normal md:h-9 data-[active=true]:font-medium"
-              >
-                <Link
-                  to={item.url}
-                  activeOptions={{ exact: true }}
-                  aria-current={isActive(item.url) ? "page" : undefined}
-                  onClick={() => setOpenMobile(false)}
+          {items
+            .filter((item) => canVisit(user, item.url))
+            .map((item) => (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive(item.url)}
+                  tooltip={item.title}
+                  className="h-11 gap-3 rounded-sm px-4 text-[13px] font-normal md:h-9 data-[active=true]:font-medium"
                 >
-                  <item.icon aria-hidden="true" strokeWidth={1.5} className="h-4 w-4" />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+                  <Link
+                    to={item.url}
+                    activeOptions={{ exact: true }}
+                    aria-current={isActive(item.url) ? "page" : undefined}
+                    onClick={() => setOpenMobile(false)}
+                  >
+                    <item.icon aria-hidden="true" strokeWidth={1.5} className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

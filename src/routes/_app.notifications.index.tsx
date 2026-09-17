@@ -1,3 +1,6 @@
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
+import { PermissionAction } from "@/components/access/PermissionAction";
 import { FilterChips } from "@/components/common/FilterChips";
 import { ListPagination } from "@/components/common/ListPagination";
 import { useListPagination } from "@/hooks/useListPagination";
@@ -45,6 +48,7 @@ export const Route = createFileRoute("/_app/notifications/")({
 });
 
 function NotificationCenter() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const nav = useNavigate();
   const {
@@ -172,11 +176,13 @@ function NotificationCenter() {
         title="Notification Center"
         description="All standard notifications sent from MTI Connect. Wellness programs are managed separately."
         actions={
-          <Button asChild>
-            <Link to="/notifications/new">
-              <Plus className="mr-1 h-4 w-4" /> New Notification
-            </Link>
-          </Button>
+          <PermissionAction permission="notifications.draft">
+            <Button asChild>
+              <Link to="/notifications/new">
+                <Plus className="mr-1 h-4 w-4" /> New Notification
+              </Link>
+            </Button>
+          </PermissionAction>
         }
       />
 
@@ -266,22 +272,26 @@ function NotificationCenter() {
               <div className="text-sm font-medium">
                 {visibleSelectedIds.length} selected on this page
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={bulkDuplicateMut.isPending}
-                onClick={() => bulkDuplicateMut.mutate(selectedNotifications)}
-              >
-                <Copy className="mr-2 h-4 w-4" /> Duplicate as New
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!hasSelectedCancellable || bulkCancelMut.isPending}
-                onClick={() => bulkCancelMut.mutate(selectedCancellableIds)}
-              >
-                <XCircle className="mr-2 h-4 w-4" /> Cancel Selected
-              </Button>
+              <PermissionAction permission="notifications.draft">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={bulkDuplicateMut.isPending}
+                  onClick={() => bulkDuplicateMut.mutate(selectedNotifications)}
+                >
+                  <Copy className="mr-2 h-4 w-4" /> Duplicate as New
+                </Button>
+              </PermissionAction>
+              <PermissionAction permission="notifications.cancel">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!hasSelectedCancellable || bulkCancelMut.isPending}
+                  onClick={() => bulkCancelMut.mutate(selectedCancellableIds)}
+                >
+                  <XCircle className="mr-2 h-4 w-4" /> Cancel Selected
+                </Button>
+              </PermissionAction>
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 Clear
               </Button>
@@ -416,6 +426,11 @@ function NotificationCenter() {
                     <TableCell className="text-xs">{n.channels.length}</TableCell>
                     <TableCell>
                       <StatusBadge status={n.status} />
+                      {n.authorizationState === "BlockedAuthorization" && (
+                        <span className="block text-xs text-amber-700 dark:text-amber-300">
+                          Access review required
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">{n.createdBy}</TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
@@ -433,26 +448,52 @@ function NotificationCenter() {
                           <span>View</span>
                         </Button>
                         {n.status === "Draft" && (
+                          <PermissionAction
+                            permission={
+                              ["Critical", "Emergency"].includes(n.priority)
+                                ? "notifications.emergency"
+                                : "notifications.draft"
+                            }
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Edit draft ${n.title}`}
+                              onClick={() => openEdit(n.id)}
+                              disabled={
+                                !can(user, "notifications.draft") ||
+                                (["Critical", "Emergency"].includes(n.priority) &&
+                                  !can(user, "notifications.emergency"))
+                              }
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              <span>Edit Draft</span>
+                            </Button>
+                          </PermissionAction>
+                        )}
+                        <PermissionAction
+                          permission={
+                            ["Critical", "Emergency"].includes(n.priority)
+                              ? "notifications.emergency"
+                              : "notifications.draft"
+                          }
+                        >
                           <Button
                             variant="ghost"
                             size="sm"
-                            aria-label={`Edit draft ${n.title}`}
-                            onClick={() => openEdit(n.id)}
+                            aria-label={`Duplicate ${n.title}`}
+                            disabled={
+                              !can(user, "notifications.draft") ||
+                              (["Critical", "Emergency"].includes(n.priority) &&
+                                !can(user, "notifications.emergency")) ||
+                              dupMut.isPending
+                            }
+                            onClick={() => dupMut.mutate(n.id)}
                           >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            <span>Edit Draft</span>
+                            <Copy className="mr-2 h-4 w-4" />
+                            <span>Duplicate</span>
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Duplicate ${n.title}`}
-                          disabled={dupMut.isPending}
-                          onClick={() => dupMut.mutate(n.id)}
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          <span>Duplicate</span>
-                        </Button>
+                        </PermissionAction>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -472,16 +513,31 @@ function NotificationCenter() {
                               <Eye className="mr-2 h-4 w-4" /> View
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              disabled={n.status !== "Draft"}
+                              disabled={
+                                !can(user, "notifications.draft") ||
+                                (["Critical", "Emergency"].includes(n.priority) &&
+                                  !can(user, "notifications.emergency")) ||
+                                n.status !== "Draft"
+                              }
                               onClick={() => openEdit(n.id)}
                             >
                               <Pencil className="mr-2 h-4 w-4" /> Edit Draft
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => dupMut.mutate(n.id)}>
+                            <DropdownMenuItem
+                              onClick={() => dupMut.mutate(n.id)}
+                              disabled={
+                                !can(user, "notifications.draft") ||
+                                (["Critical", "Emergency"].includes(n.priority) &&
+                                  !can(user, "notifications.emergency"))
+                              }
+                            >
                               <Copy className="mr-2 h-4 w-4" /> Duplicate as New
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={
+                                !can(user, "notifications.cancel") ||
+                                (["Critical", "Emergency"].includes(n.priority) &&
+                                  !can(user, "notifications.emergency")) ||
                                 !["Scheduled", "Queued", "Sending", "Active"].includes(n.status)
                               }
                               onClick={() => cancelMut.mutate(n.id)}

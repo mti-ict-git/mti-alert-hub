@@ -60,6 +60,21 @@ export class PersistentAccessSessionStore {
       permissions: rolePermissions[role.data],
     };
   }
+  async getDiagnostics() {
+    const [row] = await this.db.query<{
+      activeCount: number;
+      expiringWithin15MinutesCount: number;
+    }>(
+      `select count(*)::int as "activeCount",count(*) filter(where s.expires_at<=now()+interval '15 minutes')::int as "expiringWithin15MinutesCount"
+       from public.admin_sessions s join public.users u on u.id=s.user_id
+       where s.revoked_at is null and s.expires_at>now() and u.status='Active' and s.authorization_version=u.authorization_version`,
+    );
+    return {
+      activeCount: row?.activeCount ?? 0,
+      expiringWithin15MinutesCount: row?.expiringWithin15MinutesCount ?? 0,
+      ttlMinutes: Math.floor(this.ttlMs / 60000),
+    };
+  }
   async create(userId: string): Promise<AccessSession> {
     return this.db.withTransaction(async (tx) => {
       const [row] = await tx.query<SessionRow>(

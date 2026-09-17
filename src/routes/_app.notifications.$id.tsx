@@ -1,3 +1,6 @@
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
+import { PermissionAction } from "@/components/access/PermissionAction";
 import {
   ToastRendererField,
   type ToastRenderer,
@@ -91,6 +94,7 @@ type DetailSearch = {
 };
 
 function NotificationDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams({ from: "/_app/notifications/$id" });
   const search = useSearch({ from: "/_app/notifications/$id" });
   const navigate = useNavigate({ from: "/_app/notifications/$id" });
@@ -125,8 +129,8 @@ function NotificationDetailPage() {
     queryFn: referenceService.listEmployees,
   });
   const { data: devices = [] } = useQuery({
-    queryKey: ["devices"],
-    queryFn: devicesService.list,
+    queryKey: ["reference", "target-devices"],
+    queryFn: devicesService.targetList,
   });
   const { data: workflows = [] } = useQuery({
     queryKey: ["workflow-definitions"],
@@ -374,7 +378,16 @@ function NotificationDetailPage() {
     draftEffectivePresentation === "Toast";
 
   useEffect(() => {
-    if (search.mode !== "edit" || !n || n.status !== "Draft" || editOpen) {
+    if (
+      !can(user, "notifications.draft") ||
+      (n &&
+        ["Critical", "Emergency"].includes(n.priority) &&
+        !can(user, "notifications.emergency")) ||
+      search.mode !== "edit" ||
+      !n ||
+      n.status !== "Draft" ||
+      editOpen
+    ) {
       return;
     }
 
@@ -385,10 +398,19 @@ function NotificationDetailPage() {
       search: {},
       replace: true,
     });
-  }, [editOpen, id, n, navigate, search.mode]);
+  }, [editOpen, id, n, navigate, search.mode, user]);
 
   useEffect(() => {
-    if (search.mode !== "publish" || !n || n.status !== "Draft" || publishOpen) {
+    if (
+      !can(user, "notifications.publish") ||
+      (n &&
+        ["Critical", "Emergency"].includes(n.priority) &&
+        !can(user, "notifications.emergency")) ||
+      search.mode !== "publish" ||
+      !n ||
+      n.status !== "Draft" ||
+      publishOpen
+    ) {
       return;
     }
 
@@ -399,7 +421,7 @@ function NotificationDetailPage() {
       search: {},
       replace: true,
     });
-  }, [id, n, navigate, publishOpen, search.mode]);
+  }, [id, n, navigate, publishOpen, search.mode, user]);
 
   useEffect(() => {
     if (!draftForm || !draftHasDesktopAgentChannel || !n) {
@@ -517,20 +539,53 @@ function NotificationDetailPage() {
 
   return (
     <div>
+      {n.authorizationState === "BlockedAuthorization" && (
+        <div
+          role="status"
+          className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+        >
+          <strong>Delivery blocked — access review required.</strong> The original publishing
+          authorization is missing or no longer valid. Duplicate this communication, review its
+          audience, and publish it with your current access. Previously delivered history is
+          preserved.
+        </div>
+      )}
+
       <PageHeader
         title={n.title}
         description={buildNotificationDescription(n)}
         actions={
           <>
             {canPublish && (
-              <Button size="sm" onClick={openPublishDialog}>
-                <Rocket className="mr-2 h-4 w-4" /> Publish
-              </Button>
+              <PermissionAction
+                permission={
+                  ["Critical", "Emergency"].includes(n.priority)
+                    ? "notifications.emergency"
+                    : "notifications.publish"
+                }
+              >
+                <Button size="sm" onClick={openPublishDialog}>
+                  <Rocket className="mr-2 h-4 w-4" /> Publish
+                </Button>
+              </PermissionAction>
             )}
             {canCancel && (
-              <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
-                <XCircle className="mr-2 h-4 w-4" /> Cancel
-              </Button>
+              <PermissionAction
+                permission={
+                  ["Critical", "Emergency"].includes(n.priority)
+                    ? "notifications.emergency"
+                    : "notifications.cancel"
+                }
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCancelOpen(true)}
+                  disabled={!can(user, "notifications.cancel")}
+                >
+                  <XCircle className="mr-2 h-4 w-4" /> Cancel
+                </Button>
+              </PermissionAction>
             )}
             {isDraft &&
               (n.wellnessProgram ? (
@@ -547,9 +602,22 @@ function NotificationDetailPage() {
                   <Pencil className="mr-2 h-4 w-4" /> Open Wellness Editor
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" onClick={openEditDialog}>
-                  <Pencil className="mr-2 h-4 w-4" /> Edit Draft
-                </Button>
+                <PermissionAction
+                  permission={
+                    ["Critical", "Emergency"].includes(n.priority)
+                      ? "notifications.emergency"
+                      : "notifications.draft"
+                  }
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openEditDialog}
+                    disabled={!can(user, "notifications.draft")}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Draft
+                  </Button>
+                </PermissionAction>
               ))}
             <PriorityBadge priority={n.priority} />
             <StatusBadge status={n.status} />
@@ -1911,24 +1979,32 @@ function NotificationDetailPage() {
             <Button variant="outline" onClick={() => setPublishOpen(false)}>
               Close
             </Button>
-            <Button
-              onClick={() => publishMutation.mutate()}
-              disabled={
-                publishMutation.isPending ||
-                scheduledPublishInvalid ||
-                recurringPublishInvalid ||
-                agentLocalRoutineInvalid ||
-                wellnessPublishInvalid
+            <PermissionAction
+              permission={
+                ["Critical", "Emergency"].includes(n.priority)
+                  ? "notifications.emergency"
+                  : "notifications.publish"
               }
             >
-              {publishMutation.isPending
-                ? "Publishing..."
-                : publishMode === "Recurring"
-                  ? "Publish Recurring Reminder"
-                  : publishMode === "Scheduled"
-                    ? "Schedule"
-                    : "Publish Now"}
-            </Button>
+              <Button
+                onClick={() => publishMutation.mutate()}
+                disabled={
+                  publishMutation.isPending ||
+                  scheduledPublishInvalid ||
+                  recurringPublishInvalid ||
+                  agentLocalRoutineInvalid ||
+                  wellnessPublishInvalid
+                }
+              >
+                {publishMutation.isPending
+                  ? "Publishing..."
+                  : publishMode === "Recurring"
+                    ? "Publish Recurring Reminder"
+                    : publishMode === "Scheduled"
+                      ? "Schedule"
+                      : "Publish Now"}
+              </Button>
+            </PermissionAction>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1947,16 +2023,28 @@ function NotificationDetailPage() {
             <p className="mt-1 text-muted-foreground">Current status: {n.status}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setCancelOpen(false)}
+              disabled={!can(user, "notifications.cancel")}
+            >
               Close
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => cancelMutation.mutate()}
-              disabled={cancelMutation.isPending}
+            <PermissionAction
+              permission={
+                ["Critical", "Emergency"].includes(n.priority)
+                  ? "notifications.emergency"
+                  : "notifications.cancel"
+              }
             >
-              {cancelMutation.isPending ? "Cancelling..." : "Confirm Cancel"}
-            </Button>
+              <Button
+                variant="destructive"
+                onClick={() => cancelMutation.mutate()}
+                disabled={!can(user, "notifications.cancel") || cancelMutation.isPending}
+              >
+                {cancelMutation.isPending ? "Cancelling..." : "Confirm Cancel"}
+              </Button>
+            </PermissionAction>
           </DialogFooter>
         </DialogContent>
       </Dialog>

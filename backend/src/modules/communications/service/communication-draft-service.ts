@@ -1,3 +1,11 @@
+import {
+  CommunicationAccessService,
+  communicationScopeSql,
+  communicationReportScopeSql,
+  reminderHistoryScopeSql,
+  requireCommunicationCapability,
+} from "../../access/service/communication-access-service.js";
+import { appendScopeWhere, locationScopeSql } from "../../access/service/access-context.js";
 import { validateWindowsSignInSchedule } from "./windows-sign-in-schedule.js";
 import type { DatabaseClient, TransactionClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
@@ -163,6 +171,7 @@ type ResponseActor = {
 };
 
 type ListCommunicationOptions = {
+  view?: "content" | "report";
   page: number;
   pageSize: number;
   search?: string;
@@ -173,6 +182,7 @@ type ListCommunicationOptions = {
 };
 
 type CommunicationSummaryRow = {
+  authorizationState?: string;
   id: string;
   communicationType: CommunicationType;
   priority: Priority;
@@ -422,7 +432,10 @@ export class CommunicationDraftService {
   ) {}
 
   async listCommunications(options: ListCommunicationOptions) {
-    const where = buildCommunicationListWhereClause(options);
+    const where = appendScopeWhere(
+      buildCommunicationListWhereClause(options),
+      options.view === "report" ? communicationReportScopeSql() : communicationScopeSql(),
+    );
     const params = buildPaginationParams(options, where.params);
 
     const [rows, totalRows] = await Promise.all([
@@ -432,23 +445,24 @@ export class CommunicationDraftService {
             id::text as id,
             communication_type::text as "communicationType",
             priority::text as priority,
-            title::text as title,
+            case when ${communicationScopeSql()} then title::text else 'Restricted communication' end as title,
             status::text as status,
-            category::text as category,
+            coalesce((select ca.authorization_state from public.communication_access ca where ca.communication_id=public.communications.id),case when status='Draft' then 'Draft' else 'BlockedAuthorization' end) as "authorizationState",
+            case when ${communicationScopeSql()} then category::text else null end as category,
             scheduled_at::text as "scheduledAt",
-            template_id::text as "templateId",
+            case when ${communicationScopeSql()} then template_id::text else null end as "templateId",
             template_version as "templateVersion",
             channel_selections_json as "channelSelections",
             created_at::text as "createdAt",
             (
               select count(*)::int
               from public.communication_recipients cr
-              where cr.communication_id = public.communications.id
+              where cr.communication_id = public.communications.id and ${locationScopeSql("cr.site_id", "cr.area_id")}
             ) as "recipientsCount",
             (
               select count(*)::int
               from public.communication_recipients cr
-              where cr.communication_id = public.communications.id
+              where cr.communication_id = public.communications.id and ${locationScopeSql("cr.site_id", "cr.area_id")}
                 and cr.ack_state in ('Acknowledged', 'Safe', 'NeedAssistance', 'NotInArea')
             ) as "ackCount"
           from public.communications
@@ -476,6 +490,7 @@ export class CommunicationDraftService {
         priority: row.priority,
         title: row.title,
         status: row.status,
+        authorizationState: row.authorizationState,
         category: row.category,
         scheduledAt: row.scheduledAt,
         templateId: row.templateId,
@@ -589,7 +604,9 @@ export class CommunicationDraftService {
   }
 
   async getCommunicationReminderActivity(communicationId: string) {
-    const detail = await this.getCommunicationDetailRow(communicationId);
+    const detail = await new CommunicationAccessService(this.database).reportDetail(
+      communicationId,
+    );
     if (!detail) {
       throw new AppError({
         statusCode: 404,
@@ -613,7 +630,9 @@ export class CommunicationDraftService {
   }
 
   async getCommunicationWellnessReporting(communicationId: string) {
-    const detail = await this.getCommunicationDetailRow(communicationId);
+    const detail = await new CommunicationAccessService(this.database).reportDetail(
+      communicationId,
+    );
     if (!detail) {
       throw new AppError({
         statusCode: 404,
@@ -629,6 +648,7 @@ export class CommunicationDraftService {
       communicationId: detail.id,
       title: detail.title,
       status: detail.status,
+
       programFamily: inferWellnessProgramFamily({
         programType: wellnessProgram?.programType,
         theme: wellnessProgram?.theme,
@@ -656,25 +676,26 @@ export class CommunicationDraftService {
       `
         select
           c.id::text as "communicationId",
-          c.title::text as title,
+          case when ${communicationScopeSql("c")} then c.title::text else 'Restricted communication' end as title,
           c.status::text as status,
+            coalesce((select ca.authorization_state from public.communication_access ca where ca.communication_id=c.id),case when c.status='Draft' then 'Draft' else 'BlockedAuthorization' end) as "authorizationState",
           c.created_at::text as "createdAt",
           c.updated_at::text as "updatedAt",
           (
             select count(*)::int
             from public.communication_recipients cr
-            where cr.communication_id = c.id
+            where cr.communication_id = c.id and ${locationScopeSql("cr.site_id", "cr.area_id")}
           ) as "recipientsCount",
-          c.wellness_program_json as "wellnessProgram",
+          case when ${communicationScopeSql("c")} then c.wellness_program_json else null end as "wellnessProgram",
           (
-            select cs.publish_request_json
+            select case when ${communicationScopeSql("c")} then cs.publish_request_json else null end
             from public.communication_schedules cs
             where cs.communication_id = c.id
             order by cs.requested_at desc, cs.created_at desc
             limit 1
           ) as "publishRequestJson"
         from public.communications c
-        where c.communication_type = 'Reminder'
+        where c.communication_type = 'Reminder' and ${communicationReportScopeSql("c")}
           and c.wellness_program_json is not null
         order by coalesce(c.updated_at, c.created_at) desc
       `,
@@ -721,7 +742,9 @@ export class CommunicationDraftService {
   }
 
   async listCommunicationDeliveries(options: ListCommunicationDeliveriesOptions) {
-    const detail = await this.getCommunicationDetailRow(options.communicationId);
+    const detail = await new CommunicationAccessService(this.database).reportDetail(
+      options.communicationId,
+    );
     if (!detail) {
       throw new AppError({
         statusCode: 404,
@@ -786,7 +809,7 @@ export class CommunicationDraftService {
           from public.communication_recipients cr
           left join public.employees e on e.id = cr.employee_id
           left join public.devices d on d.id = cr.device_id
-          where cr.communication_id::text = $1
+          where cr.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
           order by cr.created_at asc
         `,
           [options.communicationId],
@@ -800,7 +823,7 @@ export class CommunicationDraftService {
             coalesce(dj.completed_at, dj.updated_at, dj.queued_at, dj.created_at)::text as "lastUpdatedAt"
           from public.delivery_jobs dj
           inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
-          where dj.communication_id::text = $1
+          where dj.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
         `,
           [options.communicationId],
         ),
@@ -858,7 +881,7 @@ export class CommunicationDraftService {
             order by de.occurred_at desc, de.created_at desc
             limit 1
           ) latest_event on true
-          where dj.communication_id::text = $1
+          where dj.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
           order by coalesce(latest_event.occurred_at, dj.updated_at, dj.created_at) desc, dj.created_at desc
           limit $2
           offset $3
@@ -868,8 +891,9 @@ export class CommunicationDraftService {
         this.database.query<{ totalItems: number }>(
           `
           select count(*)::int as "totalItems"
-          from public.delivery_jobs
-          where communication_id::text = $1
+          from public.delivery_jobs dj
+          join public.communication_recipients cr on cr.id = dj.communication_recipient_id
+          where dj.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
         `,
           [options.communicationId],
         ),
@@ -905,7 +929,7 @@ export class CommunicationDraftService {
           inner join public.communication_recipients cr on cr.id = dj.communication_recipient_id
           left join public.employees e on e.id = cr.employee_id
           left join public.devices d on d.id = cr.device_id
-          where dj.communication_id::text = $1
+          where dj.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
           order by de.occurred_at desc, de.created_at desc
           limit 200
         `,
@@ -927,7 +951,9 @@ export class CommunicationDraftService {
   }
 
   async listCommunicationResponses(options: ListCommunicationResponsesOptions) {
-    const detail = await this.getCommunicationDetailRow(options.communicationId);
+    const detail = await new CommunicationAccessService(this.database).reportDetail(
+      options.communicationId,
+    );
     if (!detail) {
       throw new AppError({
         statusCode: 404,
@@ -960,7 +986,7 @@ export class CommunicationDraftService {
             on dj.id = de.delivery_job_id
           inner join public.communication_recipients cr
             on cr.id = dj.communication_recipient_id
-          where cr.communication_id::text = $1
+          where cr.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
             and de.event_type = 'Responded'
           order by de.occurred_at desc, de.created_at desc
           limit $${pagination.limitIndex}
@@ -976,7 +1002,7 @@ export class CommunicationDraftService {
             on dj.id = de.delivery_job_id
           inner join public.communication_recipients cr
             on cr.id = dj.communication_recipient_id
-          where cr.communication_id::text = $1
+          where cr.communication_id::text = $1 and ${locationScopeSql("cr.site_id", "cr.area_id")}
             and de.event_type = 'Responded'
         `,
         [options.communicationId],
@@ -1147,6 +1173,13 @@ export class CommunicationDraftService {
       });
     }
 
+    const accessTemplate = await this.resolveActiveTemplatePolicy(existing);
+    requireCommunicationCapability(
+      existing.priority,
+      accessTemplate?.criticalBehaviorMode ?? null,
+      Boolean(existing.wellnessProgram),
+      "draft",
+    );
     assertDraftStatus(existing.status);
     const existingTargets = await this.listTargets(communicationId);
     const writeModel = await this.resolveWriteModelForUpdate(existing, existingTargets, input);
@@ -1348,7 +1381,15 @@ export class CommunicationDraftService {
       });
     }
 
+    const accessTemplate = await this.resolveActiveTemplatePolicy(existing);
+    requireCommunicationCapability(
+      existing.priority,
+      accessTemplate?.criticalBehaviorMode ?? null,
+      Boolean(existing.wellnessProgram),
+      "draft",
+    );
     const targets = await this.listTargets(communicationId);
+    await this.audiencePreviewService.validateTargetAccess(targets);
     const insertedRows = await this.database.query<{ id: string }>(
       `
         insert into public.communications (
@@ -1457,6 +1498,12 @@ export class CommunicationDraftService {
     validatePublishRequest(existing, effectivePublishInput, channelSelections);
 
     const template = await this.resolveActiveTemplatePolicy(existing);
+    requireCommunicationCapability(
+      existing.priority,
+      template?.criticalBehaviorMode ?? null,
+      Boolean(existing.wellnessProgram),
+      "publish",
+    );
     validatePublishTemplatePolicy({
       communication: existing,
       template,
@@ -1465,6 +1512,7 @@ export class CommunicationDraftService {
     });
     const executionAudience =
       await this.audiencePreviewService.resolveExecutionAudience(communicationId);
+    await this.audiencePreviewService.requireEmergencyPreview(communicationId, executionAudience);
     validateAgentLocalRoutineAudience(effectivePublishInput, executionAudience);
     const workflowSnapshot = existing.workflowId
       ? await this.getWorkflowSummary(existing.workflowId)
@@ -1477,6 +1525,7 @@ export class CommunicationDraftService {
       channelPlan: executionAudience.channelPlan,
     });
 
+    await new CommunicationAccessService(this.database).authorizePublication(communicationId);
     const acceptedAt = new Date().toISOString();
     await this.database.withTransaction(async (transaction) => {
       await deactivateActiveSchedules(transaction, communicationId, acceptedAt);
@@ -1738,6 +1787,13 @@ export class CommunicationDraftService {
       });
     }
 
+    const accessTemplate = await this.resolveActiveTemplatePolicy(existing);
+    requireCommunicationCapability(
+      existing.priority,
+      accessTemplate?.criticalBehaviorMode ?? null,
+      Boolean(existing.wellnessProgram),
+      "cancel",
+    );
     assertCancelableStatus(existing.status);
     const cancelledAt = new Date().toISOString();
 
@@ -1815,6 +1871,7 @@ export class CommunicationDraftService {
           left join public.sites s on s.id = d.site_id
           left join public.areas a on a.id = d.area_id
           where arp.communication_id::text = $1
+            and ${reminderHistoryScopeSql()}
           order by arp.created_at desc, arp.updated_at desc
         `,
         [communicationId],
@@ -1836,6 +1893,7 @@ export class CommunicationDraftService {
           inner join public.agent_reminder_policies arp on arp.id = are.agent_reminder_policy_id
           left join public.devices d on d.id = are.device_id
           where arp.communication_id::text = $1
+            and ${reminderHistoryScopeSql()}
           order by are.occurred_at desc, are.created_at desc
           limit 500
         `,
@@ -1862,6 +1920,7 @@ export class CommunicationDraftService {
       priority: detail.priority,
       title: detail.title,
       status: detail.status,
+      authorizationState: detail.authorizationState,
       category: detail.category,
       scheduledAt: detail.scheduledAt,
       templateId: detail.templateId,
@@ -1894,6 +1953,7 @@ export class CommunicationDraftService {
           priority::text as priority,
           title::text as title,
           status::text as status,
+            coalesce((select ca.authorization_state from public.communication_access ca where ca.communication_id=public.communications.id),case when status='Draft' then 'Draft' else 'BlockedAuthorization' end) as "authorizationState",
           category::text as category,
           scheduled_at::text as "scheduledAt",
           template_id::text as "templateId",
@@ -1923,7 +1983,7 @@ export class CommunicationDraftService {
           wellness_program_json as "wellnessProgram",
           updated_at::text as "updatedAt"
         from public.communications
-        where id::text = $1
+        where id::text = $1 and ${communicationScopeSql()}
         limit 1
       `,
       [communicationId],
@@ -2093,6 +2153,7 @@ export class CommunicationDraftService {
         [communicationId, target.targetType, target.targetValue, index + 1],
       );
     }
+    await new CommunicationAccessService(this.database).recordDraft(communicationId);
   }
 
   private async getWorkflowSummary(workflowId: string): Promise<WorkflowSummary | null> {
@@ -2213,6 +2274,13 @@ export class CommunicationDraftService {
     wellnessProgram: WellnessProgramInput | null;
   }): Promise<CommunicationWriteModel> {
     validateTargets(input.targets);
+    await this.audiencePreviewService.validateTargetAccess(input.targets);
+    requireCommunicationCapability(
+      input.priority,
+      input.template?.criticalBehaviorMode ?? null,
+      Boolean(input.wellnessProgram),
+      "draft",
+    );
     validateChannelSelections(input.channelSelections, this.enabledDeliveryChannels);
 
     const template = input.template;
@@ -4106,6 +4174,8 @@ function buildCommunicationListWhereClause(options: ListCommunicationOptions) {
     conditions.push(`template_id::text = $${params.length}`);
   }
 
+  if (options.view === "report" && (options.search || options.templateId))
+    conditions.push(communicationScopeSql());
   if (options.search) {
     const term = `%${options.search}%`;
     params.push(term, term, term, term);

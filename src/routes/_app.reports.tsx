@@ -1,3 +1,4 @@
+import { RecipientReportDialog } from "@/components/access/RecipientReportDialog";
 import { FilterChips } from "@/components/common/FilterChips";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/_app/reports")({
 });
 
 function ReportsPage() {
+  const [recipientReportId, setRecipientReportId] = useState<string | null>(null);
   useEffect(() => {
     document.title = "Reports | MTI Connect";
   }, []);
@@ -75,7 +77,7 @@ function ReportsPage() {
   });
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
-    queryFn: notificationsService.list,
+    queryFn: notificationsService.reportList,
   });
 
   const [wellnessFamily, setWellnessFamily] = useState("all");
@@ -140,6 +142,13 @@ function ReportsPage() {
 
   return (
     <div>
+      {recipientReportId && (
+        <RecipientReportDialog
+          key={recipientReportId}
+          id={recipientReportId}
+          onClose={() => setRecipientReportId(null)}
+        />
+      )}
       <PageHeader
         title="Reports"
         description="Delivery, acknowledgement, and drill performance."
@@ -530,7 +539,15 @@ function ReportsPage() {
               <TableBody>
                 {notifications.map((n) => (
                   <TableRow key={n.id}>
-                    <TableCell className="font-medium">{n.title}</TableCell>
+                    <TableCell className="font-medium">
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-left"
+                        onClick={() => setRecipientReportId(n.id)}
+                      >
+                        {n.title}
+                      </Button>
+                    </TableCell>
                     <TableCell>
                       <PriorityBadge priority={n.priority} />
                     </TableCell>

@@ -5,7 +5,7 @@ import type { AppRoute, AppRouteHandlerContext } from "../../../app/http/create-
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import type { AgentService } from "../../agent/service/agent-service.js";
 import type { AgentSessionStore } from "../../agent/service/agent-session-store.js";
-import type { AdminSessionStore } from "../../auth/service/admin-session-store.js";
+
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 
 const healthQuerySchema = z.object({
@@ -19,7 +19,11 @@ type RegisterHealthRoutesOptions = {
   env: BackendEnv;
   startedAt: Date;
   database: DatabaseClient;
-  adminSessionStore: AdminSessionStore;
+  adminSessionStore: {
+    getDiagnostics():
+      | { activeCount: number; expiringWithin15MinutesCount: number; ttlMinutes: number }
+      | Promise<{ activeCount: number; expiringWithin15MinutesCount: number; ttlMinutes: number }>;
+  };
   agentSessionStore: AgentSessionStore;
   agentService: AgentService;
   enabledDeliveryChannels: DeliveryChannel[];
@@ -75,13 +79,17 @@ export function registerHealthRoutes(options: RegisterHealthRoutesOptions): AppR
       path: "/health/diagnostics",
       requiresAuth: true,
       async handler({ requestId }) {
-        const [adminSessionDiagnostics, agentSessionDiagnostics, operationalDiagnostics, databaseStatus] =
-          await Promise.all([
-            Promise.resolve(options.adminSessionStore.getDiagnostics()),
-            options.agentSessionStore.getDiagnostics(),
-            options.agentService.getOperationalDiagnostics(),
-            probeDatabase(options.database),
-          ]);
+        const [
+          adminSessionDiagnostics,
+          agentSessionDiagnostics,
+          operationalDiagnostics,
+          databaseStatus,
+        ] = await Promise.all([
+          Promise.resolve(options.adminSessionStore.getDiagnostics()),
+          options.agentSessionStore.getDiagnostics(),
+          options.agentService.getOperationalDiagnostics(),
+          probeDatabase(options.database),
+        ]);
 
         const alerts = buildDiagnosticsAlerts({
           databaseStatus,

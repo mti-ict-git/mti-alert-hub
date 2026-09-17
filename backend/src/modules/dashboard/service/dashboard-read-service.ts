@@ -1,3 +1,5 @@
+import { locationScopeSql } from "../../access/service/access-context.js";
+import { communicationReportScopeSql } from "../../access/service/communication-access-service.js";
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 
 type DashboardOverviewRow = {
@@ -10,12 +12,7 @@ type DashboardOverviewRow = {
 };
 
 type CommunicationType =
-  | "Alert"
-  | "Reminder"
-  | "OperationalNotice"
-  | "News"
-  | "Article"
-  | "KnowledgeUpdate";
+  "Alert" | "Reminder" | "OperationalNotice" | "News" | "Article" | "KnowledgeUpdate";
 
 type DashboardContentTypeRollupRow = {
   communicationType: CommunicationType;
@@ -39,14 +36,14 @@ export class DashboardReadService {
         with active_communications as (
           select count(*)::int as count
           from public.communications
-          where status in ('Scheduled', 'Queued', 'Sending', 'Active')
+          where ${communicationReportScopeSql()} and status in ('Scheduled', 'Queued', 'Sending', 'Active')
         ),
         pending_recipients as (
           select count(*)::int as count
           from public.communication_recipients cr
           inner join public.communications c
             on c.id = cr.communication_id
-          where c.status in ('Scheduled', 'Queued', 'Sending', 'Active')
+          where ${locationScopeSql("cr.site_id", "cr.area_id")} and c.status in ('Scheduled', 'Queued', 'Sending', 'Active')
             and (
               cr.ack_state = 'Pending'
               or cr.response_state in ('AwaitingResponse', 'Overdue')
@@ -54,18 +51,21 @@ export class DashboardReadService {
         ),
         delivered_jobs as (
           select count(*)::int as count
-          from public.delivery_jobs
-          where job_status in ('Delivered', 'Displayed', 'Read', 'Responded')
+          from public.delivery_jobs dj
+          join public.communication_recipients cr on cr.id=dj.communication_recipient_id
+          where ${locationScopeSql("cr.site_id", "cr.area_id")} and job_status in ('Delivered', 'Displayed', 'Read', 'Responded')
         ),
         responded_recipients as (
           select count(distinct dj.communication_recipient_id)::int as count
           from public.delivery_jobs dj
-          where dj.job_status = 'Responded'
+          join public.communication_recipients cr on cr.id=dj.communication_recipient_id
+          where ${locationScopeSql("cr.site_id", "cr.area_id")} and dj.job_status = 'Responded'
         ),
         failed_jobs as (
           select count(*)::int as count
-          from public.delivery_jobs
-          where job_status = 'Failed'
+          from public.delivery_jobs dj
+          join public.communication_recipients cr on cr.id=dj.communication_recipient_id
+          where ${locationScopeSql("cr.site_id", "cr.area_id")} and job_status = 'Failed'
         ),
         overdue_response_recipients as (
           select count(*)::int as count
@@ -74,7 +74,7 @@ export class DashboardReadService {
             on c.id = cr.communication_id
           inner join public.response_workflows rw
             on rw.id = c.workflow_id
-          where c.status in ('Queued', 'Sending', 'Active')
+          where ${locationScopeSql("cr.site_id", "cr.area_id")} and c.status in ('Queued', 'Sending', 'Active')
             and cr.response_state in ('AwaitingResponse', 'Overdue')
             and rw.escalation_timeout_minutes is not null
             and cr.created_at <= now() - make_interval(mins => rw.escalation_timeout_minutes)
@@ -124,6 +124,7 @@ export class DashboardReadService {
               where c.status in ('Scheduled', 'Queued', 'Sending', 'Active')
             )::int as active_communications
           from public.communications c
+          where ${communicationReportScopeSql("c")}
           group by c.communication_type
         ),
         recipient_rollups as (
@@ -143,7 +144,7 @@ export class DashboardReadService {
             )::int as overdue_responses
           from public.communications c
           left join public.communication_recipients cr
-            on cr.communication_id = c.id
+            on cr.communication_id = c.id and ${locationScopeSql("cr.site_id", "cr.area_id")}
           left join public.response_workflows rw
             on rw.id = c.workflow_id
           group by c.communication_type
@@ -162,7 +163,7 @@ export class DashboardReadService {
             )::int as failed_count
           from public.communications c
           left join public.communication_recipients cr
-            on cr.communication_id = c.id
+            on cr.communication_id = c.id and ${locationScopeSql("cr.site_id", "cr.area_id")}
           left join public.delivery_jobs dj
             on dj.communication_recipient_id = cr.id
           group by c.communication_type

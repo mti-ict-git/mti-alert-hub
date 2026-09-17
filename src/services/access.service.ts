@@ -13,6 +13,7 @@ export type AccessUser = {
   revision: number;
   authorizationVersion: number;
   lastLoginAt: string | null;
+  isLastAdministrator?: boolean;
   scopes: AccessScope[];
   legacyScopes?: { scopeType: string; scopeValue: string }[];
 };
@@ -25,7 +26,23 @@ export type AccessQuery = {
   roleId?: string;
   siteId?: string;
 };
+export type DirectoryUser = {
+  directoryId: string;
+  directorySubjectId: string;
+  username: string;
+  fullName: string;
+  email: string | null;
+  existingUserId?: string | null;
+  existingStatus?: string | null;
+};
 export const accessService = {
+  searchDirectory: (search: string) =>
+    apiClient.get<{ items: DirectoryUser[] }>(
+      "/access/directory-users?search=" + encodeURIComponent(search),
+    ),
+  grant: (payload: unknown, key: string) =>
+    apiClient.post<AccessUser>("/access/users", payload, { "Idempotency-Key": key }),
+
   list(query: AccessQuery) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query))

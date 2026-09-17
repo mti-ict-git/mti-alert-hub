@@ -97,6 +97,7 @@ const wellnessProgramSchema = z.object({
 });
 
 const communicationListQuerySchema = baseListQuerySchema.extend({
+  view: z.enum(["content", "report"]).optional(),
   status: z
     .enum(["Draft", "Scheduled", "Queued", "Sending", "Active", "Completed", "Cancelled", "Failed"])
     .optional(),
@@ -147,7 +148,7 @@ const updateCommunicationSchema = z
     workflowId: z.string().uuid().optional().nullable(),
     windowsAgentPresentation: windowsAgentPresentationSchema.optional().nullable(),
     toastAutoDismissSeconds: toastAutoDismissSecondsSchema.optional().nullable(),
-  toastRenderer: z.enum(["Auto", "Native", "Custom"]).optional(),
+    toastRenderer: z.enum(["Auto", "Native", "Custom"]).optional(),
     deliveryStrategy: deliveryStrategySchema.optional().nullable(),
     reminderSchedule: reminderDraftScheduleSchema.optional().nullable(),
     wellnessProgram: wellnessProgramSchema.optional().nullable(),

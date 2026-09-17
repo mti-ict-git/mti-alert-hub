@@ -57,10 +57,11 @@ export class AccessDirectoryService {
       client = createLdapClient(config.LDAP_URL, this.env);
     try {
       await client.bind(config.LDAP_BIND_DN, config.LDAP_BIND_PASSWORD);
-      const result = await client.search(base ?? config.LDAP_SEARCH_BASE, {
+      for await (const result of client.searchPaginated(base ?? config.LDAP_SEARCH_BASE, {
         scope: base ? "base" : "sub",
         filter,
-        sizeLimit: 20,
+        sizeLimit: 0,
+        paged: { pageSize: 20 },
         timeLimit: 10,
         attributes: [
           "objectGUID",
@@ -72,17 +73,19 @@ export class AccessDirectoryService {
           "memberOf",
         ],
         explicitBufferAttributes: ["objectGUID"],
-      });
-      const identities: VerifiedDirectoryIdentity[] = [];
-      for (const entry of result.searchEntries) {
-        try {
-          identities.push(this.identity(entry as Entry));
-        } catch (error) {
-          if (error instanceof AppError && error.statusCode === 403) continue;
-          throw error;
+      })) {
+        const identities: VerifiedDirectoryIdentity[] = [];
+        for (const entry of result.searchEntries) {
+          try {
+            identities.push(this.identity(entry as Entry));
+          } catch (error) {
+            if (error instanceof AppError && error.statusCode === 403) continue;
+            throw error;
+          }
         }
+        return identities;
       }
-      return identities;
+      return [];
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError({

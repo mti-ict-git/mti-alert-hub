@@ -1,3 +1,4 @@
+import { currentAccess } from "../../access/service/access-context.js";
 import { comparePublishedPackages } from "./package-order.js";
 import { DevicePlacementService, placementUpdate } from "./device-placement-service.js";
 import type { z } from "zod";
@@ -330,6 +331,27 @@ export class DeviceActionService {
       throw error;
     }
 
+    await this.database.query("select pg_advisory_xact_lock(746225)");
+    const references = await this.database.query<{ packageUrl: string }>(
+      `select p.package_url as "packageUrl" from public.agent_rollout_intents r join public.agent_release_packages p on p.id=r.release_package_id where r.is_active=true`,
+    );
+    if (
+      references.some((ref) => {
+        try {
+          return (
+            decodeURIComponent(new URL(ref.packageUrl).pathname.split("/").at(-1) ?? "") ===
+            sanitizedFileName
+          );
+        } catch {
+          return ref.packageUrl.endsWith("/" + sanitizedFileName);
+        }
+      })
+    )
+      throw new AppError({
+        statusCode: 409,
+        code: "PACKAGE_IN_USE",
+        message: "This package is referenced by an active rollout and cannot be removed.",
+      });
     await fs.rm(fullPath, { force: true });
     await fs.rm(`${fullPath}.rollout.json`, { force: true });
 
@@ -442,6 +464,7 @@ export class DeviceActionService {
 
     const now = new Date().toISOString();
     const result = await this.database.withTransaction(async (transaction) => {
+      await transaction.query("select pg_advisory_xact_lock(746225)");
       const releasePackages = await transaction.query<UpsertedReleasePackageRow>(
         `
           insert into public.agent_release_packages (
@@ -547,6 +570,12 @@ export class DeviceActionService {
         throw new Error("Failed to create rollout intent.");
       }
 
+      const accessActor = currentAccess();
+      if (accessActor)
+        await transaction.query(
+          `update public.agent_rollout_intents set initiated_by_user_id=$2,initiator_authorization_version=$3,authorization_state='Authorized' where id=$1`,
+          [rolloutIntent.id, accessActor.userId, accessActor.authorizationVersion],
+        );
       return {
         releasePackage,
         rolloutIntent,
@@ -919,8 +948,11 @@ function createPackageNotFoundError(fileName: string) {
 function sanitizeUploadedMsiFileName(fileName: string) {
   const decodedName = decodePossibleUriComponent(fileName.trim());
   const basename = path.basename(decodedName);
-  const normalized = basename
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+  const cleanBasename = Array.from(basename, (character) =>
+    character.charCodeAt(0) < 32 ? "-" : character,
+  ).join("");
+  const normalized = cleanBasename
+    .replace(/[<>:"/\\|?*]/g, "-")
     .replace(/\s+/g, ".")
     .replace(/\.{2,}/g, ".")
     .replace(/^-+/, "")

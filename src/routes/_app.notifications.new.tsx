@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
 import {
   ToastRendererField,
   type ToastRenderer,
@@ -86,6 +88,7 @@ export const Route = createFileRoute("/_app/notifications/new")({
 });
 
 function CreateNotificationPage() {
+  const { user } = useAuth();
   const nav = useNavigate();
   const qc = useQueryClient();
   const search = useSearch({ from: "/_app/notifications/new" });
@@ -111,8 +114,8 @@ function CreateNotificationPage() {
     isError: devicesError,
     refetch: reloadDevices,
   } = useQuery({
-    queryKey: ["devices"],
-    queryFn: devicesService.list,
+    queryKey: ["reference", "target-devices"],
+    queryFn: devicesService.targetList,
   });
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === search.template),
@@ -158,6 +161,12 @@ function CreateNotificationPage() {
     if (!search.template || templates.length === 0) return;
     const t = templates.find((x) => x.id === search.template);
     if (!t) return;
+    if (["Critical", "Emergency"].includes(t.priority) && !can(user, "notifications.emergency")) {
+      toast.error(
+        "Your role cannot author emergency notifications. Choose an ordinary notification template.",
+      );
+      return;
+    }
     setTitle(t.name);
     setMessage(t.defaultMessage);
     setCommunicationType(t.communicationType);
@@ -168,7 +177,7 @@ function CreateNotificationPage() {
     setToastAutoDismissSeconds("");
     setRequireAck(t.requireAck);
     setWorkflowId(t.defaultWorkflowId ?? "");
-  }, [search.template, templates]);
+  }, [search.template, templates, user]);
 
   useEffect(() => {
     if (!selectedTemplate) {
@@ -479,7 +488,9 @@ function CreateNotificationPage() {
                   <SelectContent>
                     <SelectItem value="Info">Info</SelectItem>
                     <SelectItem value="Warning">Warning</SelectItem>
-                    <SelectItem value="Critical">Critical</SelectItem>
+                    <SelectItem value="Critical" disabled={!can(user, "notifications.emergency")}>
+                      Critical
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -13,6 +13,7 @@ import { apiClient } from "@/services/api-client";
 import { buildWellnessMonitoringSummary } from "@/lib/wellness-monitoring";
 
 type ApiCommunicationSummary = {
+  authorizationState?: Notification["authorizationState"];
   id: string;
   communicationType: string;
   priority: "Info" | "Warning" | "Critical";
@@ -240,6 +241,10 @@ type PublishNotificationInput =
     };
 
 export const notificationsService = {
+  async reportList(): Promise<Notification[]> {
+    const response = await apiClient.get<ApiListResponse>("/communications?view=report");
+    return response.items.map(mapSummaryToNotification);
+  },
   async list(): Promise<Notification[]> {
     const response = await apiClient.get<ApiListResponse>("/communications");
     return response.items.map(mapSummaryToNotification);
@@ -385,6 +390,7 @@ export const notificationsService = {
 function mapSummaryToNotification(item: ApiCommunicationSummary): Notification {
   return {
     id: item.id,
+    authorizationState: item.authorizationState,
     communicationType: item.communicationType as Notification["communicationType"],
     title: item.title,
     message: "",
@@ -413,6 +419,7 @@ function mapDetailToNotification(item: ApiCommunicationDetail): Notification {
 
   return {
     id: item.id,
+    authorizationState: item.authorizationState,
     communicationType: item.communicationType as Notification["communicationType"],
     title: item.title,
     message: item.body,

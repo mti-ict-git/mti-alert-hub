@@ -91,6 +91,20 @@ type DeviceRolloutPackageListResponse = {
 };
 
 export const devicesService = {
+  async targetList(): Promise<Device[]> {
+    const response = await apiClient.get<DeviceListResponse>(
+      "/reference/devices?page=1&pageSize=200",
+    );
+    return response.items.map((item) => ({
+      id: item.id,
+      deviceId: item.deviceIdentifier ?? item.id,
+      hostname: item.hostname,
+      siteId: item.siteId,
+      areaId: item.areaId ?? null,
+      ownershipMode: item.ownershipMode,
+      status: item.status,
+    }));
+  },
   async list(): Promise<Device[]> {
     const [response, organizationReference, employees] = await Promise.all([
       apiClient.get<DeviceListResponse>("/devices?page=1&pageSize=200"),

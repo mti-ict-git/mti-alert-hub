@@ -12,4 +12,6 @@ export type AdminSession = {
   user: AuthenticatedAdminUser;
   accessProfile: AccessProfile;
   expiresAt: string;
+  authorizationVersion?: number;
+  permissions?: readonly string[];
 };

@@ -1,3 +1,4 @@
+import { ApiError } from "@/services/api-client";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -34,7 +35,13 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() =>
+    typeof window === "undefined" ? "" : (sessionStorage.getItem("mti-access-message") ?? ""),
+  );
+  useEffect(() => {
+    sessionStorage.removeItem("mti-access-message");
+  }, []);
+  const [accessPending, setAccessPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
@@ -69,10 +76,18 @@ function LoginPage() {
     try {
       await login(username.trim(), password);
       await navigate({ to: "/" });
-    } catch {
-      setError(
-        "Unable to sign in. Check your corporate credentials and connection, then try again.",
-      );
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "ACCESS_PENDING") {
+        setAccessPending(true);
+        setPassword("");
+      } else {
+        setError(
+          failure instanceof ApiError &&
+            ["ACCESS_DISABLED", "DIRECTORY_IDENTITY_REVIEW_REQUIRED"].includes(failure.code ?? "")
+            ? failure.message
+            : "Unable to sign in. Check your corporate credentials and connection, then try again.",
+        );
+      }
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -222,85 +237,103 @@ function LoginPage() {
                 Use your MTI corporate account to continue.
               </p>
             </div>
-            <form
-              noValidate
-              onSubmit={submit}
-              aria-describedby="login-help"
-              aria-busy={loading}
-              className="mt-7 space-y-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="u">Username</Label>
-                <Input
-                  ref={usernameInput}
-                  id="u"
-                  name="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="Corporate username"
-                  className="h-11 rounded-md bg-card shadow-none"
-                  aria-invalid={usernameMissing}
-                  aria-describedby={usernameMissing ? "username-error" : undefined}
-                />
-                {usernameMissing && (
-                  <p id="username-error" className="text-xs text-destructive">
-                    Enter your corporate username.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p">Password</Label>
-                <div className="relative">
+            {accessPending ? (
+              <section role="status" className="space-y-4 py-8">
+                <h2 className="text-xl font-semibold">Access pending</h2>
+                <p>Your account is waiting for an administrator to assign a role and scope.</p>
+                <p>Contact your MTI Connect administrator.</p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setAccessPending(false);
+                    setError("");
+                    setSubmitted(false);
+                  }}
+                >
+                  Back to sign in
+                </Button>
+              </section>
+            ) : (
+              <form
+                noValidate
+                onSubmit={submit}
+                aria-describedby="login-help"
+                aria-busy={loading}
+                className="mt-7 space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="u">Username</Label>
                   <Input
-                    ref={passwordInput}
-                    id="p"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    placeholder="Password"
-                    className="h-11 rounded-md bg-card pr-12 shadow-none"
-                    aria-invalid={passwordMissing}
-                    aria-describedby={passwordMissing ? "password-error" : undefined}
+                    ref={usernameInput}
+                    id="u"
+                    name="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="Corporate username"
+                    className="h-11 rounded-md bg-card shadow-none"
+                    aria-invalid={usernameMissing}
+                    aria-describedby={usernameMissing ? "username-error" : undefined}
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0.5 top-0.5 h-10 w-10"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    aria-pressed={showPassword}
-                    onClick={() => setShowPassword((visible) => !visible)}
-                  >
-                    {showPassword ? (
-                      <EyeOff aria-hidden="true" className="h-4 w-4" />
-                    ) : (
-                      <Eye aria-hidden="true" className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {usernameMissing && (
+                    <p id="username-error" className="text-xs text-destructive">
+                      Enter your corporate username.
+                    </p>
+                  )}
                 </div>
-                {passwordMissing && (
-                  <p id="password-error" className="text-xs text-destructive">
-                    Enter your password.
-                  </p>
-                )}
-              </div>
-              <div className="min-h-12 text-sm text-destructive" aria-live="polite">
-                {error}
-              </div>
-              <Button type="submit" className="h-11 w-full gap-2" disabled={loading}>
-                {loading ? (
-                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                )}
-                {loading ? "Signing in…" : "Sign in"}
-              </Button>
-            </form>
+                <div className="space-y-2">
+                  <Label htmlFor="p">Password</Label>
+                  <div className="relative">
+                    <Input
+                      ref={passwordInput}
+                      id="p"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      placeholder="Password"
+                      className="h-11 rounded-md bg-card pr-12 shadow-none"
+                      aria-invalid={passwordMissing}
+                      aria-describedby={passwordMissing ? "password-error" : undefined}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0.5 top-0.5 h-10 w-10"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                      onClick={() => setShowPassword((visible) => !visible)}
+                    >
+                      {showPassword ? (
+                        <EyeOff aria-hidden="true" className="h-4 w-4" />
+                      ) : (
+                        <Eye aria-hidden="true" className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {passwordMissing && (
+                    <p id="password-error" className="text-xs text-destructive">
+                      Enter your password.
+                    </p>
+                  )}
+                </div>
+                <div className="min-h-12 text-sm text-destructive" aria-live="polite">
+                  {error}
+                </div>
+                <Button type="submit" className="h-11 w-full gap-2" disabled={loading}>
+                  {loading ? (
+                    <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                  )}
+                  {loading ? "Signing in…" : "Sign in"}
+                </Button>
+              </form>
+            )}
             <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
               Sign in with your Active Directory account.
               <br />

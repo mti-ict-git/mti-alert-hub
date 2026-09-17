@@ -54,3 +54,13 @@ GET /organization and POST/PATCH /organization/{kind}[/{id}] require CentralAdmi
 ## Proposed Users & Access extension
 
 See [users-access-contract.md](users-access-contract.md) for the Phase 4 draft role/permission matrix, scope, bootstrap and session-revocation contract. It is not implemented. Current AccessProfileService still defaults authenticated directory users to CentralAdmin/Global; removing that default with a reviewed bootstrap is an explicit acceptance requirement.
+
+### Managed-access source implementation and activation hold (2026-09-17)
+
+The permission catalog, persistent sessions, directory identity reconciliation, resource guards, job provenance and Users & Access UI are implemented and tested in isolation. The prior “not implemented” statement applies to the former milestone. The default runtime still uses legacy authentication because automatic approval review rejected final unconditional activation; do not treat source completion as a deployed security boundary. The coordinated activation and maintenance-window requirements are specified in users-access-cutover.md. No environment switch restores automatic privileges after the planned cutover.
+
+## Source activation approved and completed — 2026-09-17
+
+This entry supersedes the earlier activation-hold status. The user explicitly approved managed authentication with migration 0020 and verified Administrator startup prerequisites. The default backend now uses PersistentAuthService/PersistentAccessSessionStore, always registers the access routes, enforces the closed administrative route manifest and enables queued agent job authorization. The legacy auto-admin fallback and internal managedAccess option have been removed from application bootstrap. Startup checks prerequisites before serving HTTP and closes the database on prerequisite failure.
+
+Backend build/typecheck and targeted bootstrap lint passed. The authorization suite passed 57 tests (the two explicit PostgreSQL suites skip without a test URL); the separate isolated PostgreSQL/HTTP run passed all 9 TAP tests. Frontend source is unchanged from the previously verified production build. Production migration 0020, Docker redeploy and live AD acceptance remain pending. Source is ready for the coordinated cutover sequence in docs/users-access-cutover.md; this is not a claim that production has been upgraded. Phase 4 remains In Progress until production acceptance.

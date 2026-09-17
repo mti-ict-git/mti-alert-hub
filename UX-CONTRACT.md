@@ -57,3 +57,13 @@ feedback apply. Product decisions remain fixed in the contract's eight-answer de
 ## Wellness scheduling after Windows sign-in (2026-09-16)
 
 See [Wellness sign-in schedule](docs/wellness-windows-sign-in-schedule.md) for the session anchor, offline cache, one-minute unlock/resume grace, and single catch-up contract. The wellness editor reuses WellnessScheduleFields and the existing Select/Input primitives. Schedule basis is preserved during draft editing and published revisions. Existing fixed schedules and wellness presentation themes remain unchanged.
+
+## Users & Access implementation status (2026-09-17)
+
+Users & Access is implemented under Settings using the existing table, Sheet, authored Select, AlertDialog and pagination owners. Current server permissions control navigation and mutation affordances; backend policy remains authoritative. Recipient reports show snapshot-scoped records and export the current page, with loading/error/empty states and opener focus restoration. Blocked communications explain review/duplicate/republish recovery. Existing wellness presentation is unchanged. Production activation is held; see docs/users-access-cutover.md. Earlier proposed-only references describe the prior milestone, not this source implementation.
+
+## Source activation approved and completed — 2026-09-17
+
+This entry supersedes the earlier activation-hold status. The user explicitly approved managed authentication with migration 0020 and verified Administrator startup prerequisites. The default backend now uses PersistentAuthService/PersistentAccessSessionStore, always registers the access routes, enforces the closed administrative route manifest and enables queued agent job authorization. The legacy auto-admin fallback and internal managedAccess option have been removed from application bootstrap. Startup checks prerequisites before serving HTTP and closes the database on prerequisite failure.
+
+Backend build/typecheck and targeted bootstrap lint passed. The authorization suite passed 57 tests (the two explicit PostgreSQL suites skip without a test URL); the separate isolated PostgreSQL/HTTP run passed all 9 TAP tests. Frontend source is unchanged from the previously verified production build. Production migration 0020, Docker redeploy and live AD acceptance remain pending. Source is ready for the coordinated cutover sequence in docs/users-access-cutover.md; this is not a claim that production has been upgraded. Phase 4 remains In Progress until production acceptance.

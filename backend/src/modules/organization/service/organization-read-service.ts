@@ -1,3 +1,4 @@
+import { referenceScopeSql, appendScopeWhere } from "../../access/service/access-context.js";
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
 
@@ -155,7 +156,7 @@ export class OrganizationReadService {
           code::text as code,
           name::text as name
         from public.sites
-        where coalesce(status::text, 'Active') != 'Inactive'
+        where coalesce(status::text, 'Active') != 'Inactive' and ${referenceScopeSql("sites")}
         order by name asc
       `,
     );
@@ -171,7 +172,7 @@ export class OrganizationReadService {
           name::text as name,
           site_id::text as "siteId"
         from public.areas
-        where coalesce(status::text, 'Active') != 'Inactive'
+        where coalesce(status::text, 'Active') != 'Inactive' and ${referenceScopeSql("areas")}
         order by name asc
       `,
     );
@@ -187,7 +188,7 @@ export class OrganizationReadService {
           name::text as name,
           site_id::text as "siteId"
         from public.departments
-        where coalesce(status::text, 'Active') != 'Inactive'
+        where coalesce(status::text, 'Active') != 'Inactive' and ${referenceScopeSql("departments")}
         order by name asc
       `,
     );
@@ -203,7 +204,7 @@ export class OrganizationReadService {
           name::text as name,
           department_id::text as "departmentId"
         from public.sections
-        where coalesce(status::text, 'Active') != 'Inactive'
+        where coalesce(status::text, 'Active') != 'Inactive' and ${referenceScopeSql("sections")}
         order by name asc
       `,
     );
@@ -211,6 +212,7 @@ export class OrganizationReadService {
 
   private async queryPagedSites(options: PagedReadOptions) {
     const where = buildSearchWhereClause(options.search, ["code", "name"]);
+    appendScopeWhere(where, referenceScopeSql("sites"));
     const params = buildPaginationParams(options, where.params);
 
     const [items, totalRows] = await Promise.all([
@@ -257,6 +259,7 @@ export class OrganizationReadService {
       ...buildSearchConditions(options.search, ["code", "name"]),
     ]);
 
+    appendScopeWhere(where, referenceScopeSql("areas"));
     const params = buildPaginationParams(options, where.params);
 
     const [items, totalRows] = await Promise.all([
@@ -304,6 +307,7 @@ export class OrganizationReadService {
       ...buildSearchConditions(options.search, ["code", "name"]),
     ]);
 
+    appendScopeWhere(where, referenceScopeSql("departments"));
     const params = buildPaginationParams(options, where.params);
 
     const [items, totalRows] = await Promise.all([
@@ -351,6 +355,7 @@ export class OrganizationReadService {
       ...buildSearchConditions(options.search, ["code", "name"]),
     ]);
 
+    appendScopeWhere(where, referenceScopeSql("sections"));
     const params = buildPaginationParams(options, where.params);
 
     const [items, totalRows] = await Promise.all([
@@ -413,9 +418,15 @@ export class OrganizationReadService {
             value: options.sectionId,
           }
         : undefined,
-      ...buildSearchConditions(options.search, ["employee_number", "full_name", "email", "phone_number"]),
+      ...buildSearchConditions(options.search, [
+        "employee_number",
+        "full_name",
+        "email",
+        "phone_number",
+      ]),
     ]);
 
+    appendScopeWhere(where, referenceScopeSql("employees"));
     const params = buildPaginationParams(options, where.params);
 
     const [rows, totalRows] = await Promise.all([

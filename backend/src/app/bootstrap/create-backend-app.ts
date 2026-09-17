@@ -1,3 +1,13 @@
+import { checkAccessReadiness } from "../../modules/access/service/access-readiness.js";
+import { createContextualDatabase } from "../../infrastructure/db/contextual-database.js";
+import { PersistentAccessSessionStore } from "../../modules/access/service/persistent-access-session-store.js";
+import { PersistentAuthService } from "../../modules/auth/service/persistent-auth-service.js";
+import { DirectoryUserRepository } from "../../modules/access/service/directory-user-repository.js";
+import { AccessDirectoryService } from "../../modules/access/service/access-directory-service.js";
+import { UserAccessService } from "../../modules/access/service/user-access-service.js";
+import { registerAccessRoutes } from "../../modules/access/controller/register-access-routes.js";
+import { protectAdministrativeRoutes } from "../../modules/access/service/administrative-route-policy.js";
+import { createAccessResourceEnforcer } from "../../modules/access/service/access-resource-enforcer.js";
 import { OrganizationManagementService } from "../../modules/organization/service/organization-management-service.js";
 import {
   loadEnv,
@@ -13,15 +23,12 @@ import { AgentSessionStore } from "../../modules/agent/service/agent-session-sto
 import { registerAuditRoutes } from "../../modules/audit/controller/register-audit-routes.js";
 import { AuditLogService } from "../../modules/audit/service/audit-log-service.js";
 import { registerAuthRoutes } from "../../modules/auth/controller/register-auth-routes.js";
-import { AdminSessionStore } from "../../modules/auth/service/admin-session-store.js";
-import { AuthService } from "../../modules/auth/service/auth-service.js";
 import { LdapAuthenticator } from "../../modules/auth/service/ldap-authenticator.js";
 import { registerCommunicationRoutes } from "../../modules/communications/controller/register-communication-routes.js";
 import { AudiencePreviewService } from "../../modules/communications/service/audience-preview-service.js";
 import { CommunicationDraftService } from "../../modules/communications/service/communication-draft-service.js";
 import { CommunicationTemplateService } from "../../modules/communications/service/communication-template-service.js";
 import { ResponseOverdueService } from "../../modules/communications/service/response-overdue-service.js";
-import { AccessProfileService } from "../../modules/access/service/access-profile-service.js";
 import { registerDashboardRoutes } from "../../modules/dashboard/controller/register-dashboard-routes.js";
 import { DashboardReadService } from "../../modules/dashboard/service/dashboard-read-service.js";
 import { registerWorkflowRoutes } from "../../modules/workflows/controller/register-workflow-routes.js";
@@ -44,9 +51,20 @@ export async function createBackendApp() {
   const startedAt = new Date();
 
   const database = bootstrapDatabase(env, logger);
-  await database.client.ping();
-  const accessProfileService = new AccessProfileService();
-  const adminSessionStore = new AdminSessionStore(env.ADMIN_SESSION_TTL_MINUTES * 60 * 1000);
+  database.client = createContextualDatabase(database.client);
+  try {
+    await database.client.ping();
+    await checkAccessReadiness(database.client);
+  } catch (error) {
+    await database.close();
+    throw error;
+  }
+  const persistentSessionStore = new PersistentAccessSessionStore(
+    database.client,
+    env.ADMIN_SESSION_TTL_MINUTES * 60 * 1000,
+  );
+  const adminSessionStore = persistentSessionStore;
+  const accessDirectory = new AccessDirectoryService(env);
   const agentSessionStore = new AgentSessionStore(
     database.client,
     env.AGENT_SESSION_TTL_MINUTES * 60 * 1000,
@@ -90,18 +108,29 @@ export async function createBackendApp() {
     auditLogService,
     deviceHealthThresholds,
   );
-  const authService = new AuthService(
+  agentService.managedAuthorization = true;
+  const authService = new PersistentAuthService(
     ldapAuthenticator,
-    accessProfileService,
-    adminSessionStore,
-    logger,
+    accessDirectory,
+    new DirectoryUserRepository(database.client),
+    persistentSessionStore,
   );
 
+  const protect = (routes: import("../http/create-server.js").AppRoute[]) =>
+    protectAdministrativeRoutes(routes, createAccessResourceEnforcer(database.client));
   const server = createHttpServer({
     logger,
     resolveSession: (sessionToken) =>
       sessionToken ? authService.getCurrentSession(sessionToken) : undefined,
-    routes: [
+    routes: protect([
+      ...registerAccessRoutes({
+        service: new UserAccessService(database.client),
+        directory: accessDirectory,
+        resolveActor: (auth) => ({
+          id: auth.session.user.id,
+          authorizationVersion: auth.session.authorizationVersion!,
+        }),
+      }),
       ...registerHealthRoutes({
         env,
         startedAt,
@@ -144,7 +173,7 @@ export async function createBackendApp() {
         auditLogService,
         audiencePreviewService,
       }),
-    ],
+    ]),
   });
 
   return {

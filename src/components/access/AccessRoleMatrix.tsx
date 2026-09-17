@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { RoleDefinition } from "@/services/access.service";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SearchInput } from "@/components/common/SearchInput";
 import {
   Select,
   SelectContent,
@@ -65,15 +64,7 @@ export function AccessRoleMatrix({ roles }: { roles: RoleDefinition[] }) {
         Allowed actions are limited by each user's assigned scope unless marked Global. Built-in
         roles are read-only.
       </p>
-      <Label htmlFor="permission-search" className="sr-only">
-        Search permissions
-      </Label>
-      <Input
-        id="permission-search"
-        placeholder="Search permissions"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <SearchInput placeholder="Search permissions" value={search} onValueChange={setSearch} />
       <div className="md:hidden">
         <Select value={active} onValueChange={setMobileRole}>
           <SelectTrigger aria-label="Role to compare">

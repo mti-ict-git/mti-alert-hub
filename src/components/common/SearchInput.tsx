@@ -8,11 +8,13 @@ export function SearchInput({
   onValueChange,
   placeholder = "Search…",
   className,
+  onCompositionChange,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  onCompositionChange?: (composing: boolean) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
@@ -28,6 +30,8 @@ export function SearchInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
+        onCompositionStart={() => onCompositionChange?.(true)}
+        onCompositionEnd={() => onCompositionChange?.(false)}
         className="pl-9 pr-10 [&::-webkit-search-cancel-button]:appearance-none"
       />
       {value && (

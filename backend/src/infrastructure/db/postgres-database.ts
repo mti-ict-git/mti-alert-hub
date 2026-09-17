@@ -27,6 +27,7 @@ export type DatabaseClient = QueryableDatabaseClient & {
 export type DatabaseBootstrap = {
   client: DatabaseClient;
   redactedConnectionString: string;
+  close: () => Promise<void>;
 };
 
 export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBootstrap {
@@ -105,6 +106,7 @@ export function bootstrapDatabase(env: BackendEnv, logger: Logger): DatabaseBoot
 
   return {
     client,
+    close: () => pool.end(),
     redactedConnectionString: redactPostgresConnectionConfig(connectionConfig),
   };
 }

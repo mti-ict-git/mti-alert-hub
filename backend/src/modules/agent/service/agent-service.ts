@@ -1,3 +1,9 @@
+import { afterCommit } from "../../../infrastructure/db/contextual-database.js";
+import {
+  JobAuthorizationService,
+  communicationJobSql,
+  jobActorSql,
+} from "../../access/service/job-authorization.js";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -8,7 +14,10 @@ import type { BackendEnv } from "../../../app/config/env.js";
 import { resolveDeviceHealthThresholds } from "../../../app/config/env.js";
 import { resolveWindowsAgentPendingMessageTtlMinutes } from "../../../app/config/env.js";
 import type { AuditLogService } from "../../audit/service/audit-log-service.js";
-import type { LdapAuthenticator, DirectoryUserProfile } from "../../auth/service/ldap-authenticator.js";
+import type {
+  LdapAuthenticator,
+  DirectoryUserProfile,
+} from "../../auth/service/ldap-authenticator.js";
 import type { AgentSession } from "./agent-session-store.js";
 import { AgentSessionStore } from "./agent-session-store.js";
 import type { WindowsAgentPresentation } from "../../communications/service/communication-template-service.js";
@@ -131,11 +140,7 @@ type WellnessProgramPayload = {
   programType: "SimpleReminder" | "GuidedRoutine";
   theme: "Blue" | "Green";
   layoutVariant:
-    | "ReminderCard"
-    | "CountdownCard"
-    | "GuidedRoutine"
-    | "CompletionCard"
-    | "OverviewCard";
+    "ReminderCard" | "CountdownCard" | "GuidedRoutine" | "CompletionCard" | "OverviewCard";
   variantKeys: string[];
   heroAssetUrl: string | null;
   countdownSeconds: number | null;
@@ -301,6 +306,8 @@ type AgentOwnedRolloutIntentRow = {
 };
 
 export class AgentService {
+  managedAuthorization = false;
+
   private readonly realtimeConnections = new Map<string, ActiveRealtimeConnection>();
   private readonly deviceStatusSql: string;
   private readonly pendingMessageTtlMinutes: number;
@@ -573,31 +580,45 @@ export class AgentService {
 
   async listPendingMessages(sessionToken: string, since?: string | null) {
     const session = await this.requireSession(sessionToken, { renew: true });
-    return this.listPendingMessagesByDeviceId(session.device.id, since, session.activeUserIdentifier);
+    return this.listPendingMessagesByDeviceId(
+      session.device.id,
+      since,
+      session.activeUserIdentifier,
+    );
   }
 
   async notifyPendingMessagesForDevices(deviceIds: string[]) {
-    const uniqueDeviceIds = [...new Set(deviceIds.filter((deviceId) => deviceId.trim().length > 0))];
-    await Promise.all(
-      uniqueDeviceIds.map(async (deviceId) => {
-        const connection = this.findConnectionForDevice(deviceId);
-        if (!connection) {
-          return;
-        }
+    return afterCommit(this.database, async () => {
+      try {
+        const uniqueDeviceIds = [
+          ...new Set(deviceIds.filter((deviceId) => deviceId.trim().length > 0)),
+        ];
+        await Promise.all(
+          uniqueDeviceIds.map(async (deviceId) => {
+            const connection = this.findConnectionForDevice(deviceId);
+            if (!connection) {
+              return;
+            }
 
-        const session = await this.sessionStore.getSession(connection.sessionToken);
-        const pendingMessages = await this.listPendingMessagesByDeviceId(
-          deviceId,
-          null,
-          session?.activeUserIdentifier ?? null,
+            const session = await this.sessionStore.getSession(connection.sessionToken);
+            const pendingMessages = await this.listPendingMessagesByDeviceId(
+              deviceId,
+              null,
+              session?.activeUserIdentifier ?? null,
+            );
+            this.writeRealtimeEvent(connection.response, "messages.available", {
+              items: pendingMessages.items,
+              nextCursor: pendingMessages.nextCursor,
+            });
+            await this.touchRealtimeConnection(deviceId, connection.connectionId);
+          }),
         );
-        this.writeRealtimeEvent(connection.response, "messages.available", {
-          items: pendingMessages.items,
-          nextCursor: pendingMessages.nextCursor,
+      } catch (error) {
+        this.logger.error("agent.realtime.notification_failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
         });
-        await this.touchRealtimeConnection(deviceId, connection.connectionId);
-      }),
-    );
+      }
+    });
   }
 
   async listReminderPolicies(sessionToken: string, since?: string | null) {
@@ -606,10 +627,12 @@ export class AgentService {
       this.ensureOptionalIsoDate(since, "since");
     }
 
+    if (this.managedAuthorization)
+      await new JobAuthorizationService(this.database).deactivateUnauthorizedPolicies(
+        session.device.id,
+      );
     const params: unknown[] = [session.device.id];
-    const sinceClause = since
-      ? `and arp.updated_at >= $${params.push(since)}::timestamptz`
-      : "";
+    const sinceClause = since ? `and arp.updated_at >= $${params.push(since)}::timestamptz` : "";
     const rows = await this.database.query<AgentReminderPolicyRow>(
       `
         select
@@ -628,7 +651,7 @@ export class AgentService {
           arp.toast_renderer as "toastRenderer",
           c.requires_response as "requiresResponse",
           c.workflow_id::text as "workflowId",
-          arp.is_active as "isActive",
+          ${this.managedAuthorization ? `arp.is_active and exists(select 1 from public.devices auth_device where auth_device.id=arp.device_id and ${communicationJobSql()})` : "arp.is_active"} as "isActive",
           arp.updated_at::text as "updatedAt",
           arp.wellness_program_json as "wellnessProgram"
         from public.agent_reminder_policies arp
@@ -688,6 +711,10 @@ export class AgentService {
 
   async getRolloutIntent(sessionToken: string) {
     const session = await this.requireSession(sessionToken, { renew: true });
+    if (this.managedAuthorization)
+      await new JobAuthorizationService(this.database).deactivateUnauthorizedPolicies(
+        session.device.id,
+      );
     const rows = await this.database.query<AgentRolloutIntentRow>(
       `
         select
@@ -708,6 +735,7 @@ export class AgentService {
         inner join public.agent_release_packages arp on arp.id = ari.release_package_id
         where ari.device_id = $1::uuid
           and ari.is_active = true
+          ${this.managedAuthorization ? `and ari.authorization_state='Authorized' and exists(select 1 from public.devices auth_device where auth_device.id=ari.device_id and ${jobActorSql("ari.initiated_by_user_id", "ari.initiator_authorization_version", "auth_device.site_id", "auth_device.area_id", "rollouts.apply")})` : ""}
         order by ari.created_at desc
         limit 1
       `,
@@ -802,7 +830,10 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
     this.ensureIsoDate(input.occurredAt, "occurredAt");
-    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
+    await this.sessionStore.updateSessionActiveUser(
+      sessionToken,
+      input.activeUserIdentifier ?? null,
+    );
     await this.recordLifecycleEvent(session, messageId, input, "Displayed");
 
     this.logger.info("agent.message.displayed", {
@@ -815,7 +846,10 @@ export class AgentService {
     const session = await this.requireSession(sessionToken, { renew: true });
     this.requireMessageId(messageId);
     this.ensureIsoDate(input.occurredAt, "occurredAt");
-    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
+    await this.sessionStore.updateSessionActiveUser(
+      sessionToken,
+      input.activeUserIdentifier ?? null,
+    );
     await this.recordLifecycleEvent(session, messageId, input, "Read");
 
     this.logger.info("agent.message.read", {
@@ -835,7 +869,10 @@ export class AgentService {
     if (input.occurredAt) {
       this.ensureOptionalIsoDate(input.occurredAt, "occurredAt");
     }
-    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
+    await this.sessionStore.updateSessionActiveUser(
+      sessionToken,
+      input.activeUserIdentifier ?? null,
+    );
 
     const respondedAt = input.occurredAt ?? new Date().toISOString();
     const message = await this.requireOwnedMessage(session, messageId);
@@ -899,7 +936,8 @@ export class AgentService {
       );
       await this.auditLogService.record(transaction, {
         actorUserId: input.activeUserIdentifier ?? null,
-        actorUsername: input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
+        actorUsername:
+          input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
         actionType: "RecordResponse",
         moduleName: "Communications",
         entityType: "CommunicationRecipient",
@@ -918,7 +956,8 @@ export class AgentService {
       });
       await this.auditLogService.record(transaction, {
         actorUserId: input.activeUserIdentifier ?? null,
-        actorUsername: input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
+        actorUsername:
+          input.activeUserIdentifier ?? session.device.deviceIdentifier ?? "windows-agent",
         actionType: "RecipientResponseStateChanged",
         moduleName: "Communications",
         entityType: "CommunicationRecipient",
@@ -957,7 +996,10 @@ export class AgentService {
 
   async reportReminderEvent(sessionToken: string, policyId: string, input: ReminderEventInput) {
     const session = await this.requireSession(sessionToken, { renew: true });
-    await this.sessionStore.updateSessionActiveUser(sessionToken, input.activeUserIdentifier ?? null);
+    await this.sessionStore.updateSessionActiveUser(
+      sessionToken,
+      input.activeUserIdentifier ?? null,
+    );
     if (!policyId.trim()) {
       throw new AppError({
         statusCode: 422,
@@ -1411,6 +1453,8 @@ export class AgentService {
     since?: string | null,
     activeUserIdentifier?: string | null,
   ) {
+    if (this.managedAuthorization)
+      await new JobAuthorizationService(this.database).deactivateUnauthorizedPolicies(deviceId);
     await this.responseOverdueService.evaluateRecipientOnlyOverdueForDevice(deviceId);
 
     if (since) {
@@ -1418,9 +1462,7 @@ export class AgentService {
     }
 
     const params: unknown[] = [deviceId, this.pendingMessageTtlMinutes];
-    const sinceClause = since
-      ? `and dj.updated_at >= $${params.push(since)}::timestamptz`
-      : "";
+    const sinceClause = since ? `and dj.updated_at >= $${params.push(since)}::timestamptz` : "";
     const activeUserClause = `and (
       latest_actor.active_user_identifier is null
       or latest_actor.active_user_identifier = $${params.push(activeUserIdentifier ?? null)}
@@ -1457,6 +1499,7 @@ export class AgentService {
         ) latest_actor on true
         where dj.channel = 'WindowsAgent'
           and cr.device_id = $1::uuid
+          ${this.managedAuthorization ? `and exists(select 1 from public.devices auth_device where auth_device.id=cr.device_id and ${communicationJobSql()})` : ""}
           and dj.job_status in ('Pending', 'Sent', 'Delivered', 'Displayed')
           and cs.execution_mode is distinct from 'AgentLocalRoutine'
           and cs.is_active = true
@@ -1499,7 +1542,7 @@ export class AgentService {
         priority: row.priority,
         windowsAgentPresentation: row.windowsAgentPresentation,
         toastAutoDismissSeconds: row.toastAutoDismissSeconds,
-            toastRenderer: row.toastRenderer ?? "Auto",
+        toastRenderer: row.toastRenderer ?? "Auto",
         requiresResponse: row.requiresResponse,
         templateVersion: row.templateVersion,
         workflow: parseWorkflowSnapshot(row.workflowSnapshot),
@@ -1662,7 +1705,9 @@ export class AgentService {
     const lookupAt = new Date().toISOString();
 
     try {
-      const directoryUser = await this.ldapAuthenticator.lookupUserProfile(normalizedActiveUserIdentifier);
+      const directoryUser = await this.ldapAuthenticator.lookupUserProfile(
+        normalizedActiveUserIdentifier,
+      );
       if (!directoryUser) {
         return {
           activeUserIdentifier: normalizedActiveUserIdentifier,
@@ -1725,10 +1770,7 @@ export class AgentService {
     };
   }
 
-  private async requireKnownDevice(options: {
-    deviceIdentifier: string;
-    hostname: string | null;
-  }) {
+  private async requireKnownDevice(options: { deviceIdentifier: string; hostname: string | null }) {
     const params: unknown[] = [];
     const conditions: string[] = [];
 
@@ -2238,7 +2280,9 @@ function parseWellnessProgramPayload(value: unknown): WellnessProgramPayload | n
     theme: parsed.theme,
     layoutVariant: parsed.layoutVariant,
     variantKeys: Array.isArray(parsed.variantKeys)
-      ? parsed.variantKeys.filter((value): value is string => typeof value === "string" && value.length > 0)
+      ? parsed.variantKeys.filter(
+          (value): value is string => typeof value === "string" && value.length > 0,
+        )
       : [],
     heroAssetUrl: typeof parsed.heroAssetUrl === "string" ? parsed.heroAssetUrl : null,
     countdownSeconds: typeof parsed.countdownSeconds === "number" ? parsed.countdownSeconds : null,
@@ -2393,8 +2437,6 @@ function isExpiredReminderPolicy(validUntil: string | null) {
 
 function isDeviceNotRegisteredError(error: unknown) {
   return (
-    error instanceof AppError &&
-    error.statusCode === 409 &&
-    error.code === "DEVICE_NOT_REGISTERED"
+    error instanceof AppError && error.statusCode === 409 && error.code === "DEVICE_NOT_REGISTERED"
   );
 }

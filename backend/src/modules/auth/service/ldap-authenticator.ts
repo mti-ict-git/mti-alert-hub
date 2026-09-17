@@ -1,3 +1,4 @@
+import { decodeDirectoryGuid } from "../../access/service/directory-identity.js";
 import { Client } from "ldapts";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ const ldapConfigSchema = z.object({
 
 type LdapSearchEntry = {
   dn: string;
+  objectGUID?: Buffer;
   cn?: string;
   displayName?: string;
   department?: string | string[];
@@ -64,7 +66,9 @@ export class LdapAuthenticator {
       const searchResult = await client.search(config.LDAP_SEARCH_BASE, {
         scope: "sub",
         filter: searchFilter,
+        explicitBufferAttributes: ["objectGUID"],
         attributes: [
+          "objectGUID",
           "cn",
           "displayName",
           "mail",
@@ -93,6 +97,9 @@ export class LdapAuthenticator {
 
       return {
         username: resolvedUsername,
+        directorySubjectId: firstEntry.objectGUID
+          ? decodeDirectoryGuid(firstEntry.objectGUID)
+          : undefined,
         distinguishedName: firstEntry.dn,
         fullName: firstEntry.displayName ?? firstEntry.cn ?? resolvedUsername,
         email: normalizeOptionalScalar(firstEntry.mail),

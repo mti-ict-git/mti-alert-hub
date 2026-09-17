@@ -1,6 +1,6 @@
 # Users & Access — UX Contract
 
-Status: Review-ready draft. English application copy. No screens have been implemented.
+Status: Approved target contract. English application copy. UI implementation and isolated browser verification are recorded in users-access-implementation.md; production activation remains pending.
 Authority: users-access-contract.md, especially the eight confirmed product decisions.
 Visual ownership: ../DESIGN.md and ../UX-CONTRACT.md. Reuse the existing Settings shell.
 

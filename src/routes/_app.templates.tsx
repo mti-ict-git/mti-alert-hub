@@ -1,10 +1,19 @@
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PriorityBadge } from "@/components/common/PriorityBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { templatesService } from "@/services/templates.service";
 import { Play } from "lucide-react";
 
@@ -13,8 +22,12 @@ export const Route = createFileRoute("/_app/templates")({
 });
 
 function TemplatesPage() {
+  const { user } = useAuth();
   const nav = useNavigate();
-  const { data = [], isLoading } = useQuery({ queryKey: ["templates"], queryFn: templatesService.list });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["templates"],
+    queryFn: templatesService.list,
+  });
 
   return (
     <div>
@@ -26,9 +39,17 @@ function TemplatesPage() {
       <Card>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow>
-              <TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Priority</TableHead><TableHead>Channels</TableHead><TableHead>Require Ack</TableHead><TableHead>Locked Fields</TableHead><TableHead />
-            </TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Channels</TableHead>
+                <TableHead>Require Ack</TableHead>
+                <TableHead>Locked Fields</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
@@ -41,14 +62,27 @@ function TemplatesPage() {
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>{t.category}</TableCell>
-                  <TableCell><PriorityBadge priority={t.priority} /></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{t.defaultChannels.join(", ")}</TableCell>
+                  <TableCell>
+                    <PriorityBadge priority={t.priority} />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {t.defaultChannels.join(", ")}
+                  </TableCell>
                   <TableCell>{t.requireAck ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {t.lockedFields?.length ? t.lockedFields.join(", ") : "—"}
                   </TableCell>
                   <TableCell className="flex justify-end gap-1">
-                    <Button size="sm" variant="outline" onClick={() => nav({ to: "/notifications/new", search: { template: t.id } })}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => nav({ to: "/notifications/new", search: { template: t.id } })}
+                      disabled={
+                        !can(user, "notifications.draft") ||
+                        (["Critical", "Emergency"].includes(t.priority) &&
+                          !can(user, "notifications.emergency"))
+                      }
+                    >
                       <Play className="mr-1 h-3 w-3" /> Use
                     </Button>
                   </TableCell>

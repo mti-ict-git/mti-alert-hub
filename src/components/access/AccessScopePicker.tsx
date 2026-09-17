@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { AccessScope } from "@/services/access.service";
 import type { SiteReference, AreaReference } from "@/services/reference.service";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/common/SearchInput";
 import { Label } from "@/components/ui/label";
 
 type Props = {
@@ -41,15 +41,7 @@ export function AccessScopePicker({ sites, areas, value, onChange, disabled }: P
   return (
     <fieldset disabled={disabled} className="space-y-3">
       <legend className="mb-2 text-sm font-medium">Selected locations</legend>
-      <Label htmlFor="access-location-search" className="sr-only">
-        Search sites and areas
-      </Label>
-      <Input
-        id="access-location-search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search sites and areas"
-      />
+      <SearchInput placeholder="Search sites and areas" value={search} onValueChange={setSearch} />
       <p className="text-xs text-muted-foreground">
         A site includes all its areas. Choose individual areas for narrower access.
       </p>

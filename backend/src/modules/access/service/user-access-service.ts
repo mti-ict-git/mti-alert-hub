@@ -26,6 +26,7 @@ export type AccessUser = {
   revision: number;
   authorizationVersion: number;
   lastLoginAt: string | null;
+  isLastAdministrator?: boolean;
   scopes: AccessGrant[];
   legacyScopes?: { scopeType: string; scopeValue: string }[];
 };
@@ -74,9 +75,18 @@ export class UserAccessService {
       'select scope_type as "scopeType",scope_value as "scopeValue" from public.user_scopes where user_id=$1 order by scope_type,scope_value',
       [id],
     );
+    const [administratorCount] =
+      user.roleId === "CentralAdmin" && user.status === "Active"
+        ? await reader.query<{ total: number }>(
+            "select count(*)::int as total from public.users u where status='Active' and role_type='CentralAdmin' and exists(select 1 from public.user_scopes s where s.user_id=u.id and s.scope_type='Global' and s.scope_value='*')",
+          )
+        : [];
     // Legacy grants must be reviewed, not silently converted to Global.
     return {
       ...user,
+      isLastAdministrator:
+        administratorCount?.total === 1 &&
+        scopes.some((s) => s.scopeType === "Global" && s.scopeValue === "*"),
       scopes: scopes.filter((s) => grantSchema.safeParse(s).success) as AccessGrant[],
       legacyScopes: scopes.filter((s) => !grantSchema.safeParse(s).success),
     };

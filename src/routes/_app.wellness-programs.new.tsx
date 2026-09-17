@@ -68,8 +68,8 @@ function CreateWellnessProgramPage() {
   const families = listWellnessFamilies();
   const editingDraftId = search.draftId?.trim() || undefined;
   const { data: devices = [] } = useQuery({
-    queryKey: ["devices"],
-    queryFn: devicesService.list,
+    queryKey: ["reference", "target-devices"],
+    queryFn: devicesService.targetList,
   });
   const { data: editingDraft, isLoading: isEditingDraftLoading } = useQuery({
     queryKey: ["notification", editingDraftId],

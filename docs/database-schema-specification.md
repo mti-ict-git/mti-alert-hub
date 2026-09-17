@@ -636,3 +636,9 @@ Legacy Department/Section grants require reviewed conversion, not implicit Globa
 ### Windows sign-in wellness recurrence (2026-09-16)
 
 The existing recurrence_rule text field may contain FREQ=WINDOWS_SIGNIN;INTERVAL=N for wellness AgentLocalRoutine policies. N is 1-10080 minutes; this application extension needs no schema migration. See wellness-windows-sign-in-schedule.md for execution and compatibility rules.
+
+## Phase 4 managed-access job provenance (migration 0020, pending production)
+
+`communication_access` stores explicit owner, intended scope grants, publisher, publisher authorization version and Draft/Authorized/BlockedAuthorization state. Existing communication records are retained without inferred ownership. `communication_preview_receipts` stores an actor/version-bound digest of reviewed content, template policy, channels and audience with a 15-minute freshness requirement for emergency publication. Its primary key is communication_id/user_id; communication deletion cascades receipt cleanup.
+
+`agent_rollout_intents` adds initiated_by_user_id, initiator_authorization_version and authorization_state. Existing intents default to BlockedAuthorization. Version changes do not rewrite these historical actor snapshots. Audit entries for newly blocked work are transactional. Migration 0020 does not grant roles or alter delivery history. See users-access-cutover.md before applying it.

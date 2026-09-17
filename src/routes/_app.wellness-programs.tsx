@@ -1,3 +1,4 @@
+import { PermissionAction } from "@/components/access/PermissionAction";
 import { FilterChips } from "@/components/common/FilterChips";
 import { ListPagination } from "@/components/common/ListPagination";
 import { useListPagination } from "@/hooks/useListPagination";
@@ -185,12 +186,14 @@ function WellnessProgramsIndexPage() {
             <Button variant="outline" asChild>
               <Link to="/notifications">Open Notification Center</Link>
             </Button>
-            <Button asChild>
-              <Link to="/wellness-programs/new">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Wellness Program
-              </Link>
-            </Button>
+            <PermissionAction permission="wellness.manage">
+              <Button asChild>
+                <Link to="/wellness-programs/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Wellness Program
+                </Link>
+              </Button>
+            </PermissionAction>
           </>
         }
       />

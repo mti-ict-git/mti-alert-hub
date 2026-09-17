@@ -1,3 +1,7 @@
+import { createHttpServer } from "../src/app/http/create-server.js";
+import { registerAccessRoutes } from "../src/modules/access/controller/register-access-routes.js";
+import { createLogger } from "../src/shared/observability/logger.js";
+import { AdministratorBootstrapService } from "../src/modules/access/service/administrator-bootstrap-service.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -219,6 +223,110 @@ test(
           assert.equal(rows.length, 0);
         },
       );
+
+      await t.test(
+        "Operator bootstrap verifies collisions and audit failure is atomic",
+        async () => {
+          const bootstrap = new AdministratorBootstrapService(db);
+          const identity = {
+            directoryId: "test-directory",
+            directorySubjectId: randomUUID(),
+            username: "bootstrap-admin",
+            fullName: "Bootstrap Admin",
+            email: null,
+          };
+          const created = await bootstrap.apply(
+            identity,
+            "test-operator",
+            "Verified bootstrap request",
+          );
+          assert.equal((await service.detail(created.id)).roleId, "CentralAdmin");
+          assert.ok(await sessionA.create(created.id));
+          await assert.rejects(
+            bootstrap.apply(
+              { ...identity, directorySubjectId: randomUUID() },
+              "test-operator",
+              "Conflicting identity",
+            ),
+            /conflicts/,
+          );
+          const rejected = {
+            ...identity,
+            username: "bootstrap-rejected",
+            directorySubjectId: randomUUID(),
+          };
+          await assert.rejects(bootstrap.apply(rejected, "test-operator", "Reject audit test"));
+          assert.equal(
+            (await db.query("select id from public.users where username=$1", [rejected.username]))
+              .length,
+            0,
+          );
+          const current = await service.read(actor, created.id);
+          await service.change(
+            actor,
+            created.id,
+            "status",
+            {
+              status: "Disabled",
+              expectedRevision: current.revision,
+              reason: "End isolated bootstrap test",
+            },
+            randomUUID(),
+          );
+        },
+      );
+
+      await t.test(
+        "HTTP access APIs use persistent sessions and immediately reject revoked or non-admin access",
+        async () => {
+          const issued = await sessionA.create(admins[0]!);
+          const http = createHttpServer({
+            logger: createLogger("error"),
+            resolveSession: (token) => sessionB.get(token),
+            routes: registerAccessRoutes({
+              service,
+              directory: {
+                search: async () => [],
+                resolve: async () => {
+                  throw Error("Not used");
+                },
+              },
+              resolveActor: (auth) => ({
+                id: auth.session.user.id,
+                authorizationVersion: auth.session.authorizationVersion!,
+              }),
+            }),
+          });
+          await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
+          const address = http.address() as { port: number };
+          const url = "http://127.0.0.1:" + address.port;
+          const request = (path: string, token = issued.sessionToken) =>
+            fetch(url + path, { headers: { Authorization: "Bearer " + token } });
+          try {
+            assert.equal((await fetch(url + "/access/users")).status, 401);
+            const me = await request("/access/me");
+            assert.equal(me.status, 200);
+            assert.ok((await me.json()).permissions.includes("access.manage"));
+            const result = await request("/access/users?page=1&pageSize=25");
+            assert.equal(result.status, 200);
+            assert.ok((await result.json()).items.length >= 2);
+            assert.equal((await request("/access/roles")).status, 200);
+            const [viewer] = await db.query<{ id: string }>(
+              "select id from public.users where username='granted-viewer'",
+            );
+            const viewerSession = await sessionA.create(viewer!.id);
+            assert.equal((await request("/access/users", viewerSession.sessionToken)).status, 403);
+            assert.equal((await request("/access/me", viewerSession.sessionToken)).status, 200);
+            await sessionA.revoke(issued.sessionToken);
+            assert.equal((await request("/access/users")).status, 401);
+          } finally {
+            http.closeAllConnections();
+            await new Promise<void>((resolve, reject) =>
+              http.close((error) => (error ? reject(error) : resolve())),
+            );
+          }
+        },
+      );
       await t.test("Concurrent self-demotions leave exactly one active administrator", async () => {
         const second = await service.read(actor, admins[1]!);
         const results = await Promise.allSettled([
@@ -252,6 +360,10 @@ test(
           "select count(*) from public.users where status='Active' and role_type='CentralAdmin'",
         );
         assert.equal(Number(remaining?.count), 1);
+        const [last] = await db.query<{ id: string }>(
+          "select id from public.users where status='Active' and role_type='CentralAdmin'",
+        );
+        assert.equal((await service.detail(last!.id)).isLastAdministrator, true);
       });
     } finally {
       // Generated identifier only, in this test connection; never application tables.

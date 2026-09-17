@@ -1,3 +1,4 @@
+import { requireLocation } from "../../access/service/access-context.js";
 import { z } from "zod";
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { AppError } from "../../../shared/errors/app-error.js";
@@ -26,6 +27,7 @@ export class DevicePlacementService {
       [id],
     );
     if (!row) conflict("Device not found.", 404);
+    requireLocation(row.siteId as string | null, row.areaId as string | null);
     return row;
   }
   async update(id: string, input: z.infer<typeof placementUpdate>, actor: string) {
@@ -36,12 +38,14 @@ export class DevicePlacementService {
         [id],
       );
       if (!row) conflict("Device not found.", 404);
+      requireLocation(row.siteId as string | null, row.areaId as string | null);
       for (const key of Object.keys(input.expected) as (keyof Placement)[])
         if (row[key] !== input.expected[key])
           conflict(
             "Placement changed since review. Close and reopen to review the latest placement.",
           );
       const next = { ...input.expected, ...input.changes };
+      requireLocation(next.siteId, next.areaId);
       if (
         input.changes.siteId &&
         input.changes.siteId !== row.siteId &&

@@ -186,3 +186,13 @@ details/export and mandatory login after role/scope changes. Do not reopen them 
 Remaining engineering gates are listed in users-access-verification.md: verified GUID migration, complete
 route/job coverage, shared-object ownership, session consistency, agent-local deactivation and API/schema validation.
 No production administrator identity has been selected by this documentation task.
+
+## Users & Access cutover activation hold — 2026-09-17
+
+Local acceptance implementation is prepared, but automatic approval review rejected unconditional managed-auth startup activation because missing schema/admin prerequisites could interrupt service. Default authentication remains unchanged. The source activation decision and operational consequences are detailed in users-access-cutover.md. The new frontend must not be deployed with the legacy login path. Legacy queued work without explicit publisher provenance requires authorized review/republication; no automatic ownership backfill is planned.
+
+## Source activation approved and completed — 2026-09-17
+
+This entry supersedes the earlier activation-hold status. The user explicitly approved managed authentication with migration 0020 and verified Administrator startup prerequisites. The default backend now uses PersistentAuthService/PersistentAccessSessionStore, always registers the access routes, enforces the closed administrative route manifest and enables queued agent job authorization. The legacy auto-admin fallback and internal managedAccess option have been removed from application bootstrap. Startup checks prerequisites before serving HTTP and closes the database on prerequisite failure.
+
+Backend build/typecheck and targeted bootstrap lint passed. The authorization suite passed 57 tests (the two explicit PostgreSQL suites skip without a test URL); the separate isolated PostgreSQL/HTTP run passed all 9 TAP tests. Frontend source is unchanged from the previously verified production build. Production migration 0020, Docker redeploy and live AD acceptance remain pending. Source is ready for the coordinated cutover sequence in docs/users-access-cutover.md; this is not a claim that production has been upgraded. Phase 4 remains In Progress until production acceptance.

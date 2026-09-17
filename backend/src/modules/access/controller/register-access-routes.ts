@@ -1,3 +1,4 @@
+import { AppError } from "../../../shared/errors/app-error.js";
 import type { AccessDirectoryService } from "../service/access-directory-service.js";
 import { z } from "zod";
 import type { AppRoute, AuthContext } from "../../../app/http/create-server.js";
@@ -24,10 +25,33 @@ const listQuery = z.object({
 /** Register only after persistent-session cutover and full administrative route policy coverage. */
 export function registerAccessRoutes(options: {
   service: UserAccessService;
-  directory: AccessDirectoryService;
+  directory: Pick<AccessDirectoryService, "search" | "resolve">;
   resolveActor: (auth: AuthContext) => AccessActor;
 }): AppRoute[] {
   return [
+    {
+      method: "GET",
+      path: "/access/me",
+      requiresAuth: true,
+      async handler({ auth }) {
+        const session = auth!.session;
+        if (!session.authorizationVersion || !session.permissions)
+          throw new AppError({
+            statusCode: 401,
+            code: "ACCESS_CHANGED",
+            message: "Sign in again to refresh your access.",
+          });
+        return {
+          statusCode: 200,
+          body: {
+            roleId: session.accessProfile.roleType,
+            scopes: session.accessProfile.scopes,
+            permissions: session.permissions,
+            authorizationVersion: session.authorizationVersion,
+          },
+        };
+      },
+    },
     {
       method: "GET",
       path: "/access/directory-users",

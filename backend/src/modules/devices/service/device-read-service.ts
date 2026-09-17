@@ -1,3 +1,4 @@
+import { locationScopeSql } from "../../access/service/access-context.js";
 import type { DatabaseClient } from "../../../infrastructure/db/connection.js";
 import { createPageMeta } from "../../../shared/http/list-query.js";
 import type { DeviceHealthThresholds } from "../../../app/config/env.js";
@@ -110,7 +111,7 @@ export class DeviceReadService {
 
 function buildDeviceWhereClause(options: DeviceReadOptions) {
   const values: unknown[] = [];
-  const conditions: string[] = [];
+  const conditions: string[] = [locationScopeSql("d.site_id", "d.area_id")];
 
   if (options.siteId) {
     values.push(options.siteId);

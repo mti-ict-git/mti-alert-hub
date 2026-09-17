@@ -1,3 +1,6 @@
+import { useAuth } from "@/hooks/useAuth";
+import { can } from "@/lib/access";
+import { PermissionAction } from "@/components/access/PermissionAction";
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -94,6 +97,7 @@ export const Route = createFileRoute("/_app/wellness-programs/$id")({
 });
 
 function WellnessProgramDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams({ from: "/_app/wellness-programs/$id" });
   const search = useSearch({ from: "/_app/wellness-programs/$id" });
   const navigate = useNavigate({ from: "/_app/wellness-programs/$id" });
@@ -417,25 +421,29 @@ function WellnessProgramDetailPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             {canPublish && (
-              <Button size="sm" onClick={() => openPublishDialog(notification)}>
-                <Rocket className="mr-2 h-4 w-4" />
-                Publish Wellness Program
-              </Button>
+              <PermissionAction permission="wellness.publish">
+                <Button size="sm" onClick={() => openPublishDialog(notification)}>
+                  <Rocket className="mr-2 h-4 w-4" />
+                  Publish Wellness Program
+                </Button>
+              </PermissionAction>
             )}
             {["Draft", "Scheduled", "Active"].includes(notification.status) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate({
-                    to: "/wellness-programs/new",
-                    search: { draftId: notification.id },
-                  })
-                }
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Program
-              </Button>
+              <PermissionAction permission="wellness.manage">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    navigate({
+                      to: "/wellness-programs/new",
+                      search: { draftId: notification.id },
+                    })
+                  }
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Program
+                </Button>
+              </PermissionAction>
             )}
             {canCancel && (
               <DropdownMenu>
@@ -445,7 +453,10 @@ function WellnessProgramDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setCancelOpen(true)}>
+                  <DropdownMenuItem
+                    onSelect={() => setCancelOpen(true)}
+                    disabled={!can(user, "notifications.cancel")}
+                  >
                     <XCircle className="h-4 w-4" />
                     Deactivate program
                   </DropdownMenuItem>
@@ -1157,12 +1168,14 @@ function WellnessProgramDetailPage() {
             <Button variant="outline" onClick={() => setPublishOpen(false)}>
               Close
             </Button>
-            <Button
-              onClick={() => publishMutation.mutate()}
-              disabled={publishMutation.isPending || publishInvalid}
-            >
-              {publishMutation.isPending ? "Publishing..." : "Publish Wellness Program"}
-            </Button>
+            <PermissionAction permission="wellness.publish">
+              <Button
+                onClick={() => publishMutation.mutate()}
+                disabled={publishMutation.isPending || publishInvalid}
+              >
+                {publishMutation.isPending ? "Publishing..." : "Publish Wellness Program"}
+              </Button>
+            </PermissionAction>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1181,16 +1194,22 @@ function WellnessProgramDetailPage() {
             <p className="mt-1 text-muted-foreground">Current status: {notification.status}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setCancelOpen(false)}
+              disabled={!can(user, "notifications.cancel")}
+            >
               Close
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => cancelMutation.mutate()}
-              disabled={cancelMutation.isPending}
-            >
-              {cancelMutation.isPending ? "Deactivating..." : "Confirm Deactivate"}
-            </Button>
+            <PermissionAction permission="wellness.manage">
+              <Button
+                variant="destructive"
+                onClick={() => cancelMutation.mutate()}
+                disabled={!can(user, "notifications.cancel") || cancelMutation.isPending}
+              >
+                {cancelMutation.isPending ? "Deactivating..." : "Confirm Deactivate"}
+              </Button>
+            </PermissionAction>
           </DialogFooter>
         </DialogContent>
       </Dialog>

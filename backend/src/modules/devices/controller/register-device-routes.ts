@@ -74,6 +74,31 @@ export function registerDeviceRoutes(options: RegisterDeviceRoutesOptions): AppR
   return [
     {
       method: "GET",
+      path: "/reference/devices",
+      requiresAuth: true,
+      async handler({ url }) {
+        const result = await options.deviceReadService.listDevices(
+          parseListQuery(deviceListQuerySchema, url),
+        );
+        return {
+          statusCode: 200,
+          body: {
+            ...result,
+            items: result.items.map((d) => ({
+              id: d.id,
+              deviceIdentifier: d.deviceIdentifier,
+              hostname: d.hostname,
+              siteId: d.siteId,
+              areaId: d.areaId,
+              ownershipMode: d.ownershipMode,
+              status: d.status,
+            })),
+          },
+        };
+      },
+    },
+    {
+      method: "GET",
       path: "/devices/{deviceId}/placement",
       requiresAuth: true,
       requiredRoles: ["CentralAdmin"],

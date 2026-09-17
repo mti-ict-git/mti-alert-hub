@@ -3,7 +3,11 @@ import { z } from "zod";
 import type { AppRoute } from "../../../app/http/create-server.js";
 import { validateWithSchema } from "../../../shared/validation/validate-zod.js";
 import type { AdminSession } from "../model/admin-session.js";
-import type { AuthService } from "../service/auth-service.js";
+export type AuthSessionService = {
+  login(input: { username: string; password: string }): Promise<AdminSession>;
+  rotateSession(token: string): AdminSession | Promise<AdminSession>;
+  logout(token: string): void | Promise<void>;
+};
 
 const loginRequestSchema = z.object({
   username: z.string().min(1),
@@ -11,7 +15,7 @@ const loginRequestSchema = z.object({
 });
 
 type RegisterAuthRoutesOptions = {
-  authService: AuthService;
+  authService: AuthSessionService;
 };
 
 export function registerAuthRoutes(options: RegisterAuthRoutesOptions): AppRoute[] {
@@ -54,7 +58,7 @@ export function registerAuthRoutes(options: RegisterAuthRoutesOptions): AppRoute
           throw new Error("Authenticated route invoked without auth context.");
         }
 
-        options.authService.logout(auth.session.sessionToken);
+        await options.authService.logout(auth.session.sessionToken);
         return {
           statusCode: 204,
         };
@@ -71,7 +75,9 @@ export function registerAuthRoutes(options: RegisterAuthRoutesOptions): AppRoute
 
         return {
           statusCode: 200,
-          body: serializeSession(options.authService.rotateSession(auth.session.sessionToken)),
+          body: serializeSession(
+            await options.authService.rotateSession(auth.session.sessionToken),
+          ),
         };
       },
     },
@@ -89,6 +95,9 @@ function serializeSession(session: AdminSession) {
       roleType: session.accessProfile.roleType,
     },
     scopes: session.accessProfile.scopes,
+    ...(session.permissions
+      ? { permissions: session.permissions, authorizationVersion: session.authorizationVersion }
+      : {}),
     expiresAt: session.expiresAt,
   };
 }

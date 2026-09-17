@@ -1,3 +1,5 @@
+import { can } from "@/lib/access";
+import { UsersAccessSettings, type AccessSearch } from "@/components/access/UsersAccessSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { SitesAreasSettings } from "@/components/settings/SitesAreasSettings";
 import { createFileRoute } from "@tanstack/react-router";
@@ -16,7 +18,18 @@ import { Download, Github, Loader2, Package, RefreshCw, Trash2, Upload } from "l
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/settings")({
-  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { tab?: string } & AccessSearch => ({
+    accessTab: search.accessTab === "roles" ? "roles" : "users",
+    accessSearch: typeof search.accessSearch === "string" ? search.accessSearch : undefined,
+    accessStatus: ["Pending", "Active", "Disabled"].includes(String(search.accessStatus))
+      ? String(search.accessStatus)
+      : undefined,
+    accessRole: typeof search.accessRole === "string" ? search.accessRole : undefined,
+    accessSite: typeof search.accessSite === "string" ? search.accessSite : undefined,
+    accessPage: Math.max(1, Math.floor(Number(search.accessPage) || 1)),
+    accessPageSize: [10, 25, 50, 100].includes(Number(search.accessPageSize))
+      ? Number(search.accessPageSize)
+      : 25,
     tab:
       typeof search.tab === "string" &&
       ["general", "locations", "channels", "agent", "whatsapp", "roles", "audit"].includes(
@@ -29,11 +42,19 @@ export const Route = createFileRoute("/_app/settings")({
 });
 
 function SettingsPage() {
-  const { tab = "general" } = Route.useSearch();
+  const accessSearch = Route.useSearch();
+  const { tab: requestedTab } = accessSearch;
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const canSyncGitHub = user?.role === "Admin";
+  const canManageSettings = can(user, "settings.manage");
+  const allowedTabs = canManageSettings
+    ? ["general", "locations", "channels", "agent", "whatsapp", "roles", "audit"]
+    : can(user, "packages.read")
+      ? ["agent"]
+      : ["roles"];
+  const tab = requestedTab && allowedTabs.includes(requestedTab) ? requestedTab : allowedTabs[0];
+  const canSyncGitHub = can(user, "packages.import");
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [s, setS] = useState<AppSettings | null>(null);
   useEffect(() => {
@@ -47,6 +68,7 @@ function SettingsPage() {
   } = useQuery({
     queryKey: ["device-rollout-packages"],
     queryFn: devicesService.listRolloutPackages,
+    enabled: can(user, "packages.read"),
     refetchInterval: 30000,
   });
 
@@ -119,7 +141,11 @@ function SettingsPage() {
       <PageHeader
         title="Settings"
         description="Configure MTI Connect locations, channels, agents, and permissions."
-        actions={tab !== "locations" ? <Button onClick={save}>Save Changes</Button> : undefined}
+        actions={
+          canManageSettings && tab !== "locations" && tab !== "roles" ? (
+            <Button onClick={save}>Save Changes</Button>
+          ) : undefined
+        }
       />
 
       <Tabs
@@ -129,13 +155,19 @@ function SettingsPage() {
         }}
       >
         <TabsList className="flex-wrap">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="locations">Sites & Areas</TabsTrigger>
-          <TabsTrigger value="channels">Channels</TabsTrigger>
-          <TabsTrigger value="agent">Desktop Agent</TabsTrigger>
-          <TabsTrigger value="whatsapp">WhatsApp Gateway</TabsTrigger>
-          <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
-          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          {allowedTabs.includes("general") && <TabsTrigger value="general">General</TabsTrigger>}
+          {allowedTabs.includes("locations") && (
+            <TabsTrigger value="locations">Sites & Areas</TabsTrigger>
+          )}
+          {allowedTabs.includes("channels") && <TabsTrigger value="channels">Channels</TabsTrigger>}
+          {allowedTabs.includes("agent") && <TabsTrigger value="agent">Desktop Agent</TabsTrigger>}
+          {allowedTabs.includes("whatsapp") && (
+            <TabsTrigger value="whatsapp">WhatsApp Gateway</TabsTrigger>
+          )}
+          {allowedTabs.includes("roles") && (
+            <TabsTrigger value="roles">Users &amp; Access</TabsTrigger>
+          )}
+          {allowedTabs.includes("audit") && <TabsTrigger value="audit">Audit Logs</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="locations" className="mt-4">
@@ -205,64 +237,66 @@ function SettingsPage() {
 
         <TabsContent value="agent" className="mt-4">
           <div className="space-y-4">
-            <Card>
-              <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
-                <div className="md:col-span-2 flex items-center justify-between rounded-md border p-4">
-                  <div>
-                    <div className="font-medium">Agent Installer</div>
-                    <div className="text-xs text-muted-foreground">
-                      Manage the global Windows Agent package registry here before triggering
-                      device-level rollouts.
+            {can(user, "settings.manage") && (
+              <Card>
+                <CardContent className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+                  <div className="md:col-span-2 flex items-center justify-between rounded-md border p-4">
+                    <div>
+                      <div className="font-medium">Agent Installer</div>
+                      <div className="text-xs text-muted-foreground">
+                        Manage the global Windows Agent package registry here before triggering
+                        device-level rollouts.
+                      </div>
                     </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => toast.info("Download — backend required")}
+                    >
+                      <Download className="mr-1 h-4 w-4" /> Download Installer
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => toast.info("Download — backend required")}
-                  >
-                    <Download className="mr-1 h-4 w-4" /> Download Installer
-                  </Button>
-                </div>
-                <Field label="Current Version">
-                  <Input
-                    aria-label="Current Version"
-                    value={s.desktopAgent.currentVersion}
-                    onChange={(e) =>
-                      setS({
-                        ...s,
-                        desktopAgent: { ...s.desktopAgent, currentVersion: e.target.value },
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Heartbeat Interval (seconds)">
-                  <Input
-                    aria-label="Heartbeat Interval (seconds)"
-                    type="number"
-                    value={s.desktopAgent.heartbeatSec}
-                    onChange={(e) =>
-                      setS({
-                        ...s,
-                        desktopAgent: { ...s.desktopAgent, heartbeatSec: Number(e.target.value) },
-                      })
-                    }
-                  />
-                </Field>
-                <div className="md:col-span-2 flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <Label>Auto-update Agents</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Push new versions automatically to online devices.
-                    </p>
+                  <Field label="Current Version">
+                    <Input
+                      aria-label="Current Version"
+                      value={s.desktopAgent.currentVersion}
+                      onChange={(e) =>
+                        setS({
+                          ...s,
+                          desktopAgent: { ...s.desktopAgent, currentVersion: e.target.value },
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="Heartbeat Interval (seconds)">
+                    <Input
+                      aria-label="Heartbeat Interval (seconds)"
+                      type="number"
+                      value={s.desktopAgent.heartbeatSec}
+                      onChange={(e) =>
+                        setS({
+                          ...s,
+                          desktopAgent: { ...s.desktopAgent, heartbeatSec: Number(e.target.value) },
+                        })
+                      }
+                    />
+                  </Field>
+                  <div className="md:col-span-2 flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <Label>Auto-update Agents</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Push new versions automatically to online devices.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={s.desktopAgent.autoUpdate}
+                      onCheckedChange={(v) =>
+                        setS({ ...s, desktopAgent: { ...s.desktopAgent, autoUpdate: v } })
+                      }
+                    />
                   </div>
-                  <Switch
-                    checked={s.desktopAgent.autoUpdate}
-                    onCheckedChange={(v) =>
-                      setS({ ...s, desktopAgent: { ...s.desktopAgent, autoUpdate: v } })
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardContent className="space-y-4 p-6">
@@ -424,7 +458,7 @@ function SettingsPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={deleteMutation.isPending}
+                            disabled={!can(user, "packages.delete") || deleteMutation.isPending}
                             onClick={() => deleteMutation.mutate(pkg.fileName)}
                           >
                             {deleteMutation.isPending &&
@@ -493,30 +527,12 @@ function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-2">
-                {[
-                  { role: "Admin", desc: "Full access, manage users and settings" },
-                  { role: "Operator", desc: "Create and send notifications" },
-                  { role: "Viewer", desc: "Read-only dashboards and reports" },
-                ].map((r) => (
-                  <div
-                    key={r.role}
-                    className="flex items-center justify-between rounded-md border p-3"
-                  >
-                    <div>
-                      <div className="font-medium">{r.role}</div>
-                      <div className="text-xs text-muted-foreground">{r.desc}</div>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      Edit permissions
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <UsersAccessSettings
+            search={accessSearch}
+            onSearch={(next) => {
+              void navigate({ search: { ...next, tab: "roles" }, replace: true });
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">

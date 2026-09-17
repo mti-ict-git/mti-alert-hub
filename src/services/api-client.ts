@@ -11,6 +11,16 @@ type ApiErrorPayload = {
   message?: string;
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const sessionToken = sessionService.getSessionToken();
   const headers = new Headers(init?.headers);
@@ -39,12 +49,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       sessionService.clearSession();
 
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        sessionStorage.setItem(
+          "mti-access-message",
+          "Your session expired or your access changed. Sign in again to continue.",
+        );
         window.location.assign("/login");
       }
     }
 
     const errorPayload = await tryParseErrorPayload(res);
-    throw new Error(errorPayload?.message ?? `API ${res.status}: ${res.statusText}`);
+    throw new ApiError(errorPayload?.message ?? "Request failed.", res.status, errorPayload?.code);
   }
 
   if (res.status === 204) {

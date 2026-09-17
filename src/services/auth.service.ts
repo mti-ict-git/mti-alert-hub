@@ -9,9 +9,12 @@ type AuthSessionResponse = {
     username: string;
     fullName: string;
     email?: string | null;
-    roleType: "CentralAdmin" | "LocalOperator" | "ManagementViewer";
+    roleType: import("./access.service").AccessRole | "LocalOperator";
   };
   expiresAt?: string | null;
+  permissions?: string[];
+  authorizationVersion?: number;
+  scopes?: import("./access.service").AccessScope[];
 };
 
 let lastValidatedAt = 0;
@@ -19,11 +22,12 @@ const SESSION_VALIDATION_TTL_MS = 30_000;
 
 export const authService = {
   async login(username: string, password: string): Promise<User> {
+    sessionService.clearSession();
     const session = await apiClient.post<AuthSessionResponse>("/auth/login", {
       username,
       password,
     });
-    const user = mapAuthUser(session.user);
+    const user = mapAuthUser(session);
 
     persistSession(session, user);
     lastValidatedAt = Date.now();
@@ -53,7 +57,7 @@ export const authService = {
 
     try {
       const session = await apiClient.get<AuthSessionResponse>("/auth/me");
-      const user = mapAuthUser(session.user);
+      const user = mapAuthUser(session);
       persistSession(session, user);
       lastValidatedAt = Date.now();
       return user;
@@ -73,8 +77,13 @@ function persistSession(session: AuthSessionResponse, user: User) {
   });
 }
 
-function mapAuthUser(user: AuthSessionResponse["user"]): User {
+function mapAuthUser(session: AuthSessionResponse): User {
+  const { user } = session;
   return {
+    roleId: user.roleType,
+    permissions: session.permissions,
+    authorizationVersion: session.authorizationVersion,
+    scopes: session.scopes,
     id: user.id,
     username: user.username,
     name: user.fullName,
@@ -88,7 +97,9 @@ function mapRoleType(roleType: AuthSessionResponse["user"]["roleType"]): User["r
     return "Admin";
   }
 
-  if (roleType === "LocalOperator") {
+  if (
+    ["LocalOperator", "ITOperator", "CommunicationOperator", "EmergencyOfficer"].includes(roleType)
+  ) {
     return "Operator";
   }
 

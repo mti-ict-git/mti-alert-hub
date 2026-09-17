@@ -4,8 +4,8 @@ info:
   version: 0.3.0
   description: |
     Authoritative API contract for the MTI Alert central server.
-    Proposed Users & Access endpoints and auth extensions are documented in
-    users-access-contract.md (sections 9 and 13); they are not active endpoints in this version.
+    Users & Access cutover endpoints are defined below and in users-access-contract.md.
+    Managed authentication is activated in source; production availability requires the coordinated migration and redeploy.
 
     This contract covers:
     - admin authentication and scope-aware operations
@@ -192,6 +192,13 @@ paths:
       operationId: listCommunications
       x-implementation-phase: Phase 1
       parameters:
+        - in: query
+          name: view
+          schema:
+            type: string
+            enum: [content, report]
+            default: content
+          description: Report view includes authorized recipient snapshots for partially overlapping communications with content redacted. Counts and pagination remain scoped; content searches require full visibility.
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
         - $ref: "#/components/parameters/Search"
@@ -1867,6 +1874,471 @@ paths:
           description: Device not found
         '409':
           description: Placement changed since review; refresh and review again
+  /access/me:
+    get:
+      tags:
+        - Users & Access
+      summary: Read current access
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessCapabilities'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+  /access/users:
+    get:
+      tags:
+        - Users & Access
+      summary: List users (Administrator)
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUserPage'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            enum:
+              - 10
+              - 25
+              - 50
+              - 100
+            default: 25
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: roleId
+          in: query
+          schema:
+            type: string
+            enum:
+              - CentralAdmin
+              - ITOperator
+              - CommunicationOperator
+              - EmergencyOfficer
+              - ManagementViewer
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+    post:
+      tags:
+        - Users & Access
+      summary: Grant access after verified directory lookup (Administrator)
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessGrantRequest'
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+  /access/users/{id}:
+    get:
+      tags:
+        - Users & Access
+      summary: Read user and last administrator protection (Administrator)
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /access/users/{id}/assignment:
+    patch:
+      tags:
+        - Users & Access
+      summary: Review and change role/scope; revoke sessions
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessAssignment'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /access/users/{id}/status:
+    patch:
+      tags:
+        - Users & Access
+      summary: Enable or disable application access; preserve AD account
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessStatusRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /access/users/{id}/revoke-sessions:
+    post:
+      tags:
+        - Users & Access
+      summary: Revoke sessions and increment authorization version
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessRevokeRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /access/directory-users:
+    get:
+      tags:
+        - Users & Access
+      summary: Search eligible AD identities (Administrator)
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DirectoryAccessUser'
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: search
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 100
+  /access/roles:
+    get:
+      tags:
+        - Users & Access
+      summary: Read five built-in roles and permissions
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          enum:
+                            - CentralAdmin
+                            - ITOperator
+                            - CommunicationOperator
+                            - EmergencyOfficer
+                            - ManagementViewer
+                        label:
+                          type: string
+                        permissions:
+                          type: array
+                          items:
+                            type: string
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+  /reference/devices:
+    get:
+      tags:
+        - Users & Access
+      summary: Read scoped device targeting choices (notification authors)
+      description: >-
+        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
+        current persisted authorization; no automatic role assignment.
+      security:
+        - AdminSessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        hostname:
+                          type: string
+                        deviceIdentifier:
+                          type:
+                            - string
+                            - 'null'
+                        siteId:
+                          type: string
+                          format: uuid
+                        areaId:
+                          type:
+                            - string
+                            - 'null'
+                        ownershipMode:
+                          type: string
+                        status:
+                          type: string
+        '401':
+          description: Missing, expired or revoked session
+        '403':
+          description: Permission denied
+        '409':
+          description: >-
+            Stale revision, identity conflict, idempotency conflict, preview refresh or last administrator
+            protection
+        '422':
+          description: Invalid role, scope, revision or reason
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+
 components:
   headers:
     RequestId:
@@ -1886,6 +2358,13 @@ components:
       description: Bearer token or equivalent device session token issued to a Windows Agent.
 
   parameters:
+    RequestId:
+      in: path
+      name: requestId
+      required: true
+      schema:
+        type: string
+        format: uuid
     CommunicationId:
       in: path
       name: communicationId
@@ -2033,6 +2512,273 @@ components:
             $ref: "#/components/schemas/ValidationErrorResponse"
 
   schemas:
+    WellnessDistributionMode:
+      type: string
+      enum: [Synchronized, Staggered]
+    AccessGrant:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - scopeType
+            - scopeValue
+          properties:
+            scopeType:
+              const: Global
+            scopeValue:
+              const: '*'
+        - type: object
+          additionalProperties: false
+          required:
+            - scopeType
+            - scopeValue
+          properties:
+            scopeType:
+              type: string
+              enum:
+                - Site
+                - Area
+            scopeValue:
+              type: string
+              format: uuid
+    AccessUser:
+      type: object
+      required:
+        - id
+        - username
+        - fullName
+        - status
+        - roleId
+        - scopes
+        - revision
+        - authorizationVersion
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum:
+            - Pending
+            - Active
+            - Disabled
+        roleId:
+          anyOf:
+            - type: string
+              enum:
+                - CentralAdmin
+                - ITOperator
+                - CommunicationOperator
+                - EmergencyOfficer
+                - ManagementViewer
+            - type: 'null'
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessGrant'
+        revision:
+          type: integer
+          minimum: 1
+        authorizationVersion:
+          type: integer
+          minimum: 1
+        lastLoginAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        isLastAdministrator:
+          type: boolean
+        legacyScopes:
+          type: array
+          items:
+            type: object
+            properties:
+              scopeType:
+                type: string
+              scopeValue:
+                type: string
+    AccessAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - roleId
+        - scopes
+        - reason
+        - expectedRevision
+      properties:
+        roleId:
+          type: string
+          enum:
+            - CentralAdmin
+            - ITOperator
+            - CommunicationOperator
+            - EmergencyOfficer
+            - ManagementViewer
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AccessGrant'
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+        expectedRevision:
+          type: integer
+          minimum: 1
+    AccessGrantRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - directoryId
+        - directorySubjectId
+        - roleId
+        - scopes
+        - reason
+      properties:
+        directoryId:
+          type: string
+        directorySubjectId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          enum:
+            - CentralAdmin
+            - ITOperator
+            - CommunicationOperator
+            - EmergencyOfficer
+            - ManagementViewer
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AccessGrant'
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+    AccessStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - expectedRevision
+        - reason
+      properties:
+        status:
+          type: string
+          enum:
+            - Active
+            - Disabled
+        expectedRevision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+    AccessRevokeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+        - reason
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
+    DirectoryAccessUser:
+      type: object
+      properties:
+        directoryId:
+          type: string
+        directorySubjectId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type:
+            - string
+            - 'null'
+        existingUserId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        existingStatus:
+          type:
+            - string
+            - 'null'
+          enum:
+            - Pending
+            - Active
+            - Disabled
+            - null
+    AccessUserPage:
+      type: object
+      required:
+        - items
+        - page
+        - pageSize
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessUser'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    AccessCapabilities:
+      type: object
+      required:
+        - roleId
+        - scopes
+        - permissions
+        - authorizationVersion
+      properties:
+        roleId:
+          type: string
+          enum:
+            - CentralAdmin
+            - ITOperator
+            - CommunicationOperator
+            - EmergencyOfficer
+            - ManagementViewer
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AccessGrant'
+        permissions:
+          type: array
+          items:
+            type: string
+        authorizationVersion:
+          type: integer
     GitHubPackageSyncStatus:
       type: object
       required: [available, state, message]
@@ -2249,6 +2995,15 @@ components:
       type: object
       required: [sessionToken, user, scopes, expiresAt]
       properties:
+        permissions:
+          type: array
+          description: Effective server-issued permissions in managed access sessions.
+          items:
+            type: string
+        authorizationVersion:
+          type: integer
+          minimum: 1
+          description: Current database assignment version. Present with managed access sessions.
         sessionToken:
           type: string
           description: Opaque bearer token for subsequent admin API calls.
@@ -2279,7 +3034,7 @@ components:
           nullable: true
         roleType:
           type: string
-          enum: [CentralAdmin, LocalOperator, ManagementViewer]
+          enum: [CentralAdmin, LocalOperator, ManagementViewer, ITOperator, CommunicationOperator, EmergencyOfficer]
 
     AdminScope:
       type: object
@@ -2294,6 +3049,10 @@ components:
       type: object
       required: [id, communicationType, priority, title, status, channelSelections]
       properties:
+        authorizationState:
+          type: string
+          enum: [Draft, Authorized, BlockedAuthorization]
+          description: Missing legacy publishing authorization is reported as blocked; review and republish.
         id:
           type: string
         communicationType:
@@ -3327,9 +4086,6 @@ components:
           type: string
           nullable: true
         employeeId:
-          type: string
-          nullable: true
-        deviceId:
           type: string
           nullable: true
         deviceIdentifier:
@@ -4971,3 +5727,13 @@ components:
             $ref: "#/components/schemas/AuditLogRecord"
         page:
           $ref: "#/components/schemas/PageMeta"
+
+
+x-users-access-ui-integration:
+  status: implemented-ui-pending-runtime-cutover
+  contract: users-access-contract.md
+  evidence: users-access-implementation.md
+  accessUserAdditions:
+    isLastAdministrator:
+      type: boolean
+      description: Advisory guard for disabling role or status changes in the UI. Backend checks remain authoritative.
