@@ -824,3 +824,8 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 - [x] Prepare additive migration 0020 and read-only readiness/cutover runbook. No production application is claimed.
 - [x] Activate managed authentication as the default and remove the legacy auto-admin runtime fallback following explicit user approval. Startup enforces migration/admin prerequisites; backend build, targeted lint, authorization unit tests and isolated PostgreSQL acceptance passed. See users-access-cutover.md.
 - [ ] Production migration 0020, coordinated redeploy and live five-role/AD acceptance. Phase 4 remains In Progress.
+
+- [x] Production migration 0020 explicitly authorized and committed on 2026-09-17 at 04:41:48.818 UTC. All prior checksums matched, user assignments unchanged, post-migration readiness passed with one verified Administrator. Evidence: users-access-implementation.md.
+- [ ] Coordinated backend/frontend production redeploy and live access acceptance. Readiness inventoried 60 legacy active communications and 149 active rollout intents requiring authorization review; no notification or upgrade was initiated by migration.
+
+- 2026-09-17: Investigated wellness scheduling on MTI-NB-373; installed agent and production events verify Triggered/Displayed/Started for the observed version 2 policy. Original 08:48 failure remains unconfirmed; synchronization label and clock skew findings recorded in `wellness-scheduling-diagnostic-2026-09-17.md`. No production mutation or rollout performed.
