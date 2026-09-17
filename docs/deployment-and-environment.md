@@ -355,6 +355,15 @@ The current Docker baseline is not yet a full production platform package. In pa
    - `bash scripts/deploy-docker.sh destroy --with-postgres`
 6. Access the admin UI on `http://localhost:8080` and backend API on `http://localhost:4019`.
 
+By default, `scripts/deploy-docker.sh` auto-detects the first available env file from:
+
+- repo `.env.docker`
+- repo `.env`
+- `$HOME/.env.docker`
+- `$HOME/.env`
+
+Use `--env-file /absolute/path/to/file` when the target host keeps deployment secrets somewhere else.
+
 `docker compose` remains available as a fallback baseline:
 
 - `docker compose --env-file .env.docker up --build`

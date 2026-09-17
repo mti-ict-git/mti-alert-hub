@@ -153,6 +153,7 @@ docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.wi
 - PostgreSQL: `localhost:5432`
 
 Implementation notes:
+- `scripts/deploy-docker.sh` auto-detects the env file in this order: repo `.env.docker`, repo `.env`, `$HOME/.env.docker`, `$HOME/.env`; use `--env-file` to override it explicitly
 - `scripts/deploy-docker.sh` runs backend migrations before the backend container is started
 - the frontend container builds TanStack Start with `NITRO_PRESET=node-server` so it can run as a normal Node SSR process inside Docker
 - the admin browser path now goes through an `nginx` gateway that proxies same-origin `/api/*` requests to the internal backend service, avoiding mixed-content and CORS issues when the public site is served over HTTPS

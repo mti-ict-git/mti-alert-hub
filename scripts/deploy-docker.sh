@@ -2,7 +2,8 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env.docker"
+ENV_FILE=""
+ENV_FILE_EXPLICIT=0
 ACTION="deploy"
 WITH_POSTGRES=0
 BUILD_IMAGES=1
@@ -34,7 +35,7 @@ Usage:
   bash scripts/deploy-docker.sh <status|logs|stop|destroy> [options]
 
 Options:
-  --env-file PATH        Use a custom Docker env file. Default: .env.docker
+  --env-file PATH        Use a custom Docker env file
   --with-postgres        Start a local PostgreSQL container and point backend to it
   --no-build             Reuse existing backend and frontend images
   --follow               Follow logs after deploy or logs command
@@ -53,6 +54,25 @@ EOF
 fail() {
   echo "ERROR: $*" >&2
   exit 1
+}
+
+resolve_default_env_file() {
+  local candidates=(
+    "$ROOT_DIR/.env.docker"
+    "$ROOT_DIR/.env"
+    "$HOME/.env.docker"
+    "$HOME/.env"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      ENV_FILE="$candidate"
+      return 0
+    fi
+  done
+
+  fail "No env file found. Checked: ${candidates[*]}. Use --env-file PATH if your env lives elsewhere."
 }
 
 trim() {
@@ -424,6 +444,7 @@ while (($#)); do
       else
         ENV_FILE="$ROOT_DIR/$2"
       fi
+      ENV_FILE_EXPLICIT=1
       shift 2
       ;;
     --with-postgres)
@@ -452,6 +473,10 @@ while (($#)); do
       ;;
   esac
 done
+
+if (( !ENV_FILE_EXPLICIT )); then
+  resolve_default_env_file
+fi
 
 require_docker
 load_env_file
