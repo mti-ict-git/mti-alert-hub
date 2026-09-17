@@ -1,3 +1,4 @@
+import { AndFilter, FilterParser, type Filter } from "ldapts";
 import { z } from "zod";
 import type { BackendEnv } from "../../../app/config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
@@ -8,7 +9,7 @@ import {
   normalizeOptionalScalar,
   enforceAllowedGroups,
 } from "../../auth/service/ldap-authenticator.js";
-import { decodeDirectoryGuid, encodeDirectoryGuid } from "./directory-identity.js";
+import { decodeDirectoryGuid, directoryGuidFilter } from "./directory-identity.js";
 import type { VerifiedDirectoryIdentity } from "./directory-user-repository.js";
 
 const configSchema = z.object({
@@ -52,7 +53,7 @@ export class AccessDirectoryService {
       email: normalizeOptionalScalar(entry.mail),
     };
   }
-  private async lookup(filter: string, base?: string) {
+  private async lookup(filter: string | Filter, base?: string) {
     const config = this.config(),
       client = createLdapClient(config.LDAP_URL, this.env);
     try {
@@ -130,7 +131,9 @@ export class AccessDirectoryService {
         message: "Choose a user from the configured directory.",
       });
     const entries = await this.lookup(
-      enabledUser + "(objectGUID=" + encodeDirectoryGuid(guid) + "))",
+      new AndFilter({
+        filters: [FilterParser.parseString(enabledUser + ")"), directoryGuidFilter(guid)],
+      }),
     );
     if (entries.length !== 1)
       throw new AppError({

@@ -1,3 +1,4 @@
+import { EqualityFilter } from "ldapts";
 import { AppError } from "../../../shared/errors/app-error.js";
 
 /** AD objectGUID has little-endian first three fields; the remaining eight bytes retain order. */
@@ -34,4 +35,10 @@ export function encodeDirectoryGuid(value: string): string {
   bytes.subarray(4, 6).reverse();
   bytes.subarray(6, 8).reverse();
   return [...bytes].map((byte) => "\\" + byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Preserve octets on the wire; LDAP string parsing re-encodes high bytes as UTF-8. */
+export function directoryGuidFilter(guid: string): EqualityFilter {
+  const bytes = Buffer.from(encodeDirectoryGuid(guid).replaceAll("\\", ""), "hex");
+  return new EqualityFilter({ attribute: "objectGUID", value: bytes });
 }

@@ -836,3 +836,5 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 - 2026-09-17: Isolated actual-browser publish regression passed for Windows sign-in basis preservation, activation label, seven-day validation, and serialized publish payload. No API request reached production.
 
 - 2026-09-17: Fixed standalone Docker migration/backend environment forwarding to use parsed dotenv exports, resolving literal wrapper quotes in LDAP credentials. Bash syntax and fake-Docker launch regression passed; deployment documentation updated. Production container recreation remains pending.
+
+- 2026-09-17: Fixed AD GUID revalidation using a binary LDAP equality filter. Actual read-only Andre search/resolve roundtrip, eight policy tests, backend typecheck and targeted lint passed. No access grant performed; backend redeploy pending. See `users-access-implementation.md`.

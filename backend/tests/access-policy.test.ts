@@ -1,3 +1,5 @@
+import { BerWriter } from "ldapts";
+import { directoryGuidFilter } from "../src/modules/access/service/directory-identity.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -97,4 +99,14 @@ test("AD GUID search encodes each binary byte exactly once and rejects filter in
   assert.equal(filter, String.raw`\33\22\11\00\55\44\77\66\88\99\aa\bb\cc\dd\ee\ff`);
   assert.equal(decodeDirectoryGuid(Buffer.from(filter.replaceAll("\\", ""), "hex")), guid);
   assert.throws(() => encodeDirectoryGuid("*)(objectClass=*)"));
+});
+
+test("AD GUID equality filter writes exact binary octets, including high-bit and zero bytes", () => {
+  const filter = directoryGuidFilter("00112233-4455-6677-8899-aabbccddeeff");
+  const expected = Buffer.from("33221100554477668899aabbccddeeff", "hex");
+  assert.deepEqual(filter.value, expected);
+  const writer = new BerWriter();
+  filter.writeFilter(writer);
+  assert.deepEqual(writer.buffer.subarray(-18), Buffer.concat([Buffer.from([4, 16]), expected]));
+  assert.throws(() => directoryGuidFilter("*)(objectClass=*)"));
 });

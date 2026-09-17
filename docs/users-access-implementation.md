@@ -154,3 +154,9 @@ The user explicitly requested production migration execution. Preflight confirme
 Post-commit read-only readiness passed: ready=true, verifiedAdministrators=1, legacyCommunications=60, legacyRollouts=149. The legacy counts identify active work without managed authorization provenance; these require review/new authorized publication or rollout after cutover. No ownership was guessed or backfilled. Migration execution did not redeploy containers, send notifications, or initiate device upgrades.
 
 Migration 0020 is now applied in production; earlier pending-migration statements are historical. The remaining production step is coordinated backend/frontend redeploy followed by live acceptance.
+
+## Binary AD identity revalidation correction (2026-09-17)
+
+Read-only reproduction found Andre Febrian Saputra through name search, while the original GUID string-filter lookup returned DIRECTORY_USER_UNAVAILABLE. The installed LDAP library converts escaped filter bytes to text before UTF-8 serialization, changing high-bit objectGUID bytes. GUID revalidation now uses EqualityFilter with a Buffer nested in the same enabled-user filter. Directory boundary, immutable identity, enabled status and allowed-group checks remain enforced. No user was granted access during diagnosis.
+
+Verification: the corrected AccessDirectoryService search/resolve roundtrip succeeded against AD for andre.saputra with identical immutable identity. Eight policy tests passed, including an exact BER binary-octet assertion and invalid GUID rejection; backend typecheck and targeted lint passed. API request/response schemas are unchanged. Backend rebuild/redeploy is required; no migration or frontend/agent update is needed.
