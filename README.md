@@ -14,7 +14,7 @@ The platform is designed around one unified communication model for alerts, remi
 - The repository currently contains an admin application codebase, source-of-truth project documentation, and an early backend scaffold under `backend/`.
 - Backend implementation continues in phases through the roadmap under `docs/`.
 - Versioned backend migrations now exist under `backend/migrations/` for the Phase 1 foundation schema.
-- A desktop-first Docker baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `docker/nginx.admin-gateway.conf`, and `.env.docker.example`.
+- A desktop-first Docker baseline now exists through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `docker/nginx.admin-gateway.conf`, `.env.docker.example`, and `scripts/deploy-docker.sh`.
 
 ## Source Of Truth
 The source of truth for product scope, workflow, architecture, API contract, and data model is under `docs/`.
@@ -55,6 +55,7 @@ Supporting references may also exist under `docs/`, such as:
 ├── docker-compose.yml       # Desktop-first stack using an external PostgreSQL and admin gateway
 ├── docker-compose.with-postgres.yml # Optional PostgreSQL container overlay
 ├── docker/                  # Docker support files such as the admin reverse-proxy config
+├── scripts/                 # Local utility scripts, including Docker deployment entrypoints
 ├── .env.docker.example      # Docker environment template
 ├── AGENTS.md                # Working method and guardrails for AI agents
 ├── README.md                # Repository entry point
@@ -119,33 +120,47 @@ Reference files:
 The current desktop-first stack can now be started with Docker for local parity and shared-environment bring-up.
 
 1. Copy `.env.docker.example` to `.env.docker` and replace the placeholder LDAP and PostgreSQL secrets.
-2. For an existing PostgreSQL server, build and start the stack:
+2. For the normal deployment path, run the standalone deployment script:
 
 ```bash
-docker-compose --env-file .env.docker up --build
+bash scripts/deploy-docker.sh
 ```
 
-3. If you want Docker to also start PostgreSQL locally, use the optional overlay:
+3. If you also want Docker to start PostgreSQL locally:
 
 ```bash
-docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build
+bash scripts/deploy-docker.sh --with-postgres
 ```
 
-If your machine uses the newer plugin form, `docker compose --env-file .env.docker up --build` is equivalent.
+4. Useful lifecycle commands:
 
-3. Access:
+```bash
+bash scripts/deploy-docker.sh status
+bash scripts/deploy-docker.sh logs --follow
+bash scripts/deploy-docker.sh stop
+```
+
+5. `docker compose` remains available as a fallback for the existing baseline:
+
+```bash
+docker compose --env-file .env.docker up --build
+docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build
+```
+
+6. Access:
 - admin frontend: `http://localhost:8080`
 - backend API: `http://localhost:4019`
 - PostgreSQL: `localhost:5432`
 
 Implementation notes:
-- the backend container runs migrations before starting the HTTP server
+- `scripts/deploy-docker.sh` runs backend migrations before the backend container is started
 - the frontend container builds TanStack Start with `NITRO_PRESET=node-server` so it can run as a normal Node SSR process inside Docker
 - the admin browser path now goes through an `nginx` gateway that proxies same-origin `/api/*` requests to the internal backend service, avoiding mixed-content and CORS issues when the public site is served over HTTPS
 - public rollout package links under `/agent/packages/*` must be proxied by the same gateway to the backend service; otherwise package metadata can resolve in admin while direct package URLs still return the frontend `404` page
 - Docker now defaults the frontend API base to `DOCKER_VITE_API_URL=/api`, so the browser no longer needs to embed the backend host directly in frontend assets for the containerized publish path
 - the Docker `nginx` gateway now also needs to allow MSI-sized request bodies for `Settings > Desktop Agent` uploads; keep `docker/nginx.admin-gateway.conf` aligned with the backend upload baseline (`client_max_body_size 512m`)
-- the Compose backend service now mounts the named volume `backend_local_packages` to `/app/backend/local-packages` so uploaded rollout packages survive backend container rebuilds
+- the standalone deployment script keeps the internal service ports fixed at `backend:4019` and `frontend:8080` because the shipped nginx gateway targets those upstreams; adjust `BACKEND_HOST_PORT` and `FRONTEND_HOST_PORT` for host-side port changes
+- the deployment script mounts the named volume `mti-alert-backend-local-packages` to `/app/backend/local-packages` so uploaded rollout packages survive backend container rebuilds
 - the first live desktop scope still expects `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
 
 ## MVP Highlights

@@ -2,9 +2,9 @@
 
 ## Document Status
 
-- Version: `0.2`
+- Version: `0.3`
 - Status: `Draft Baseline`
-- Last Updated: `2026-09-02`
+- Last Updated: `2026-09-17`
 - Owner: `Engineering / Operations`
 
 ## Purpose
@@ -339,29 +339,39 @@ The current Docker baseline is not yet a full production platform package. In pa
 - `docker-compose.with-postgres.yml`
 - `docker/nginx.admin-gateway.conf`
 - `.env.docker.example`
+- `scripts/deploy-docker.sh`
 - `.dockerignore`
 
 ### Usage
 
 1. Copy `.env.docker.example` to `.env.docker`.
 2. Replace placeholder PostgreSQL and LDAP values.
-3. If PostgreSQL is already managed outside Docker, run `docker-compose --env-file .env.docker up --build`.
-4. If PostgreSQL should also run inside Docker, run `docker-compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build`.
-5. Access the admin UI on `http://localhost:8080` and backend API on `http://localhost:4019`.
+3. Preferred deployment path: run `bash scripts/deploy-docker.sh`.
+4. If PostgreSQL should also run inside Docker, run `bash scripts/deploy-docker.sh --with-postgres`.
+5. For operator checks and lifecycle control, use:
+   - `bash scripts/deploy-docker.sh status`
+   - `bash scripts/deploy-docker.sh logs --follow`
+   - `bash scripts/deploy-docker.sh stop`
+   - `bash scripts/deploy-docker.sh destroy --with-postgres`
+6. Access the admin UI on `http://localhost:8080` and backend API on `http://localhost:4019`.
 
-If the host uses the newer Compose plugin, `docker compose --env-file .env.docker up --build` is equivalent.
+`docker compose` remains available as a fallback baseline:
+
+- `docker compose --env-file .env.docker up --build`
+- `docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.with-postgres.yml up --build`
 
 ### Runtime Notes
 
-- The backend container runs `node backend/dist/scripts/run-migrations.js up` before starting the API server.
+- `scripts/deploy-docker.sh` runs `node backend/dist/scripts/run-migrations.js up` in a short-lived backend container before the long-running API container is started.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
-- The backend container must mount durable storage at `/app/backend/local-packages`; the current baseline uses the named Docker volume `backend_local_packages` so uploaded rollout packages survive backend container rebuilds and replacements.
+- The backend container must mount durable storage at `/app/backend/local-packages`; the current standalone deployment baseline uses the named Docker volume `mti-alert-backend-local-packages` so uploaded rollout packages survive backend container rebuilds and replacements.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
-- The admin gateway container exposes the browser-facing frontend port and proxies both `/api/*` plus `/agent/packages/*` to `backend:${BACKEND_PORT}` inside the Compose network.
+- The admin gateway container exposes the browser-facing frontend port and proxies both `/api/*` plus `/agent/packages/*` to `backend:4019` inside the Docker network.
 - The admin gateway also terminates browser-side package uploads for `/api/devices/rollout-packages/upload`, so its body-size limit must remain large enough for signed MSI files. The current baseline is `client_max_body_size 512m`.
 - Dockerized frontend builds should use `DOCKER_VITE_API_URL=/api` so browser requests stay same-origin through the gateway rather than embedding the backend host directly in frontend assets.
 - Non-Docker development may still use `VITE_API_URL` with a browser-reachable backend URL such as `http://localhost:4019`.
 - Keep `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent` for the approved desktop-first live scope.
+- The standalone deployment script intentionally keeps internal container ports fixed at `backend:4019` and `frontend:8080` because `docker/nginx.admin-gateway.conf` targets those upstreams directly. Use `BACKEND_HOST_PORT` and `FRONTEND_HOST_PORT` when only the host-side published ports need to change.
 - The base `docker-compose.yml` assumes PostgreSQL already exists and starts `backend`, `frontend`, plus the browser-facing `gateway`.
 - `docker-compose.with-postgres.yml` is an optional overlay that adds a local PostgreSQL container and rewires `POSTGRES_URL` to `postgres:5432`.
 
@@ -418,6 +428,7 @@ Latest verification evidence:
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4030` confirmed the new admin session rotation and directory-security baseline: `POST /auth/rotate-session` returned a new bearer token for the current admin account, the previous token immediately failed against `GET /auth/me` with `401`, and a separate production-mode startup on `BACKEND_PORT=4031` failed fast when `LDAP_URL=ldap://...` was supplied without an explicit insecure override.
 - `2026-07-14`: a dedicated verification runtime on `BACKEND_PORT=4032` confirmed the observability hardening baseline: the backend echoed `X-Request-Id=phase4-observability-request` from an authenticated `GET /health/diagnostics`, diagnostics returned warning alerts for expiring admin and agent sessions when TTL values were intentionally reduced to `10` minutes, and backend stdout included a matching `http.request.completed` log entry with the same request ID for correlation.
 - `2026-07-14`: the desktop-first Docker baseline was added through `Dockerfile.backend`, `Dockerfile.frontend`, `docker-compose.yml`, `docker-compose.with-postgres.yml`, `.dockerignore`, and `.env.docker.example`; focused verification confirmed `npm run backend:build` still passed, `NITRO_PRESET=node-server npm run build` generated a Node-runnable `.output/server/index.mjs`, and the resulting frontend runtime listened successfully on `http://127.0.0.1:4090`.
+- `2026-09-17`: a standalone Docker deployment entrypoint now exists at `scripts/deploy-docker.sh`, covering image build, Docker network creation, optional PostgreSQL bootstrap, pre-start migration execution, backend/frontend/gateway container lifecycle, and operator convenience commands for `status`, `logs`, `stop`, and `destroy` without requiring daily `docker compose` usage. Verification in the current shell environment confirmed the script passes `bash -n`, prints the expected help output, and correctly rejects runtime execution when the Docker daemon is unavailable because the active `colima` socket path does not exist.
 
 ## Operational Dependencies
 
