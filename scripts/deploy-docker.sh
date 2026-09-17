@@ -128,6 +128,65 @@ container_exists() {
   docker container inspect "$1" >/dev/null 2>&1
 }
 
+port_in_use() {
+  local port="$1"
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn "( sport = :$port )" 2>/dev/null | grep -q ":$port "
+    return $?
+  fi
+
+  return 1
+}
+
+print_port_owner_hint() {
+  local port="$1"
+  local printed=0
+
+  if docker ps --format '{{.Names}}|{{.Ports}}' | grep -F ":$port->" >/dev/null 2>&1; then
+    echo "Docker containers using host port $port:" >&2
+    docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}' | grep -E "(^NAMES|:$port->)" >&2 || true
+    printed=1
+  fi
+
+  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    if (( !printed )); then
+      echo "Processes listening on host port $port:" >&2
+    else
+      echo "Additional host listeners on port $port:" >&2
+    fi
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2 || true
+    printed=1
+  elif command -v ss >/dev/null 2>&1 && ss -ltnp "( sport = :$port )" >/dev/null 2>&1; then
+    if (( !printed )); then
+      echo "Processes listening on host port $port:" >&2
+    else
+      echo "Additional host listeners on port $port:" >&2
+    fi
+    ss -ltnp "( sport = :$port )" >&2 || true
+    printed=1
+  fi
+
+  if (( !printed )); then
+    echo "Host port $port appears busy, but no owner details were available from docker/lsof/ss." >&2
+  fi
+}
+
+ensure_host_port_available() {
+  local port="$1"
+  local label="$2"
+
+  if port_in_use "$port"; then
+    print_port_owner_hint "$port"
+    fail "$label host port $port is already allocated. Stop the existing service or change the host port in your env file."
+  fi
+}
+
 remove_container_if_exists() {
   local name="$1"
   if container_exists "$name"; then
@@ -201,6 +260,7 @@ build_images() {
 start_postgres() {
   ensure_volume "$POSTGRES_DATA_VOLUME"
   remove_container_if_exists "$POSTGRES_CONTAINER"
+  ensure_host_port_available "${POSTGRES_HOST_PORT:-5432}" "PostgreSQL"
 
   echo "Starting PostgreSQL container..."
   docker run -d \
@@ -239,6 +299,7 @@ run_migrations() {
 start_backend() {
   ensure_volume "$BACKEND_PACKAGES_VOLUME"
   remove_container_if_exists "$BACKEND_CONTAINER"
+  ensure_host_port_available "${BACKEND_HOST_PORT:-4019}" "Backend"
 
   echo "Starting backend container..."
   docker run -d \
@@ -286,6 +347,7 @@ start_gateway() {
   local gateway_config="$ROOT_DIR/docker/nginx.admin-gateway.conf"
   [[ -f "$gateway_config" ]] || fail "Gateway config not found: $gateway_config"
   remove_container_if_exists "$GATEWAY_CONTAINER"
+  ensure_host_port_available "${FRONTEND_HOST_PORT:-8080}" "Gateway"
 
   echo "Starting gateway container..."
   docker run -d \
