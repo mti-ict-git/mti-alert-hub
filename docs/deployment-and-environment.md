@@ -352,6 +352,7 @@ The current Docker baseline is not yet a full production platform package. In pa
    - `bash scripts/deploy-docker.sh status`
    - `bash scripts/deploy-docker.sh logs --follow`
    - `bash scripts/deploy-docker.sh stop`
+   - `bash scripts/deploy-docker.sh --skip-migrations`
    - `bash scripts/deploy-docker.sh destroy --with-postgres`
 6. Access the admin UI on `http://localhost:8080` and backend API on `http://localhost:4019`.
 
@@ -372,6 +373,7 @@ Use `--env-file /absolute/path/to/file` when the target host keeps deployment se
 ### Runtime Notes
 
 - `scripts/deploy-docker.sh` runs `node backend/dist/scripts/run-migrations.js up` in a short-lived backend container before the long-running API container is started.
+- When the target environment already has an intentionally managed schema state, `scripts/deploy-docker.sh --skip-migrations` may be used to bypass the pre-start migration step explicitly instead of failing the full deployment.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The backend container must mount durable storage at `/app/backend/local-packages`; the current standalone deployment baseline uses the named Docker volume `mti-alert-backend-local-packages` so uploaded rollout packages survive backend container rebuilds and replacements.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.

@@ -7,6 +7,7 @@ ENV_FILE_EXPLICIT=0
 ACTION="deploy"
 WITH_POSTGRES=0
 BUILD_IMAGES=1
+SKIP_MIGRATIONS=0
 FOLLOW_LOGS=0
 TAIL_LINES=200
 
@@ -38,6 +39,7 @@ Options:
   --env-file PATH        Use a custom Docker env file
   --with-postgres        Start a local PostgreSQL container and point backend to it
   --no-build             Reuse existing backend and frontend images
+  --skip-migrations      Skip backend migrations before container startup
   --follow               Follow logs after deploy or logs command
   --tail N               Number of log lines for logs command. Default: 200
   --help                 Show this help
@@ -45,6 +47,7 @@ Options:
 Examples:
   bash scripts/deploy-docker.sh
   bash scripts/deploy-docker.sh --with-postgres
+  bash scripts/deploy-docker.sh --skip-migrations
   bash scripts/deploy-docker.sh status
   bash scripts/deploy-docker.sh logs --follow
   bash scripts/deploy-docker.sh destroy --with-postgres
@@ -339,7 +342,11 @@ deploy() {
   RUNTIME_POSTGRES_URL="$(runtime_postgres_url)"
   [[ -n "$RUNTIME_POSTGRES_URL" ]] || fail "POSTGRES_URL is required when --with-postgres is not used."
 
-  run_migrations
+  if (( SKIP_MIGRATIONS )); then
+    echo "Skipping backend migrations (--skip-migrations)."
+  else
+    run_migrations
+  fi
   start_backend
   start_frontend
   start_gateway
@@ -453,6 +460,10 @@ while (($#)); do
       ;;
     --no-build)
       BUILD_IMAGES=0
+      shift
+      ;;
+    --skip-migrations)
+      SKIP_MIGRATIONS=1
       shift
       ;;
     --follow)
