@@ -128,6 +128,27 @@ container_exists() {
   docker container inspect "$1" >/dev/null 2>&1
 }
 
+find_docker_port_owners() {
+  local port="$1"
+  docker ps --filter "publish=$port" --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}'
+}
+
+remove_docker_port_owners() {
+  local port="$1"
+  local label="$2"
+  local owners
+  owners="$(find_docker_port_owners "$port")"
+
+  [[ -n "$owners" ]] || return 0
+
+  echo "Replacing existing Docker port owner(s) for $label host port $port..."
+  while IFS='|' read -r container_id container_name image_name status_text; do
+    [[ -n "$container_id" ]] || continue
+    echo "  - removing $container_name ($image_name, $status_text)"
+    docker rm -f "$container_id" >/dev/null
+  done <<<"$owners"
+}
+
 port_in_use() {
   local port="$1"
 
@@ -260,6 +281,7 @@ build_images() {
 start_postgres() {
   ensure_volume "$POSTGRES_DATA_VOLUME"
   remove_container_if_exists "$POSTGRES_CONTAINER"
+  remove_docker_port_owners "${POSTGRES_HOST_PORT:-5432}" "PostgreSQL"
   ensure_host_port_available "${POSTGRES_HOST_PORT:-5432}" "PostgreSQL"
 
   echo "Starting PostgreSQL container..."
@@ -299,6 +321,7 @@ run_migrations() {
 start_backend() {
   ensure_volume "$BACKEND_PACKAGES_VOLUME"
   remove_container_if_exists "$BACKEND_CONTAINER"
+  remove_docker_port_owners "${BACKEND_HOST_PORT:-4019}" "Backend"
   ensure_host_port_available "${BACKEND_HOST_PORT:-4019}" "Backend"
 
   echo "Starting backend container..."
@@ -347,6 +370,7 @@ start_gateway() {
   local gateway_config="$ROOT_DIR/docker/nginx.admin-gateway.conf"
   [[ -f "$gateway_config" ]] || fail "Gateway config not found: $gateway_config"
   remove_container_if_exists "$GATEWAY_CONTAINER"
+  remove_docker_port_owners "${FRONTEND_HOST_PORT:-8080}" "Gateway"
   ensure_host_port_available "${FRONTEND_HOST_PORT:-8080}" "Gateway"
 
   echo "Starting gateway container..."

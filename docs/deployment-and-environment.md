@@ -375,6 +375,7 @@ Use `--env-file /absolute/path/to/file` when the target host keeps deployment se
 - `scripts/deploy-docker.sh` runs `node backend/dist/scripts/run-migrations.js up` in a short-lived backend container before the long-running API container is started.
 - When the target environment already has an intentionally managed schema state, `scripts/deploy-docker.sh --skip-migrations` may be used to bypass the pre-start migration step explicitly instead of failing the full deployment.
 - The same deployment script now also checks host-side port availability before starting `backend`, `gateway`, or optional local `postgres`, and reports the current listener or Docker container owner when the requested host port is already occupied.
+- If the occupied host port belongs to another Docker container, the script now removes that old Docker port owner first so the replacement service can bind the same published port without requiring a separate manual cleanup step.
 - The backend image must include both `backend/dist` and `backend/migrations` because the compiled migration runner reads SQL files from `/app/backend/migrations` at container startup.
 - The backend container must mount durable storage at `/app/backend/local-packages`; the current standalone deployment baseline uses the named Docker volume `mti-alert-backend-local-packages` so uploaded rollout packages survive backend container rebuilds and replacements.
 - The frontend container builds TanStack Start SSR with `NITRO_PRESET=node-server` and serves `.output/server/index.mjs` on port `8080`.
