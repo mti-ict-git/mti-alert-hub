@@ -839,6 +839,8 @@ Evidence and contract: [Wellness sign-in schedule](wellness-windows-sign-in-sche
 
 - 2026-09-17: Fixed AD GUID revalidation using a binary LDAP equality filter. Actual read-only Andre search/resolve roundtrip, eight policy tests, backend typecheck and targeted lint passed. No access grant performed; backend redeploy pending. See `users-access-implementation.md`.
 
+- 2026-09-18: Redesigned the `Wellness Programs` detail `Recipients` tab into a device-centric monitor. The table now deduplicates repeated delivery rows into one row per device, surfaces the latest reported `Active User` when available, collapses location into `Site / Area`, removes non-operational `Section` from the primary monitor, and replaces generic delivery status columns with wellness-focused `Last Activity`, `Last Outcome`, `Next Run`, and `Schedule State`. Verification passed with `npm run build`; live browser diagnosis against production before the change confirmed the original duplicate-row issue and the absence of active-user visibility.
+
 
 ## Phase 4 - Policy receipt and device schedule reporting (2026-09-17)
 The first Windows-sign-in interval starts at the later of first persistence of the policy version and Available from. A later Windows logon resets the interval; same-version sync, process restart, unlock and hibernate do not reset it. New schedule versions receive a new receipt anchor.

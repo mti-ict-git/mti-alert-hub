@@ -83,6 +83,7 @@ import type {
   WellnessDistributionMode,
   WellnessNormalizedOutcome,
   WellnessReportingDeviceOutcome,
+  WellnessReportingTimelineItem,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -315,7 +316,26 @@ function WellnessProgramDetailPage() {
   const monitoring = buildWellnessMonitoringSummary(reminderActivity);
   const wellnessDeviceOutcomes = wellnessReporting?.reporting.deviceOutcomes ?? [];
   const wellnessSummary = wellnessReporting?.reporting.summary ?? null;
-  const recipientCount = recipients.length;
+  const recipientMonitorRows = useMemo(
+    () =>
+      buildWellnessRecipientMonitorRows({
+        notificationStatus: notification.status,
+        recipients,
+        insights: policyScheduleInsights,
+        outcomes: wellnessDeviceOutcomes,
+        reportingTimeline: wellnessReporting?.reporting.timeline,
+        reminderEvents: reminderActivity?.events,
+      }),
+    [
+      notification.status,
+      recipients,
+      policyScheduleInsights,
+      reminderActivity?.events,
+      wellnessDeviceOutcomes,
+      wellnessReporting?.reporting.timeline,
+    ],
+  );
+  const recipientCount = recipientMonitorRows.length;
   const eligibleDeviceRecipientCount = audiencePreview?.deviceRecipients ?? 0;
   const hasDesktopAgentChannel = notification.channels.includes("DesktopAgent");
   const isRoutinePriority =
@@ -968,92 +988,94 @@ function WellnessProgramDetailPage() {
 
         <TabsContent value="recipients" className="mt-4">
           <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Device Monitor</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {recipientCount} unique devices. Active User appears when the latest reported
+                wellness event included a Windows sign-in identity.
+              </p>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Recipient Type</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Section</TableHead>
-                      <TableHead>Site</TableHead>
-                      <TableHead>Area</TableHead>
-                      <TableHead>Channels</TableHead>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Active User</TableHead>
+                      <TableHead>Site / Area</TableHead>
                       <TableHead>Last Activity</TableHead>
-                      <TableHead>Last Event</TableHead>
-                      <TableHead>Last Terminal Outcome</TableHead>
+                      <TableHead>Last Outcome</TableHead>
                       <TableHead>Next Run</TableHead>
                       <TableHead>Schedule State</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Ack</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recipients.map((recipient) => {
-                      const scheduleInsight = findRecipientScheduleInsight(
-                        recipient,
-                        policyScheduleInsights,
-                      );
-                      const recipientOutcome = findRecipientOutcome(
-                        recipient,
-                        wellnessDeviceOutcomes,
-                      );
-
+                    {recipientMonitorRows.map((row) => {
                       return (
-                        <TableRow key={recipient.id}>
-                          <TableCell>{recipient.recipientType ?? "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {buildRecipientReference(recipient)}
+                        <TableRow key={row.key}>
+                          <TableCell className="min-w-[200px]">
+                            <div className="font-medium">{row.deviceLabel}</div>
+                            {row.deviceReference && row.deviceReference !== row.deviceLabel && (
+                              <div className="text-xs text-muted-foreground">
+                                {row.deviceReference}
+                              </div>
+                            )}
                           </TableCell>
-                          <TableCell>{recipient.name || "—"}</TableCell>
-                          <TableCell>{recipient.department || "—"}</TableCell>
-                          <TableCell>{recipient.section || "—"}</TableCell>
-                          <TableCell>{recipient.site || "—"}</TableCell>
-                          <TableCell>{recipient.area || "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {recipient.channels?.join(", ") ?? recipient.channel ?? "—"}
-                          </TableCell>
-                          <TableCell>
-                            {formatOptionalDate(scheduleInsight?.lastActivityAt)}
-                          </TableCell>
-                          <TableCell>
-                            {recipientOutcome?.lastEventType ? (
-                              <StatusBadge status={recipientOutcome.lastEventType} />
+                          <TableCell className="min-w-[170px]">
+                            {row.activeUserIdentifier ? (
+                              <div className="space-y-1">
+                                <Badge variant="outline" className="font-normal">
+                                  {row.activeUserIdentifier}
+                                </Badge>
+                                {row.department && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {row.department}
+                                  </div>
+                                )}
+                              </div>
                             ) : (
-                              "—"
+                              <span className="text-sm text-muted-foreground">
+                                No current user reported
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="min-w-[160px]">
+                            <div className="font-medium">{row.site ?? "—"}</div>
+                            <div className="text-xs text-muted-foreground">{row.area ?? "—"}</div>
+                          </TableCell>
+                          <TableCell className="min-w-[160px]">
+                            <div>{formatOptionalDate(row.lastActivityAt)}</div>
+                            <div className="mt-1">
+                              {row.lastEventType ? (
+                                <StatusBadge status={row.lastEventType} />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No event yet</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="min-w-[140px]">
+                            {row.lastOutcome ? (
+                              renderOutcomeLabel(row.lastOutcome)
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
                             )}
                           </TableCell>
                           <TableCell>
-                            {recipientOutcome?.lastTerminalOutcome
-                              ? renderOutcomeLabel(recipientOutcome.lastTerminalOutcome)
-                              : "—"}
+                            {formatScheduleInsightDate(row.nextRunAt)}
                           </TableCell>
-                          <TableCell>
-                            {formatScheduleInsightDate(scheduleInsight?.nextRunAt)}
-                          </TableCell>
-                          <TableCell>
-                            {renderScheduleStateLabel(
-                              resolveRecipientScheduleState(notification.status, scheduleInsight),
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={recipient.deliveryStatus} />
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={recipient.ackStatus} />
+                          <TableCell className="min-w-[170px]">
+                            <div>{renderScheduleStateLabel(row.scheduleState)}</div>
                           </TableCell>
                         </TableRow>
                       );
                     })}
-                    {recipients.length === 0 && (
+                    {recipientMonitorRows.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={15}
+                          colSpan={7}
                           className="py-8 text-center text-sm text-muted-foreground"
                         >
-                          No recipient snapshots are available yet for this wellness program.
+                          No device monitoring rows are available yet for this wellness program.
                         </TableCell>
                       </TableRow>
                     )}
@@ -1421,6 +1443,21 @@ type PolicyScheduleInsight = {
   scheduleState: PolicyScheduleState;
 };
 
+type WellnessRecipientMonitorRow = {
+  key: string;
+  deviceLabel: string;
+  deviceReference: string;
+  activeUserIdentifier: string | null;
+  department: string | null;
+  site: string | null;
+  area: string | null;
+  lastActivityAt: string | null;
+  lastEventType: ReminderEventRecord["eventType"] | string | null;
+  lastOutcome: WellnessNormalizedOutcome | null;
+  nextRunAt: string | null;
+  scheduleState: PolicyScheduleState;
+};
+
 function buildPolicyScheduleInsights(
   reminderActivity?: ReminderActivity | null,
   now = new Date(),
@@ -1487,6 +1524,129 @@ function findRecipientOutcome(recipient: Recipient, outcomes: WellnessReportingD
         (recipient.hostname && item.hostname === recipient.hostname),
     ) ?? null
   );
+}
+
+function buildWellnessRecipientMonitorRows(options: {
+  notificationStatus: NotificationStatus;
+  recipients: Recipient[];
+  insights: PolicyScheduleInsight[];
+  outcomes: WellnessReportingDeviceOutcome[];
+  reportingTimeline?: WellnessReportingTimelineItem[] | null;
+  reminderEvents?: ReminderEventRecord[] | null;
+}): WellnessRecipientMonitorRow[] {
+  const {
+    notificationStatus,
+    recipients,
+    insights,
+    outcomes,
+    reportingTimeline = [],
+    reminderEvents = [],
+  } = options;
+  const recipientMap = new Map<string, Recipient>();
+
+  for (const recipient of recipients) {
+    if (recipient.recipientType !== "Device") {
+      continue;
+    }
+
+    const key = buildRecipientIdentityKey(recipient);
+    if (!key) {
+      continue;
+    }
+
+    const existing = recipientMap.get(key);
+    if (!existing) {
+      recipientMap.set(key, recipient);
+      continue;
+    }
+
+    recipientMap.set(key, mergeDeviceRecipients(existing, recipient));
+  }
+
+  for (const insight of insights) {
+    const key = buildEntityIdentityKey(insight);
+    if (!key || recipientMap.has(key)) {
+      continue;
+    }
+
+    recipientMap.set(key, {
+      id: `policy-${insight.policyId}`,
+      notificationId: "",
+      name: insight.hostname ?? insight.deviceIdentifier ?? "Unknown device",
+      recipientType: "Device",
+      deliveryStatus: notificationStatus === "Draft" ? "Pending" : "Sent",
+      ackStatus: "NoResponse",
+      responseState: "NotRequired",
+      deviceId: insight.deviceId,
+      deviceIdentifier: insight.deviceIdentifier ?? null,
+      hostname: insight.hostname ?? null,
+      site: null,
+      area: null,
+      department: null,
+      section: null,
+      channels: ["DesktopAgent"],
+      channel: "DesktopAgent",
+    });
+  }
+
+  for (const outcome of outcomes) {
+    const key = buildEntityIdentityKey(outcome);
+    if (!key || recipientMap.has(key)) {
+      continue;
+    }
+
+    recipientMap.set(key, {
+      id: `outcome-${outcome.policyId}`,
+      notificationId: "",
+      name: outcome.hostname ?? outcome.deviceIdentifier ?? "Unknown device",
+      recipientType: "Device",
+      deliveryStatus: outcome.isActive ? "Sent" : "Cancelled",
+      ackStatus: "NoResponse",
+      responseState: "NotRequired",
+      deviceId: outcome.deviceId,
+      deviceIdentifier: outcome.deviceIdentifier ?? null,
+      hostname: outcome.hostname ?? null,
+      site: outcome.siteName ?? null,
+      area: outcome.areaName ?? null,
+      department: null,
+      section: null,
+      channels: ["DesktopAgent"],
+      channel: "DesktopAgent",
+    });
+  }
+
+  const latestActiveUserByKey = buildLatestActiveUserByDevice(reportingTimeline, reminderEvents);
+
+  return Array.from(recipientMap.values()).map((recipient) => {
+    const scheduleInsight = findRecipientScheduleInsight(recipient, insights);
+    const recipientOutcome = findRecipientOutcome(recipient, outcomes);
+    const identityKeys = buildRecipientIdentityAliases(recipient);
+    const activeUserIdentifier =
+      identityKeys
+        .map((key) => latestActiveUserByKey.get(key))
+        .find((value): value is string => Boolean(value)) ?? null;
+
+    return {
+      key: buildRecipientIdentityKey(recipient) ?? recipient.id,
+      deviceLabel:
+        recipient.hostname ??
+        recipient.deviceIdentifier ??
+        recipient.name ??
+        recipientOutcome?.hostname ??
+        recipientOutcome?.deviceIdentifier ??
+        "Unknown device",
+      deviceReference: buildRecipientReference(recipient),
+      activeUserIdentifier,
+      department: normalizeDisplayText(recipient.department),
+      site: normalizeDisplayText(recipient.site) ?? normalizeDisplayText(recipientOutcome?.siteName),
+      area: normalizeDisplayText(recipient.area) ?? normalizeDisplayText(recipientOutcome?.areaName),
+      lastActivityAt: recipientOutcome?.lastActivityAt ?? scheduleInsight?.lastActivityAt ?? null,
+      lastEventType: recipientOutcome?.lastEventType ?? scheduleInsight?.lastEventType ?? null,
+      lastOutcome: resolveRecipientMonitoringOutcome(recipientOutcome),
+      nextRunAt: scheduleInsight?.nextRunAt ?? null,
+      scheduleState: resolveRecipientScheduleState(notificationStatus, scheduleInsight),
+    };
+  });
 }
 
 function resolveRecipientScheduleState(
@@ -1557,6 +1717,191 @@ function renderOutcomeLabel(outcome: WellnessNormalizedOutcome) {
       {outcome}
     </span>
   );
+}
+
+function buildRecipientIdentityKey(recipient: Recipient) {
+  if (recipient.recipientType !== "Device") {
+    return recipient.id;
+  }
+
+  return (
+    buildEntityIdentityKey({
+      deviceId: recipient.deviceId,
+      deviceIdentifier: recipient.deviceIdentifier,
+      hostname: recipient.hostname,
+    }) ?? recipient.id
+  );
+}
+
+function buildEntityIdentityKey(value: {
+  deviceId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+}) {
+  const deviceId = normalizeIdentityPart(value.deviceId);
+  if (deviceId) {
+    return `device:${deviceId}`;
+  }
+
+  const deviceIdentifier = normalizeIdentityPart(value.deviceIdentifier);
+  if (deviceIdentifier) {
+    return `identifier:${deviceIdentifier}`;
+  }
+
+  const hostname = normalizeIdentityPart(value.hostname);
+  if (hostname) {
+    return `host:${hostname.toLowerCase()}`;
+  }
+
+  return null;
+}
+
+function buildRecipientIdentityAliases(recipient: Recipient) {
+  const aliases = new Set<string>();
+
+  if (recipient.recipientType !== "Device") {
+    aliases.add(recipient.id);
+    return Array.from(aliases);
+  }
+
+  const deviceId = normalizeIdentityPart(recipient.deviceId);
+  const deviceIdentifier = normalizeIdentityPart(recipient.deviceIdentifier);
+  const hostname = normalizeIdentityPart(recipient.hostname);
+
+  if (deviceId) {
+    aliases.add(`device:${deviceId}`);
+  }
+  if (deviceIdentifier) {
+    aliases.add(`identifier:${deviceIdentifier}`);
+  }
+  if (hostname) {
+    aliases.add(`host:${hostname.toLowerCase()}`);
+  }
+
+  if (aliases.size === 0) {
+    aliases.add(recipient.id);
+  }
+
+  return Array.from(aliases);
+}
+
+function buildLatestActiveUserByDevice(
+  timeline: WellnessReportingTimelineItem[],
+  events: ReminderEventRecord[],
+) {
+  const latestByKey = new Map<string, { activeUserIdentifier: string; occurredAt: string }>();
+
+  const consider = (
+    identity: { deviceId?: string | null; deviceIdentifier?: string | null; hostname?: string | null },
+    activeUserIdentifier: string | null | undefined,
+    occurredAt: string,
+  ) => {
+    const normalizedUser = normalizeIdentityPart(activeUserIdentifier);
+    if (!normalizedUser) {
+      return;
+    }
+
+    const keys = buildIdentityAliases(identity);
+    for (const key of keys) {
+      const current = latestByKey.get(key);
+      if (!current || compareIsoDateStrings(occurredAt, current.occurredAt) > 0) {
+        latestByKey.set(key, {
+          activeUserIdentifier: normalizedUser,
+          occurredAt,
+        });
+      }
+    }
+  };
+
+  for (const item of timeline) {
+    consider(item, item.activeUserIdentifier, item.occurredAt);
+  }
+
+  for (const item of events) {
+    consider(item, item.activeUserIdentifier, item.occurredAt);
+  }
+
+  return new Map(
+    Array.from(latestByKey.entries()).map(([key, value]) => [key, value.activeUserIdentifier]),
+  );
+}
+
+function buildIdentityAliases(value: {
+  deviceId?: string | null;
+  deviceIdentifier?: string | null;
+  hostname?: string | null;
+}) {
+  const aliases: string[] = [];
+  const deviceId = normalizeIdentityPart(value.deviceId);
+  const deviceIdentifier = normalizeIdentityPart(value.deviceIdentifier);
+  const hostname = normalizeIdentityPart(value.hostname);
+
+  if (deviceId) {
+    aliases.push(`device:${deviceId}`);
+  }
+  if (deviceIdentifier) {
+    aliases.push(`identifier:${deviceIdentifier}`);
+  }
+  if (hostname) {
+    aliases.push(`host:${hostname.toLowerCase()}`);
+  }
+
+  return aliases;
+}
+
+function mergeDeviceRecipients(left: Recipient, right: Recipient): Recipient {
+  return {
+    ...left,
+    ...right,
+    id: left.id,
+    notificationId: left.notificationId || right.notificationId,
+    name: preferDisplayText(left.name, right.name),
+    department: preferDisplayText(left.department, right.department),
+    section: preferDisplayText(left.section, right.section),
+    site: preferDisplayText(left.site, right.site),
+    area: preferDisplayText(left.area, right.area),
+    channel: left.channel ?? right.channel,
+    channels: mergeRecipientChannels(left.channels, right.channels),
+    deliveryStatus: left.deliveryStatus,
+    ackStatus: left.ackStatus,
+  };
+}
+
+function mergeRecipientChannels(left?: Recipient["channels"], right?: Recipient["channels"]) {
+  const merged = [...(left ?? []), ...(right ?? [])];
+  return merged.length ? Array.from(new Set(merged)) : undefined;
+}
+
+function resolveRecipientMonitoringOutcome(
+  outcome: WellnessReportingDeviceOutcome | null,
+): WellnessNormalizedOutcome | null {
+  if (!outcome) {
+    return null;
+  }
+
+  return outcome.lastTerminalOutcome ?? outcome.lastNormalizedOutcome ?? null;
+}
+
+function normalizeIdentityPart(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeDisplayText(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "—") {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function preferDisplayText(left?: string | null, right?: string | null) {
+  return normalizeDisplayText(left) ?? normalizeDisplayText(right) ?? left ?? right ?? null;
+}
+
+function compareIsoDateStrings(left: string, right: string) {
+  return (parseIsoDate(left)?.getTime() ?? 0) - (parseIsoDate(right)?.getTime() ?? 0);
 }
 
 function parseIsoDate(value?: string | null) {

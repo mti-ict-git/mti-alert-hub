@@ -102,6 +102,7 @@ The system uses a unified communication model for:
 - Show recipient drill-down with status and response detail.
 - Provide dashboard summaries and historical reports.
 - For `Wellness Programs`, keep operational monitoring device-centric in MVP, while allowing the currently logged-in Windows user to be captured as optional audit metadata when the device can report it safely.
+- The `Wellness Programs` detail `Recipients` tab shall present one row per device, emphasize device identity, latest active user (when reported), site/area, last activity, next run, and schedule state, and omit non-operational `Section` detail from the primary monitoring table.
 
 ### 7. Administration
 
