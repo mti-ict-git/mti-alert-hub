@@ -72,9 +72,12 @@ import {
   downloadCsv,
   safeCsvFileStem,
 } from "@/lib/wellness-reporting-export";
+import { devicesService } from "@/services/devices.service";
 import { notificationsService } from "@/services/notifications.service";
 import type {
   AudiencePreview,
+  Channel,
+  Device,
   Notification,
   NotificationStatus,
   ReminderActivity,
@@ -102,7 +105,7 @@ function WellnessProgramDetailPage() {
   const { user } = useAuth();
   const { id } = useParams({ from: "/_app/wellness-programs/$id" });
   const search = useSearch({ from: "/_app/wellness-programs/$id" });
-  const navigate = useNavigate({ from: "/_app/wellness-programs/$id" });
+  const navigate = useNavigate({ from: "/wellness-programs/$id" });
   const qc = useQueryClient();
   const {
     data: notification,
@@ -157,6 +160,13 @@ function WellnessProgramDetailPage() {
   } = useQuery({
     queryKey: ["notification-wellness-reporting", id],
     queryFn: () => notificationsService.wellnessReporting(id),
+    enabled: Boolean(notification?.wellnessProgram),
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+  });
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: devicesService.list,
     enabled: Boolean(notification?.wellnessProgram),
     refetchInterval: 15000,
     refetchIntervalInBackground: true,
@@ -252,7 +262,7 @@ function WellnessProgramDetailPage() {
     });
   }, [id, navigate, notification, publishOpen, search.mode]);
 
-  const recipients = useMemo(() => {
+  const recipients = useMemo<Recipient[]>(() => {
     if (deliveryVisibility?.recipients.length) {
       return deliveryVisibility.recipients;
     }
@@ -282,6 +292,30 @@ function WellnessProgramDetailPage() {
         ),
       ),
     [wellnessReporting?.reporting.deviceOutcomes],
+  );
+  const wellnessDeviceOutcomes = wellnessReporting?.reporting.deviceOutcomes ?? [];
+  const wellnessSummary = wellnessReporting?.reporting.summary ?? null;
+  const liveDeviceDirectoryByKey = useMemo(() => buildDeviceDirectorySnapshotMap(devices), [devices]);
+  const recipientMonitorRows = useMemo(
+    () =>
+      buildWellnessRecipientMonitorRows({
+        notificationStatus: notification?.status ?? "Draft",
+        recipients,
+        insights: policyScheduleInsights,
+        outcomes: wellnessDeviceOutcomes,
+        reportingTimeline: wellnessReporting?.reporting.timeline,
+        reminderEvents: reminderActivity?.events,
+        liveDeviceDirectoryByKey,
+      }),
+    [
+      liveDeviceDirectoryByKey,
+      notification?.status,
+      recipients,
+      policyScheduleInsights,
+      reminderActivity?.events,
+      wellnessDeviceOutcomes,
+      wellnessReporting?.reporting.timeline,
+    ],
   );
 
   if (isLoading || !notification) {
@@ -314,27 +348,6 @@ function WellnessProgramDetailPage() {
 
   const wellness = notification.wellnessProgram;
   const monitoring = buildWellnessMonitoringSummary(reminderActivity);
-  const wellnessDeviceOutcomes = wellnessReporting?.reporting.deviceOutcomes ?? [];
-  const wellnessSummary = wellnessReporting?.reporting.summary ?? null;
-  const recipientMonitorRows = useMemo(
-    () =>
-      buildWellnessRecipientMonitorRows({
-        notificationStatus: notification.status,
-        recipients,
-        insights: policyScheduleInsights,
-        outcomes: wellnessDeviceOutcomes,
-        reportingTimeline: wellnessReporting?.reporting.timeline,
-        reminderEvents: reminderActivity?.events,
-      }),
-    [
-      notification.status,
-      recipients,
-      policyScheduleInsights,
-      reminderActivity?.events,
-      wellnessDeviceOutcomes,
-      wellnessReporting?.reporting.timeline,
-    ],
-  );
   const recipientCount = recipientMonitorRows.length;
   const eligibleDeviceRecipientCount = audiencePreview?.deviceRecipients ?? 0;
   const hasDesktopAgentChannel = notification.channels.includes("DesktopAgent");
@@ -991,8 +1004,8 @@ function WellnessProgramDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Device Monitor</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {recipientCount} unique devices. Active User appears when the latest reported
-                wellness event included a Windows sign-in identity.
+                {recipientCount} unique devices. Active User prefers the latest wellness event
+                identity and falls back to the current device session when available.
               </p>
             </CardHeader>
             <CardContent className="p-0">
@@ -1027,6 +1040,11 @@ function WellnessProgramDetailPage() {
                                 <Badge variant="outline" className="font-normal">
                                   {row.activeUserIdentifier}
                                 </Badge>
+                                  {row.activeUserSecondary && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {row.activeUserSecondary}
+                                    </div>
+                                  )}
                                 {row.department && (
                                   <div className="text-xs text-muted-foreground">
                                     {row.department}
@@ -1333,7 +1351,7 @@ function mapPreviewRecipientToRecipient(
   notificationId: string,
   recipient: AudiencePreview["recipients"][number],
   index: number,
-) {
+): Recipient {
   const channels = recipient.availableChannels.map(mapPreviewChannelToChannel);
 
   return {
@@ -1356,7 +1374,7 @@ function mapPreviewRecipientToRecipient(
 
 function mapPreviewChannelToChannel(
   channel: "WindowsAgent" | "WhatsApp" | "Email" | "DigitalSignage",
-) {
+): Channel {
   return channel === "WindowsAgent" ? "DesktopAgent" : channel;
 }
 
@@ -1448,6 +1466,7 @@ type WellnessRecipientMonitorRow = {
   deviceLabel: string;
   deviceReference: string;
   activeUserIdentifier: string | null;
+  activeUserSecondary: string | null;
   department: string | null;
   site: string | null;
   area: string | null;
@@ -1456,6 +1475,12 @@ type WellnessRecipientMonitorRow = {
   lastOutcome: WellnessNormalizedOutcome | null;
   nextRunAt: string | null;
   scheduleState: PolicyScheduleState;
+};
+
+type DeviceDirectorySnapshot = {
+  activeUserIdentifier: string | null;
+  activeUserSecondary: string | null;
+  department: string | null;
 };
 
 function buildPolicyScheduleInsights(
@@ -1533,6 +1558,7 @@ function buildWellnessRecipientMonitorRows(options: {
   outcomes: WellnessReportingDeviceOutcome[];
   reportingTimeline?: WellnessReportingTimelineItem[] | null;
   reminderEvents?: ReminderEventRecord[] | null;
+  liveDeviceDirectoryByKey?: Map<string, DeviceDirectorySnapshot>;
 }): WellnessRecipientMonitorRow[] {
   const {
     notificationStatus,
@@ -1541,6 +1567,7 @@ function buildWellnessRecipientMonitorRows(options: {
     outcomes,
     reportingTimeline = [],
     reminderEvents = [],
+    liveDeviceDirectoryByKey = new Map<string, DeviceDirectorySnapshot>(),
   } = options;
   const recipientMap = new Map<string, Recipient>();
 
@@ -1571,7 +1598,8 @@ function buildWellnessRecipientMonitorRows(options: {
 
     recipientMap.set(key, {
       id: `policy-${insight.policyId}`,
-      notificationId: "",
+        notificationId: "",
+        employeeId: "—",
       name: insight.hostname ?? insight.deviceIdentifier ?? "Unknown device",
       recipientType: "Device",
       deliveryStatus: notificationStatus === "Draft" ? "Pending" : "Sent",
@@ -1580,10 +1608,10 @@ function buildWellnessRecipientMonitorRows(options: {
       deviceId: insight.deviceId,
       deviceIdentifier: insight.deviceIdentifier ?? null,
       hostname: insight.hostname ?? null,
-      site: null,
-      area: null,
-      department: null,
-      section: null,
+        department: "—",
+        section: "—",
+        site: "—",
+        area: undefined,
       channels: ["DesktopAgent"],
       channel: "DesktopAgent",
     });
@@ -1597,34 +1625,43 @@ function buildWellnessRecipientMonitorRows(options: {
 
     recipientMap.set(key, {
       id: `outcome-${outcome.policyId}`,
-      notificationId: "",
+        notificationId: "",
+        employeeId: "—",
       name: outcome.hostname ?? outcome.deviceIdentifier ?? "Unknown device",
       recipientType: "Device",
-      deliveryStatus: outcome.isActive ? "Sent" : "Cancelled",
+        deliveryStatus: outcome.isActive ? "Sent" : "Pending",
       ackStatus: "NoResponse",
       responseState: "NotRequired",
       deviceId: outcome.deviceId,
       deviceIdentifier: outcome.deviceIdentifier ?? null,
       hostname: outcome.hostname ?? null,
-      site: outcome.siteName ?? null,
-      area: outcome.areaName ?? null,
-      department: null,
-      section: null,
+        department: "—",
+        section: "—",
+        site: outcome.siteName ?? "—",
+        area: outcome.areaName ?? undefined,
       channels: ["DesktopAgent"],
       channel: "DesktopAgent",
     });
   }
 
-  const latestActiveUserByKey = buildLatestActiveUserByDevice(reportingTimeline, reminderEvents);
+  const latestActiveUserByKey = buildLatestActiveUserByDevice(
+    reportingTimeline ?? [],
+    reminderEvents ?? [],
+  );
 
   return Array.from(recipientMap.values()).map((recipient) => {
     const scheduleInsight = findRecipientScheduleInsight(recipient, insights);
     const recipientOutcome = findRecipientOutcome(recipient, outcomes);
     const identityKeys = buildRecipientIdentityAliases(recipient);
-    const activeUserIdentifier =
+    const liveDeviceDirectory = identityKeys
+      .map((key) => liveDeviceDirectoryByKey.get(key))
+      .find((value): value is DeviceDirectorySnapshot => Boolean(value));
+    const eventActiveUserIdentifier =
       identityKeys
         .map((key) => latestActiveUserByKey.get(key))
         .find((value): value is string => Boolean(value)) ?? null;
+    const activeUserIdentifier =
+      eventActiveUserIdentifier ?? liveDeviceDirectory?.activeUserIdentifier ?? null;
 
     return {
       key: buildRecipientIdentityKey(recipient) ?? recipient.id,
@@ -1637,7 +1674,14 @@ function buildWellnessRecipientMonitorRows(options: {
         "Unknown device",
       deviceReference: buildRecipientReference(recipient),
       activeUserIdentifier,
-      department: normalizeDisplayText(recipient.department),
+      activeUserSecondary:
+        eventActiveUserIdentifier != null
+          ? null
+          : liveDeviceDirectory?.activeUserSecondary ?? null,
+      department:
+        normalizeDisplayText(recipient.department) ??
+        liveDeviceDirectory?.department ??
+        null,
       site: normalizeDisplayText(recipient.site) ?? normalizeDisplayText(recipientOutcome?.siteName),
       area: normalizeDisplayText(recipient.area) ?? normalizeDisplayText(recipientOutcome?.areaName),
       lastActivityAt: recipientOutcome?.lastActivityAt ?? scheduleInsight?.lastActivityAt ?? null,
@@ -1647,6 +1691,35 @@ function buildWellnessRecipientMonitorRows(options: {
       scheduleState: resolveRecipientScheduleState(notificationStatus, scheduleInsight),
     };
   });
+}
+
+function buildDeviceDirectorySnapshotMap(devices: Device[]) {
+  const snapshots = new Map<string, DeviceDirectorySnapshot>();
+
+  for (const device of devices) {
+    const snapshot: DeviceDirectorySnapshot = {
+      activeUserIdentifier: normalizeDisplayText(
+        device.currentDisplayName ??
+          device.currentUsername ??
+          device.lastActiveUserIdentifier,
+      ),
+      activeUserSecondary:
+        normalizeDisplayText(device.currentEmployeeNumber)
+          ? `${device.currentUserType ?? "Unknown"} - ${device.currentEmployeeNumber}`
+          : normalizeDisplayText(device.currentUserType),
+      department: normalizeDisplayText(device.currentDepartment),
+    };
+
+    for (const key of buildIdentityAliases({
+      deviceId: device.id,
+      deviceIdentifier: device.deviceId,
+      hostname: device.hostname,
+    })) {
+      snapshots.set(key, snapshot);
+    }
+  }
+
+  return snapshots;
 }
 
 function resolveRecipientScheduleState(
@@ -1854,12 +1927,12 @@ function mergeDeviceRecipients(left: Recipient, right: Recipient): Recipient {
     ...left,
     ...right,
     id: left.id,
-    notificationId: left.notificationId || right.notificationId,
-    name: preferDisplayText(left.name, right.name),
-    department: preferDisplayText(left.department, right.department),
-    section: preferDisplayText(left.section, right.section),
-    site: preferDisplayText(left.site, right.site),
-    area: preferDisplayText(left.area, right.area),
+    notificationId: left.notificationId || right.notificationId || "",
+    name: preferRequiredText(left.name, right.name),
+    department: preferRequiredText(left.department, right.department),
+    section: preferRequiredText(left.section, right.section),
+    site: preferRequiredText(left.site, right.site),
+    area: preferOptionalText(left.area, right.area),
     channel: left.channel ?? right.channel,
     channels: mergeRecipientChannels(left.channels, right.channels),
     deliveryStatus: left.deliveryStatus,
@@ -1898,6 +1971,14 @@ function normalizeDisplayText(value?: string | null) {
 
 function preferDisplayText(left?: string | null, right?: string | null) {
   return normalizeDisplayText(left) ?? normalizeDisplayText(right) ?? left ?? right ?? null;
+}
+
+function preferRequiredText(left?: string | null, right?: string | null) {
+  return preferDisplayText(left, right) ?? "—";
+}
+
+function preferOptionalText(left?: string | null, right?: string | null) {
+  return preferDisplayText(left, right) ?? undefined;
 }
 
 function compareIsoDateStrings(left: string, right: string) {
