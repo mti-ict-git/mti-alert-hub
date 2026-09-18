@@ -139,14 +139,16 @@ validate_runtime_config() {
 
 # Resolve storage before removing containers or creating an empty replacement volume.
 resolve_package_storage() {
-  local candidates=() volume owner mount_type mount_name mount_source
+  local candidates=() compose_candidates=() volume owner mount_type mount_name mount_source
   if (( PACKAGES_VOLUME_EXPLICIT )); then
     docker volume inspect "$BACKEND_PACKAGES_VOLUME" >/dev/null 2>&1 || fail "Selected package volume does not exist: $BACKEND_PACKAGES_VOLUME"
     echo "Reusing selected package volume: $BACKEND_PACKAGES_VOLUME"
     return
   fi
   while IFS= read -r volume; do
-    [[ -n "$volume" ]] && candidates+=("$volume")
+    [[ -n "$volume" ]] || continue
+    compose_candidates+=("$volume")
+    candidates+=("$volume")
   done < <(docker volume ls --filter label=com.docker.compose.volume=backend_local_packages --format '{{.Name}}')
   if docker volume inspect "$BACKEND_PACKAGES_VOLUME" >/dev/null 2>&1; then
     candidates+=("$BACKEND_PACKAGES_VOLUME")
@@ -168,7 +170,16 @@ resolve_package_storage() {
   while IFS= read -r volume; do
     [[ -n "$volume" ]] && unique+=("$volume")
   done < <(printf '%s\n' "${candidates[@]}" | sort -u)
+  local unique_compose=()
+  while IFS= read -r volume; do
+    [[ -n "$volume" ]] && unique_compose+=("$volume")
+  done < <(printf '%s\n' "${compose_candidates[@]}" | sort -u)
   if (( ${#unique[@]} > 1 )); then
+    if (( ${#unique_compose[@]} == 1 )); then
+      BACKEND_PACKAGES_VOLUME="${unique_compose[0]}"
+      echo "Package storage: $BACKEND_PACKAGES_VOLUME (auto-selected Compose-compatible volume)"
+      return
+    fi
     printf 'Existing package volume candidates: %s\n' "${unique[@]}" >&2
     fail "Package storage is ambiguous. Inspect these volumes and rerun with --packages-volume NAME. No volumes were merged, copied or deleted."
   fi

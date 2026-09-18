@@ -165,7 +165,7 @@ Implementation notes:
 - Docker now defaults the frontend API base to `DOCKER_VITE_API_URL=/api`, so the browser no longer needs to embed the backend host directly in frontend assets for the containerized publish path
 - the Docker `nginx` gateway now also needs to allow MSI-sized request bodies for `Settings > Desktop Agent` uploads; keep `docker/nginx.admin-gateway.conf` aligned with the backend upload baseline (`client_max_body_size 512m`)
 - the standalone deployment script keeps the internal service ports fixed at `backend:4019` and `frontend:8080` because the shipped nginx gateway targets those upstreams; adjust `BACKEND_HOST_PORT` and `FRONTEND_HOST_PORT` for host-side port changes
-- the deployment script mounts the named volume `mti-alert-backend-local-packages` to `/app/backend/local-packages` so uploaded rollout packages survive backend container rebuilds
+- the deployment script mounts durable storage at `/app/backend/local-packages`; when an older Docker Compose package volume still exists, the script now auto-prefers that single Compose-compatible volume before falling back to the standalone named volume `mti-alert-backend-local-packages`
 - the first live desktop scope still expects `ENABLED_DELIVERY_CHANNELS=WindowsAgent` and `VITE_ENABLED_DELIVERY_CHANNELS=DesktopAgent`
 
 ## MVP Highlights
