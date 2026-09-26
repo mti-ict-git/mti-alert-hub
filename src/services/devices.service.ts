@@ -1,3 +1,4 @@
+import { loadAllPages, type ListPage } from "@/lib/load-all-pages";
 export type GitHubPackageSyncStatus = {
   available: boolean;
   id?: string;
@@ -50,9 +51,7 @@ type ApiDevice = {
   lastDirectoryLookupAt?: string | null;
 };
 
-type DeviceListResponse = {
-  items: ApiDevice[];
-};
+type DeviceListResponse = ListPage<ApiDevice>;
 
 type PendingDeviceEnrollmentApi = {
   id: string;
@@ -72,9 +71,7 @@ type PendingDeviceEnrollmentApi = {
   approvedDeviceId?: string | null;
 };
 
-type PendingDeviceEnrollmentListResponse = {
-  items: PendingDeviceEnrollmentApi[];
-};
+type PendingDeviceEnrollmentListResponse = ListPage<PendingDeviceEnrollmentApi>;
 
 type DeviceTestNotificationResponse = {
   deviceId: string;
@@ -92,10 +89,12 @@ type DeviceRolloutPackageListResponse = {
 
 export const devicesService = {
   async targetList(): Promise<Device[]> {
-    const response = await apiClient.get<DeviceListResponse>(
-      "/reference/devices?page=1&pageSize=200",
+    const items = await loadAllPages((page, pageSize) =>
+      apiClient.get<DeviceListResponse>(
+        "/reference/devices?page=" + page + "&pageSize=" + pageSize,
+      ),
     );
-    return response.items.map((item) => ({
+    return items.map((item) => ({
       id: item.id,
       deviceId: item.deviceIdentifier ?? item.id,
       hostname: item.hostname,
@@ -106,8 +105,10 @@ export const devicesService = {
     }));
   },
   async list(): Promise<Device[]> {
-    const [response, organizationReference, employees] = await Promise.all([
-      apiClient.get<DeviceListResponse>("/devices?page=1&pageSize=200"),
+    const [items, organizationReference, employees] = await Promise.all([
+      loadAllPages((page, pageSize) =>
+        apiClient.get<DeviceListResponse>("/devices?page=" + page + "&pageSize=" + pageSize),
+      ),
       referenceService.getOrganizationReference(),
       referenceService.listEmployees(),
     ]);
@@ -116,7 +117,7 @@ export const devicesService = {
     const areasById = new Map(organizationReference.areas.map((item) => [item.id, item.name]));
     const employeesById = new Map(employees.map((item) => [item.id, item.fullName]));
 
-    return response.items.map((item) => ({
+    return items.map((item) => ({
       id: item.id,
       deviceId: item.deviceIdentifier ?? item.id,
       hostname: item.hostname,
@@ -146,11 +147,13 @@ export const devicesService = {
     }));
   },
   async listPending(): Promise<PendingDeviceEnrollment[]> {
-    const response = await apiClient.get<PendingDeviceEnrollmentListResponse>(
-      "/devices/pending?page=1&pageSize=200",
+    const items = await loadAllPages((page, pageSize) =>
+      apiClient.get<PendingDeviceEnrollmentListResponse>(
+        "/devices/pending?page=" + page + "&pageSize=" + pageSize,
+      ),
     );
 
-    return response.items.map((item) => ({
+    return items.map((item) => ({
       id: item.id,
       deviceIdentifier: item.deviceIdentifier,
       hostname: item.hostname,

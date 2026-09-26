@@ -231,7 +231,7 @@ export class DeviceEnrollmentService {
             updated_at::text as "updatedAt"
           from public.device_enrollment_requests
           ${where.clause}
-          order by last_seen_at desc, created_at desc
+          order by last_seen_at desc, created_at desc, id asc
           limit $${params.limitIndex}
           offset $${params.offsetIndex}
         `,

@@ -81,7 +81,7 @@ export class DeviceReadService {
             ${this.statusSql}::text as status
           from public.devices d
           ${where.clause.replace("status::text", `${this.statusSql}::text`)}
-          order by hostname asc
+          order by hostname asc, d.id asc
           limit $${params.limitIndex}
           offset $${params.offsetIndex}
         `,

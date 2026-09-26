@@ -854,3 +854,5 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 
 - [x] Correct standalone Docker package-volume selection and restore package-relay lifecycle with shared storage. Bash syntax and fake-Docker environment/storage/relay regression suites passed. Operator mount evidence confirms split volumes caused the backend/worker disconnect; package file contents and live recovery remain unverified. See deployment-and-environment.md.
 - [ ] Deploy the corrected script with the existing Compose package volume and verify package visibility plus GitHub import. No server mutations performed during source repair.
+
+- [x] Phase 4 device list completeness: approved/pending/target services traverse API pages beyond 200, preserve existing table selection/filtering, and use deterministic backend tie ordering. 10 regression tests, backend typecheck, targeted lint and frontend build passed. See device-list-pagination.md; production deployment/count validation pending.
