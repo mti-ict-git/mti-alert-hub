@@ -876,4 +876,6 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 ### Phase 4 — Wellness server release (2026-11-05)
 - [x] User authorized coordinated backend/frontend release and additive migration 0022; keep existing program schedules and device rollout unchanged.
 - [x] Preflight standalone runtime, protected package mount and migration ledger through 0021. Source validation: 15 Node tests, backend typecheck, frontend production build passed.
-- [ ] Verify exact-commit production images, migration 0022, server controls and public routes. Release profile/evidence: wellness-active-usage.md.
+- [x] Deploy exact-commit b69b4e2 backend/frontend, apply and verify migration 0022 with unchanged historical ledger, preserve configuration/package volume and excluded service IDs. Both services healthy; public TLS routes 200; deployed-asset Edge fixture and backend parameter validation passed. 18 Node tests and backend typecheck passed. Release/backup/rollback evidence and remaining device acceptance: wellness-active-usage.md.
+
+- [x] Agent 1.0.19 installed on the user's laptop, signed package published to private GitHub and imported to server registry at explicit subsequent requests. No fleet rollout; existing wellness programs remain unchanged.
