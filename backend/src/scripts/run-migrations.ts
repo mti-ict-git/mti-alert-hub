@@ -5,6 +5,7 @@ import path from "node:path";
 import { Pool } from "pg";
 
 import { loadEnv } from "../app/config/env.js";
+import { matchesMigrationChecksum } from "../infrastructure/db/migration-checksum.js";
 import {
   redactPostgresConnectionConfig,
   resolvePostgresConnectionConfig,
@@ -136,7 +137,7 @@ function printStatus(
 
     return {
       name: file.name,
-      status: applied.checksum === file.checksum ? ("applied" as const) : ("checksum_mismatch" as const),
+      status: matchesMigrationChecksum(file.sql, applied.checksum) ? ("applied" as const) : ("checksum_mismatch" as const),
       appliedAt: applied.appliedAt,
     };
   });
@@ -166,7 +167,7 @@ async function applyPendingMigrations(
     const applied = appliedMigrations.get(migration.name);
 
     if (applied) {
-      if (applied.checksum !== migration.checksum) {
+      if (!matchesMigrationChecksum(migration.sql, applied.checksum)) {
         throw new Error(
           `Migration checksum mismatch for "${migration.name}". The applied migration differs from the current file.`,
         );
