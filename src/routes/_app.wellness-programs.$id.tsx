@@ -178,6 +178,8 @@ function WellnessProgramDetailPage() {
   const [validUntil, setValidUntil] = useState("");
   const [neverExpires, setNeverExpires] = useState(true);
   const [timezone, setTimezone] = useState(getLocalUtcOffsetTimeZone());
+  const [minimumRestMinutes, setMinimumRestMinutes] = useState("5");
+  const [interProgramGapMinutes, setInterProgramGapMinutes] = useState("15");
   const [scheduleBasis, setScheduleBasis] = useState<WellnessScheduleBasis>("Fixed");
   const [recurrenceInterval, setRecurrenceInterval] = useState("1");
   const [recurrenceUnit, setRecurrenceUnit] = useState<WellnessRecurrenceUnit>("Day");
@@ -199,12 +201,14 @@ function WellnessProgramDetailPage() {
           interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
           unit: recurrenceUnit,
           basis: scheduleBasis,
+          minimumRestMinutes: Number(minimumRestMinutes),
+          interProgramGapMinutes: Number(interProgramGapMinutes),
         }),
         timezone: timezone.trim(),
         executionMode: "AgentLocalRoutine",
-        distributionMode: scheduleBasis === "WindowsSignIn" ? "Synchronized" : distributionMode,
+        distributionMode: scheduleBasis !== "Fixed" ? "Synchronized" : distributionMode,
         staggerWindowMinutes:
-          scheduleBasis !== "WindowsSignIn" && distributionMode === "Staggered"
+          scheduleBasis === "Fixed" && distributionMode === "Staggered"
             ? Number.parseInt(staggerWindowMinutes || "30", 10) || 30
             : null,
         validUntil: neverExpires ? null : normalizeScheduledDateTime(validUntil),
@@ -295,7 +299,10 @@ function WellnessProgramDetailPage() {
   );
   const wellnessDeviceOutcomes = wellnessReporting?.reporting.deviceOutcomes ?? [];
   const wellnessSummary = wellnessReporting?.reporting.summary ?? null;
-  const liveDeviceDirectoryByKey = useMemo(() => buildDeviceDirectorySnapshotMap(devices), [devices]);
+  const liveDeviceDirectoryByKey = useMemo(
+    () => buildDeviceDirectorySnapshotMap(devices),
+    [devices],
+  );
   const recipientMonitorRows = useMemo(
     () =>
       buildWellnessRecipientMonitorRows({
@@ -355,7 +362,9 @@ function WellnessProgramDetailPage() {
     notification.priority !== "Emergency" && notification.priority !== "Critical";
   const isSignInSchedule =
     parseWellnessRecurrenceRule(notification.reminderSchedule?.recurrenceRule)?.basis ===
-    "WindowsSignIn";
+      "WindowsSignIn" ||
+    parseWellnessRecurrenceRule(notification.reminderSchedule?.recurrenceRule)?.basis ===
+      "ActiveUsage";
   const nextRunWindowSummary = summarizeNextRunWindow(policyScheduleInsights);
   const canPublish = notification.status === "Draft";
   const canCancel = isCancellableNotificationStatus(notification.status);
@@ -364,18 +373,26 @@ function WellnessProgramDetailPage() {
       interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
       unit: recurrenceUnit,
       basis: scheduleBasis,
+      minimumRestMinutes: Number(minimumRestMinutes),
+      interProgramGapMinutes: Number(interProgramGapMinutes),
     }),
   );
+  const invalidUsageSettings =
+    scheduleBasis === "ActiveUsage" &&
+    [minimumRestMinutes, interProgramGapMinutes].some(
+      (v) => !v.trim() || !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 1440,
+    );
   const publishInvalid =
+    invalidUsageSettings ||
     !timezone.trim() ||
     !Number.isFinite(Number.parseInt(recurrenceInterval || "", 10)) ||
     Number.parseInt(recurrenceInterval || "", 10) < 1 ||
-    (scheduleBasis === "WindowsSignIn" &&
+    (scheduleBasis !== "Fixed" &&
       Number(recurrenceInterval) *
         (recurrenceUnit === "Day" ? 1440 : recurrenceUnit === "Hour" ? 60 : 1) >
         10080) ||
     !Number.isInteger(Number(recurrenceInterval)) ||
-    (scheduleBasis !== "WindowsSignIn" &&
+    (scheduleBasis === "Fixed" &&
       distributionMode === "Staggered" &&
       (!Number.isFinite(Number.parseInt(staggerWindowMinutes || "", 10)) ||
         Number.parseInt(staggerWindowMinutes || "", 10) < 5 ||
@@ -1040,11 +1057,11 @@ function WellnessProgramDetailPage() {
                                 <Badge variant="outline" className="font-normal">
                                   {row.activeUserIdentifier}
                                 </Badge>
-                                  {row.activeUserSecondary && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {row.activeUserSecondary}
-                                    </div>
-                                  )}
+                                {row.activeUserSecondary && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {row.activeUserSecondary}
+                                  </div>
+                                )}
                                 {row.department && (
                                   <div className="text-xs text-muted-foreground">
                                     {row.department}
@@ -1078,9 +1095,7 @@ function WellnessProgramDetailPage() {
                               <span className="text-sm text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell>
-                            {formatScheduleInsightDate(row.nextRunAt)}
-                          </TableCell>
+                          <TableCell>{formatScheduleInsightDate(row.nextRunAt)}</TableCell>
                           <TableCell className="min-w-[170px]">
                             <div>{renderScheduleStateLabel(row.scheduleState)}</div>
                           </TableCell>
@@ -1174,6 +1189,10 @@ function WellnessProgramDetailPage() {
 
             <WellnessScheduleFields
               scheduleBasis={scheduleBasis}
+              minimumRestMinutes={minimumRestMinutes}
+              onMinimumRestMinutesChange={setMinimumRestMinutes}
+              interProgramGapMinutes={interProgramGapMinutes}
+              onInterProgramGapMinutesChange={setInterProgramGapMinutes}
               onScheduleBasisChange={setScheduleBasis}
               scheduledAt={scheduledAt}
               onScheduledAtChange={setScheduledAt}
@@ -1293,6 +1312,8 @@ function WellnessProgramDetailPage() {
     setTimezone(normalizeUtcOffsetTimeZone(item.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(item.reminderSchedule?.recurrenceRule);
     setScheduleBasis(recurrence?.basis ?? "Fixed");
+    setMinimumRestMinutes(String(recurrence?.minimumRestMinutes ?? 5));
+    setInterProgramGapMinutes(String(recurrence?.interProgramGapMinutes ?? 15));
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
     setDistributionMode(item.reminderSchedule?.distributionMode ?? "Staggered");
@@ -1598,8 +1619,8 @@ function buildWellnessRecipientMonitorRows(options: {
 
     recipientMap.set(key, {
       id: `policy-${insight.policyId}`,
-        notificationId: "",
-        employeeId: "—",
+      notificationId: "",
+      employeeId: "—",
       name: insight.hostname ?? insight.deviceIdentifier ?? "Unknown device",
       recipientType: "Device",
       deliveryStatus: notificationStatus === "Draft" ? "Pending" : "Sent",
@@ -1608,10 +1629,10 @@ function buildWellnessRecipientMonitorRows(options: {
       deviceId: insight.deviceId,
       deviceIdentifier: insight.deviceIdentifier ?? null,
       hostname: insight.hostname ?? null,
-        department: "—",
-        section: "—",
-        site: "—",
-        area: undefined,
+      department: "—",
+      section: "—",
+      site: "—",
+      area: undefined,
       channels: ["DesktopAgent"],
       channel: "DesktopAgent",
     });
@@ -1625,20 +1646,20 @@ function buildWellnessRecipientMonitorRows(options: {
 
     recipientMap.set(key, {
       id: `outcome-${outcome.policyId}`,
-        notificationId: "",
-        employeeId: "—",
+      notificationId: "",
+      employeeId: "—",
       name: outcome.hostname ?? outcome.deviceIdentifier ?? "Unknown device",
       recipientType: "Device",
-        deliveryStatus: outcome.isActive ? "Sent" : "Pending",
+      deliveryStatus: outcome.isActive ? "Sent" : "Pending",
       ackStatus: "NoResponse",
       responseState: "NotRequired",
       deviceId: outcome.deviceId,
       deviceIdentifier: outcome.deviceIdentifier ?? null,
       hostname: outcome.hostname ?? null,
-        department: "—",
-        section: "—",
-        site: outcome.siteName ?? "—",
-        area: outcome.areaName ?? undefined,
+      department: "—",
+      section: "—",
+      site: outcome.siteName ?? "—",
+      area: outcome.areaName ?? undefined,
       channels: ["DesktopAgent"],
       channel: "DesktopAgent",
     });
@@ -1677,13 +1698,13 @@ function buildWellnessRecipientMonitorRows(options: {
       activeUserSecondary:
         eventActiveUserIdentifier != null
           ? null
-          : liveDeviceDirectory?.activeUserSecondary ?? null,
+          : (liveDeviceDirectory?.activeUserSecondary ?? null),
       department:
-        normalizeDisplayText(recipient.department) ??
-        liveDeviceDirectory?.department ??
-        null,
-      site: normalizeDisplayText(recipient.site) ?? normalizeDisplayText(recipientOutcome?.siteName),
-      area: normalizeDisplayText(recipient.area) ?? normalizeDisplayText(recipientOutcome?.areaName),
+        normalizeDisplayText(recipient.department) ?? liveDeviceDirectory?.department ?? null,
+      site:
+        normalizeDisplayText(recipient.site) ?? normalizeDisplayText(recipientOutcome?.siteName),
+      area:
+        normalizeDisplayText(recipient.area) ?? normalizeDisplayText(recipientOutcome?.areaName),
       lastActivityAt: recipientOutcome?.lastActivityAt ?? scheduleInsight?.lastActivityAt ?? null,
       lastEventType: recipientOutcome?.lastEventType ?? scheduleInsight?.lastEventType ?? null,
       lastOutcome: resolveRecipientMonitoringOutcome(recipientOutcome),
@@ -1699,14 +1720,11 @@ function buildDeviceDirectorySnapshotMap(devices: Device[]) {
   for (const device of devices) {
     const snapshot: DeviceDirectorySnapshot = {
       activeUserIdentifier: normalizeDisplayText(
-        device.currentDisplayName ??
-          device.currentUsername ??
-          device.lastActiveUserIdentifier,
+        device.currentDisplayName ?? device.currentUsername ?? device.lastActiveUserIdentifier,
       ),
-      activeUserSecondary:
-        normalizeDisplayText(device.currentEmployeeNumber)
-          ? `${device.currentUserType ?? "Unknown"} - ${device.currentEmployeeNumber}`
-          : normalizeDisplayText(device.currentUserType),
+      activeUserSecondary: normalizeDisplayText(device.currentEmployeeNumber)
+        ? `${device.currentUserType ?? "Unknown"} - ${device.currentEmployeeNumber}`
+        : normalizeDisplayText(device.currentUserType),
       department: normalizeDisplayText(device.currentDepartment),
     };
 
@@ -1865,7 +1883,11 @@ function buildLatestActiveUserByDevice(
   const latestByKey = new Map<string, { activeUserIdentifier: string; occurredAt: string }>();
 
   const consider = (
-    identity: { deviceId?: string | null; deviceIdentifier?: string | null; hostname?: string | null },
+    identity: {
+      deviceId?: string | null;
+      deviceIdentifier?: string | null;
+      hostname?: string | null;
+    },
     activeUserIdentifier: string | null | undefined,
     occurredAt: string,
   ) => {

@@ -858,3 +858,22 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [ ] Deploy the corrected script with the existing Compose package volume and verify package visibility plus GitHub import. No server mutations performed during source repair.
 
 - [x] Phase 4 device list completeness: approved/pending/target services traverse API pages beyond 200, preserve existing table selection/filtering, and use deterministic backend tie ordering. 10 regression tests, backend typecheck, targeted lint and frontend build passed. See device-list-pagination.md; production deployment/count validation pending.
+
+## Phase 4 — Rest-aware wellness usage (2026-11-05)
+- Objective: implement the approved usage/rest/queue flowchart with server-owned parameters.
+- Sources: wellness-active-usage.md, wellness-policy-application-reporting.md, functional-specification.md, openapi.yaml.
+- [x] Implement opt-in active-usage authoring, validation, persisted agent timers, rest reset and shared wellness slot.
+- [x] Challenge serialization, short/long rest, version changes, restart, snooze, cooldown and reporting. Evidence: 87 agent tests, 12 Node tests, backend typecheck, Vite build, targeted lint (0 errors) and isolated Edge publish acceptance passed; see wellness-active-usage.md.
+- [ ] Release acceptance: physical device pilot and deployment. Not authorized in this task.
+- Output: source and documented contracts only. Phase 4 remains in progress.
+
+- [x] Local rest-aware wellness pilot (2026-11-05): user-confirmed short lock, long rest/sleep return and one-at-a-time program display with cooldown passed under isolated 2/1/1-minute settings. Timestamp evidence and limitations in wellness-active-usage.md. Pilot processes stopped; installed agent unchanged. No production deployment.
+- [ ] Remaining release acceptance: full configured interval, hibernate/other power states, signed agent packaging, migration 0022 and coordinated rollout. Production deployment remains unauthorized.
+
+- [x] Terminal wellness queue handling: archive known 409 inactive / 404 missing policy events atomically, continue other events and retain evidence. 96 agent tests passed. See wellness-active-usage.md. Laptop-only package 1.0.19 prepared; no server deployment or shared package publication.
+
+
+### Phase 4 — Wellness server release (2026-11-05)
+- [x] User authorized coordinated backend/frontend release and additive migration 0022; keep existing program schedules and device rollout unchanged.
+- [x] Preflight standalone runtime, protected package mount and migration ledger through 0021. Source validation: 15 Node tests, backend typecheck, frontend production build passed.
+- [ ] Verify exact-commit production images, migration 0022, server controls and public routes. Release profile/evidence: wellness-active-usage.md.

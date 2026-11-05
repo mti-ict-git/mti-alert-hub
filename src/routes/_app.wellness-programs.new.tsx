@@ -79,6 +79,8 @@ function CreateWellnessProgramPage() {
 
   const [family, setFamily] = useState<WellnessFamily | "">("");
   const [selectedVariantKeys, setSelectedVariantKeys] = useState<WellnessTemplateKey[]>([]);
+  const [minimumRestMinutes, setMinimumRestMinutes] = useState("5");
+  const [interProgramGapMinutes, setInterProgramGapMinutes] = useState("15");
   const [scheduleBasis, setScheduleBasis] = useState<WellnessScheduleBasis>("Fixed");
   const [scheduledAt, setScheduledAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
@@ -159,6 +161,8 @@ function CreateWellnessProgramPage() {
     setTimezone(normalizeUtcOffsetTimeZone(editingDraft.reminderSchedule?.timezone));
     const recurrence = parseWellnessRecurrenceRule(editingDraft.reminderSchedule?.recurrenceRule);
     setScheduleBasis(recurrence?.basis ?? "Fixed");
+    setMinimumRestMinutes(String(recurrence?.minimumRestMinutes ?? 5));
+    setInterProgramGapMinutes(String(recurrence?.interProgramGapMinutes ?? 15));
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
     setRotationMode(editingDraft.wellnessProgram.rotationMode ?? "Fixed");
@@ -204,6 +208,8 @@ function CreateWellnessProgramPage() {
 
   const hasValidSchedule = isValidWellnessSchedule({
     scheduleBasis,
+    minimumRestMinutes,
+    interProgramGapMinutes,
     recurrenceUnit,
     scheduledAt,
     validUntil,
@@ -265,6 +271,8 @@ function CreateWellnessProgramPage() {
       workflowId: null,
       reminderSchedule: buildWellnessReminderSchedule({
         scheduleBasis,
+        minimumRestMinutes,
+        interProgramGapMinutes,
         scheduledAt,
         validUntil,
         neverExpires,
@@ -463,6 +471,10 @@ function CreateWellnessProgramPage() {
 
               <WellnessScheduleFields
                 scheduleBasis={scheduleBasis}
+                minimumRestMinutes={minimumRestMinutes}
+                onMinimumRestMinutesChange={setMinimumRestMinutes}
+                interProgramGapMinutes={interProgramGapMinutes}
+                onInterProgramGapMinutesChange={setInterProgramGapMinutes}
                 onScheduleBasisChange={setScheduleBasis}
                 scheduledAt={scheduledAt}
                 onScheduledAtChange={setScheduledAt}
@@ -488,7 +500,7 @@ function CreateWellnessProgramPage() {
                   Applying changes replaces version {revisionVersion} for all selected devices.
                   Removed devices stop on their next sync; offline devices update when they
                   reconnect. History is retained.{" "}
-                  {scheduleBasis === "WindowsSignIn"
+                  {scheduleBasis !== "Fixed"
                     ? "Leave Available from empty to activate when applied; the first reminder follows one full interval."
                     : "Leave First Occurrence empty to restart the cadence when changes are applied."}
                 </p>
@@ -584,10 +596,16 @@ function CreateWellnessProgramPage() {
                   interval: Number.parseInt(recurrenceInterval || "1", 10) || 1,
                   unit: recurrenceUnit,
                   basis: scheduleBasis,
+                  minimumRestMinutes: Number(minimumRestMinutes),
+                  interProgramGapMinutes: Number(interProgramGapMinutes),
                 }),
               )}{" "}
               · Distribution:{" "}
-              {scheduleBasis === "WindowsSignIn" ? "Per Windows session" : distributionMode}
+              {scheduleBasis === "ActiveUsage"
+                ? "Per device usage"
+                : scheduleBasis === "WindowsSignIn"
+                  ? "Per Windows session"
+                  : distributionMode}
             </p>
             {isLiveRevision && (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -595,14 +613,14 @@ function CreateWellnessProgramPage() {
                 {UTC_OFFSET_TIME_ZONE_OPTIONS.find((option) => option.value === timezone)?.label ??
                   timezone}
                 {" · "}
-                {scheduleBasis === "WindowsSignIn" ? "Available from" : "First occurrence"}:{" "}
+                {scheduleBasis !== "Fixed" ? "Available from" : "First occurrence"}:{" "}
                 {scheduledAt ||
-                  (scheduleBasis === "WindowsSignIn"
+                  (scheduleBasis !== "Fixed"
                     ? "When applied; first reminder after one interval"
                     : "Restart cadence when applied")}
                 {" · "}Expiry: {neverExpires ? "Never" : validUntil}
                 {" · "}Rotation: {rotationMode}
-                {scheduleBasis !== "WindowsSignIn" && distributionMode === "Staggered"
+                {scheduleBasis === "Fixed" && distributionMode === "Staggered"
                   ? ` · Stagger window: ${staggerWindowMinutes} minutes`
                   : ""}
               </p>
@@ -651,6 +669,8 @@ function CreateWellnessProgramPage() {
 
 function buildWellnessReminderSchedule(input: {
   scheduleBasis: WellnessScheduleBasis;
+  minimumRestMinutes: string;
+  interProgramGapMinutes: string;
   scheduledAt: string;
   validUntil: string;
   neverExpires: boolean;
@@ -667,13 +687,15 @@ function buildWellnessReminderSchedule(input: {
       interval: Number.parseInt(input.recurrenceInterval || "1", 10) || 1,
       unit: input.recurrenceUnit,
       basis: input.scheduleBasis,
+      minimumRestMinutes: Number(input.minimumRestMinutes),
+      interProgramGapMinutes: Number(input.interProgramGapMinutes),
     }),
     timezone: input.timezone.trim(),
     executionMode: "AgentLocalRoutine" as const,
     distributionMode:
-      input.scheduleBasis === "WindowsSignIn" ? ("Synchronized" as const) : input.distributionMode,
+      input.scheduleBasis !== "Fixed" ? ("Synchronized" as const) : input.distributionMode,
     staggerWindowMinutes:
-      input.scheduleBasis !== "WindowsSignIn" && input.distributionMode === "Staggered"
+      input.scheduleBasis === "Fixed" && input.distributionMode === "Staggered"
         ? Number.parseInt(input.staggerWindowMinutes || "30", 10) || 30
         : null,
     scheduleVersion: 0,
@@ -686,6 +708,8 @@ function buildWellnessReminderSchedule(input: {
 
 function isValidWellnessSchedule(input: {
   scheduleBasis: WellnessScheduleBasis;
+  minimumRestMinutes: string;
+  interProgramGapMinutes: string;
   recurrenceUnit: WellnessRecurrenceUnit;
   scheduledAt: string;
   validUntil: string;
@@ -695,6 +719,13 @@ function isValidWellnessSchedule(input: {
   distributionMode: WellnessDistributionMode;
   staggerWindowMinutes: string;
 }) {
+  if (
+    input.scheduleBasis === "ActiveUsage" &&
+    [input.minimumRestMinutes, input.interProgramGapMinutes].some(
+      (v) => !v.trim() || !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 1440,
+    )
+  )
+    return false;
   if (!input.timezone.trim()) {
     return false;
   }
@@ -704,14 +735,14 @@ function isValidWellnessSchedule(input: {
     return false;
   }
 
-  if (input.scheduleBasis !== "WindowsSignIn" && input.distributionMode === "Staggered") {
+  if (input.scheduleBasis === "Fixed" && input.distributionMode === "Staggered") {
     const staggerWindow = Number.parseInt(input.staggerWindowMinutes || "", 10);
     if (!Number.isFinite(staggerWindow) || staggerWindow < 5 || staggerWindow > 720) {
       return false;
     }
   }
 
-  if (input.scheduleBasis === "WindowsSignIn") {
+  if (input.scheduleBasis !== "Fixed") {
     const minutes =
       recurrenceInterval *
       (input.recurrenceUnit === "Day" ? 1440 : input.recurrenceUnit === "Hour" ? 60 : 1);

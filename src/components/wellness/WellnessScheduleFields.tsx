@@ -23,6 +23,10 @@ import type { WellnessDistributionMode } from "@/types";
 
 type WellnessScheduleFieldsProps = {
   scheduleBasis?: WellnessScheduleBasis;
+  minimumRestMinutes?: string;
+  onMinimumRestMinutesChange?: (value: string) => void;
+  interProgramGapMinutes?: string;
+  onInterProgramGapMinutesChange?: (value: string) => void;
   onScheduleBasisChange?: (value: WellnessScheduleBasis) => void;
   scheduledAt: string;
   onScheduledAtChange: (value: string) => void;
@@ -45,11 +49,23 @@ type WellnessScheduleFieldsProps = {
 
 export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
   const timezoneId = useId();
+  const invalidRest =
+    props.scheduleBasis === "ActiveUsage" &&
+    (!props.minimumRestMinutes?.trim() ||
+      !Number.isInteger(Number(props.minimumRestMinutes)) ||
+      Number(props.minimumRestMinutes) < 1 ||
+      Number(props.minimumRestMinutes) > 1440);
+  const invalidGap =
+    props.scheduleBasis === "ActiveUsage" &&
+    (!props.interProgramGapMinutes?.trim() ||
+      !Number.isInteger(Number(props.interProgramGapMinutes)) ||
+      Number(props.interProgramGapMinutes) < 1 ||
+      Number(props.interProgramGapMinutes) > 1440);
   const intervalMinutes =
     Number(props.recurrenceInterval) *
     (props.recurrenceUnit === "Day" ? 1440 : props.recurrenceUnit === "Hour" ? 60 : 1);
   const invalidSessionInterval =
-    props.scheduleBasis === "WindowsSignIn" &&
+    props.scheduleBasis !== "Fixed" &&
     (!Number.isInteger(Number(props.recurrenceInterval)) ||
       intervalMinutes < 1 ||
       intervalMinutes > 10080);
@@ -58,6 +74,8 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
       interval: Number.parseInt(props.recurrenceInterval || "1", 10) || 1,
       unit: props.recurrenceUnit,
       basis: props.scheduleBasis,
+      minimumRestMinutes: Number(props.minimumRestMinutes),
+      interProgramGapMinutes: Number(props.interProgramGapMinutes),
     }),
   );
 
@@ -74,6 +92,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ActiveUsage">After active usage / rest aware</SelectItem>
               <SelectItem value="Fixed">Fixed schedule</SelectItem>
               <SelectItem value="WindowsSignIn">After Windows sign-in</SelectItem>
             </SelectContent>
@@ -87,6 +106,52 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
               scheduling and application confirmation. Maximum interval: 7 days.
             </p>
           )}
+        </div>
+      )}
+      {props.scheduleBasis === "ActiveUsage" && (
+        <div className="space-y-3 rounded-md border p-4">
+          <p className="text-sm text-muted-foreground">
+            Count unlocked use only. Lock/sleep pauses the timer; a qualifying rest resets it. Old
+            reminders are not replayed. Requires an agent release supporting active usage.
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor={`${timezoneId}-rest`}>Minimum rest (minutes)</Label>
+              <Input
+                id={`${timezoneId}-rest`}
+                aria-invalid={invalidRest || undefined}
+                type="number"
+                min={1}
+                max={1440}
+                step={1}
+                value={props.minimumRestMinutes ?? ""}
+                onChange={(e) => props.onMinimumRestMinutesChange?.(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${timezoneId}-gap`}>Gap between programs (minutes)</Label>
+              <Input
+                id={`${timezoneId}-gap`}
+                aria-invalid={invalidGap || undefined}
+                type="number"
+                min={1}
+                max={1440}
+                step={1}
+                value={props.interProgramGapMinutes ?? ""}
+                onChange={(e) => props.onInterProgramGapMinutesChange?.(e.target.value)}
+              />
+            </div>
+          </div>
+          {(invalidRest || invalidGap) && (
+            <p role="alert" className="text-sm text-destructive">
+              Enter whole minutes from 1 to 1440 for minimum rest and gap.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Use whole minutes from 1 to 1440. The reminder interval below is also server controlled.
+            The larger gap of the two programs applies after the previous popup closes. Saving a
+            draft does not update devices.
+          </p>
         </div>
       )}
       <div className="space-y-3 rounded-xl border border-sky-100 bg-sky-50/50 p-4">
@@ -112,7 +177,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
             return (
               <Button
                 key={
-                  props.scheduleBasis === "WindowsSignIn" && preset.unit === "Day"
+                  props.scheduleBasis !== "Fixed" && preset.unit === "Day"
                     ? "24 hours"
                     : preset.label
                 }
@@ -125,7 +190,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
                   props.onRecurrenceUnitChange(preset.unit);
                 }}
               >
-                {props.scheduleBasis === "WindowsSignIn" && preset.unit === "Day"
+                {props.scheduleBasis !== "Fixed" && preset.unit === "Day"
                   ? "24 hours"
                   : preset.label}
               </Button>
@@ -140,7 +205,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
               type="number"
               min={1}
               max={
-                props.scheduleBasis === "WindowsSignIn"
+                props.scheduleBasis !== "Fixed"
                   ? 10080 /
                     (props.recurrenceUnit === "Day"
                       ? 1440
@@ -184,16 +249,14 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>
-            {props.scheduleBasis === "WindowsSignIn" ? "Available from" : "First Occurrence"}
-          </Label>
+          <Label>{props.scheduleBasis !== "Fixed" ? "Available from" : "First Occurrence"}</Label>
           <Input
             type="datetime-local"
             value={props.scheduledAt}
             onChange={(event) => props.onScheduledAtChange(event.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            {props.scheduleBasis === "WindowsSignIn"
+            {props.scheduleBasis !== "Fixed"
               ? "Optional activation date. This is not a fixed reminder time."
               : "Optional. Leave empty to let the routine start as soon as it is published."}
           </p>
@@ -245,7 +308,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            {props.scheduleBasis === "WindowsSignIn"
+            {props.scheduleBasis !== "Fixed"
               ? "Reminder intervals use elapsed time and do not depend on timezone."
               : "Fixed UTC offset used for every device in this wellness schedule."}
           </p>
@@ -259,7 +322,7 @@ export function WellnessScheduleFields(props: WellnessScheduleFieldsProps) {
         )}
       </div>
 
-      {props.scheduleBasis !== "WindowsSignIn" && (
+      {props.scheduleBasis === "Fixed" && (
         <div className="space-y-3 rounded-xl border p-4">
           <div>
             <div className="text-sm font-medium">Distribution Mode</div>

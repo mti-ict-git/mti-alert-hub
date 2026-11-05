@@ -1,4 +1,4 @@
-export type WellnessScheduleBasis = "Fixed" | "WindowsSignIn";
+export type WellnessScheduleBasis = "Fixed" | "WindowsSignIn" | "ActiveUsage";
 
 export type WellnessRecurrenceUnit = "Minute" | "Hour" | "Day";
 
@@ -33,11 +33,17 @@ export function buildWellnessRecurrenceRule(input: {
   interval: number;
   unit: WellnessRecurrenceUnit;
   basis?: WellnessScheduleBasis;
+  minimumRestMinutes?: number;
+  interProgramGapMinutes?: number;
 }) {
   const normalizedInterval = Number.isFinite(input.interval)
     ? Math.max(1, Math.floor(input.interval))
     : 1;
 
+  if (input.basis === "ActiveUsage") {
+    const minutes = input.interval * (input.unit === "Day" ? 1440 : input.unit === "Hour" ? 60 : 1);
+    return `FREQ=ACTIVE_USAGE;INTERVAL=${minutes};REST=${input.minimumRestMinutes};GAP=${input.interProgramGapMinutes}`;
+  }
   if (input.basis === "WindowsSignIn") {
     const minutes =
       normalizedInterval * (input.unit === "Day" ? 1440 : input.unit === "Hour" ? 60 : 1);
@@ -51,6 +57,8 @@ export function parseWellnessRecurrenceRule(rule: string | null | undefined): {
   interval: number;
   unit: WellnessRecurrenceUnit;
   basis: WellnessScheduleBasis;
+  minimumRestMinutes?: number;
+  interProgramGapMinutes?: number;
 } | null {
   if (!rule?.trim()) {
     return null;
@@ -67,6 +75,19 @@ export function parseWellnessRecurrenceRule(rule: string | null | undefined): {
       }),
   );
 
+  if (parts.get("FREQ") === "ACTIVE_USAGE") {
+    const match =
+      /^FREQ=ACTIVE_USAGE;INTERVAL=([1-9][0-9]*);REST=([1-9][0-9]*);GAP=([1-9][0-9]*)$/.exec(rule);
+    const [minutes, rest, gap] = match?.slice(1).map(Number) ?? [];
+    if (!minutes || minutes > 10080 || !rest || rest > 1440 || !gap || gap > 1440) return null;
+    return {
+      interval: minutes % 60 === 0 ? minutes / 60 : minutes,
+      unit: minutes % 60 === 0 ? "Hour" : "Minute",
+      basis: "ActiveUsage",
+      minimumRestMinutes: rest,
+      interProgramGapMinutes: gap,
+    };
+  }
   if (parts.get("FREQ") === "WINDOWS_SIGNIN") {
     const minutes = Number(parts.get("INTERVAL"));
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) return null;
@@ -97,6 +118,9 @@ export function formatWellnessRecurrenceSummary(rule: string | null | undefined)
     return "Custom recurrence";
   }
 
+  if (parsed.basis === "ActiveUsage") {
+    return `After ${parsed.interval} ${pluralizeUnit(parsed.unit, parsed.interval)} of use · rest ${parsed.minimumRestMinutes} min · gap ${parsed.interProgramGapMinutes} min`;
+  }
   if (parsed.basis === "WindowsSignIn") {
     return (
       "After Windows sign-in · every " +

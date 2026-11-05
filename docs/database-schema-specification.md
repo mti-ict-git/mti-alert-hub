@@ -650,3 +650,7 @@ The existing recurrence_rule text field may contain FREQ=WINDOWS_SIGNIN;INTERVAL
 
 ## Migration 0021 applied (2026-09-17)
 Following explicit operator authorization, the project migration runner applied `0021_phase4_policy_application_reports.up.sql` to the configured `ictMTIAlertHub` database at `2026-09-17T10:48:56.249Z`. Preflight verified matching checksums for migrations 0001-0020 and only 0021 pending. Post-apply read-only verification confirmed the migration checksum, nine columns, primary key, cascading policy foreign key and both check constraints. The new table contained zero reports immediately after migration. No backend/frontend redeploy or agent rollout was performed. Earlier connectivity failures describe the previous implementation attempt.
+
+
+## Rest-aware wellness usage (2026-11-05)
+See `wellness-active-usage.md` for opt-in ACTIVE_USAGE recurrence with server-owned interval/rest/gap, persisted SQLite timers, rest-aware reset and serialized wellness presentation. Prepared migration 0022 adds WaitingForWellnessSlot to report states. No migration or deployment has been executed. Legacy schedules remain unchanged until explicitly revised.

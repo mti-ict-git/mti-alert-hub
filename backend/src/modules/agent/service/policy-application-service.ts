@@ -12,6 +12,7 @@ export const policyApplicationSchema = z
       "Scheduled",
       "WaitingForSession",
       "WaitingForAuthorization",
+      "WaitingForWellnessSlot",
       "Unsupported",
       "NoOccurrence",
     ]),

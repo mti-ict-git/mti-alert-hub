@@ -49,3 +49,7 @@ No migration or agent change is required for this correction. Redeploy both back
 Verification: backend typecheck and targeted ESLint passed; frontend production build passed; three schedule unit tests passed. Rollback-only PostgreSQL integration passed, including a conflicting stale draft versus published sign-in schedule, duplicate-of-duplicate, inactive/version-zero reset and policy serialization. No fixture writes were committed and no agent was notified.
 
 Browser verification: `scripts/verify-wellness-publish-ui.ts` passed against an isolated local frontend with all API calls intercepted. The actual publish dialog retained Windows sign-in, displayed Available from, disabled publication above seven days, and submitted WINDOWS_SIGNIN/120 with synchronized distribution and null stagger. Reporting-unavailable responses were intentional fixtures. Existing development hydration warnings were observed. Run with a local frontend at 127.0.0.1:4207 and Playwright available via `PLAYWRIGHT_MODULE` or an installed `playwright` package.
+
+
+## Opt-in active-usage extension (2026-11-05)
+The new `ACTIVE_USAGE` mode in `wellness-active-usage.md` implements qualifying-rest reset and shared wellness cooldown. The legacy WindowsSignIn cadence described above remains available. WaitingForWellnessSlot reports require prepared migration 0022. No deployment or migration execution is claimed.

@@ -5,7 +5,12 @@ export type PolicyApplication = {
   reportedAt: string;
   receivedAt: string;
   state:
-    "Scheduled" | "WaitingForSession" | "WaitingForAuthorization" | "Unsupported" | "NoOccurrence";
+    | "Scheduled"
+    | "WaitingForSession"
+    | "WaitingForAuthorization"
+    | "Unsupported"
+    | "NoOccurrence"
+    | "WaitingForWellnessSlot";
   nextRunAt: string | null;
   agentVersion: string;
 };
@@ -17,6 +22,7 @@ export type DevicePolicyState =
   | "Agent report stale"
   | "Scheduled on device"
   | "Waiting for unlock / resume"
+  | "Waiting for wellness slot"
   | "Waiting for authorization"
   | "No remaining occurrence";
 
@@ -61,6 +67,8 @@ export function getPolicyApplicationInsight(
   switch (report.state) {
     case "Scheduled":
       return result("Scheduled on device", report.nextRunAt);
+    case "WaitingForWellnessSlot":
+      return result("Waiting for wellness slot");
     case "WaitingForSession":
       return result("Waiting for unlock / resume");
     case "WaitingForAuthorization":
