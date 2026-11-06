@@ -2306,8 +2306,10 @@ paths:
         - Users & Access
       summary: Read scoped device targeting choices (notification authors)
       description: >-
-        Managed-access cutover contract. Not available in the current legacy production runtime. Requires
-        current persisted authorization; no automatic role assignment.
+        Scoped targeting references for notification and wellness authors. Includes site/area names,
+        last known Windows user identifier, directory username/display name and department. These describe
+        the last reported user, not proof of current presence. Email, mobile, employee number and job title
+        are excluded. Requires persisted notifications.draft permission and existing device location scope.
       security:
         - AdminSessionAuth: []
       responses:
@@ -2339,6 +2341,30 @@ paths:
                           type:
                             - string
                             - 'null'
+                        siteName:
+                          type:
+                            - string
+                            - 'null'
+                        areaName:
+                          type:
+                            - string
+                            - 'null'
+                        lastActiveUserIdentifier:
+                          type:
+                            - string
+                            - 'null'
+                        lastDirectoryUsername:
+                          type:
+                            - string
+                            - 'null'
+                        lastDirectoryDisplayName:
+                          type:
+                            - string
+                            - 'null'
+                        lastDirectoryDepartment:
+                          type:
+                            - string
+                            - 'null'
                         ownershipMode:
                           type: string
                         status:
@@ -2354,6 +2380,11 @@ paths:
         '422':
           description: Invalid role, scope, revision or reason
       parameters:
+        - name: search
+          in: query
+          description: Search hostname, device identifier, location, last user, department, site or area name.
+          schema:
+            type: string
         - name: page
           in: query
           schema:

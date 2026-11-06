@@ -19,7 +19,9 @@ type DeviceRow = {
   deviceIdentifier: string | null;
   hostname: string;
   siteId: string;
+  siteName: string | null;
   areaId: string | null;
+  areaName: string | null;
   locationLabel: string | null;
   ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
   agentVersion: string | null;
@@ -62,7 +64,9 @@ export class DeviceReadService {
             d.device_identifier::text as "deviceIdentifier",
             d.hostname::text as hostname,
             d.site_id::text as "siteId",
+            site.name::text as "siteName",
             d.area_id::text as "areaId",
+            area.name::text as "areaName",
             d.location_label::text as "locationLabel",
             d.ownership_mode::text as "ownershipMode",
             d.agent_version::text as "agentVersion",
@@ -80,6 +84,8 @@ export class DeviceReadService {
             d.last_directory_lookup_at::text as "lastDirectoryLookupAt",
             ${this.statusSql}::text as status
           from public.devices d
+          left join public.sites site on site.id = d.site_id
+          left join public.areas area on area.id = d.area_id
           ${where.clause.replace("status::text", `${this.statusSql}::text`)}
           order by hostname asc, d.id asc
           limit $${params.limitIndex}
@@ -92,6 +98,8 @@ export class DeviceReadService {
         `
           select count(*)::int as "totalItems"
           from public.devices d
+          left join public.sites site on site.id = d.site_id
+          left join public.areas area on area.id = d.area_id
           ${where.clause.replace("status::text", `${this.statusSql}::text`)}
         `,
         where.params,
@@ -130,17 +138,18 @@ function buildDeviceWhereClause(options: DeviceReadOptions) {
 
   if (options.search) {
     const term = `%${options.search}%`;
-    values.push(term, term, term, term, term, term);
-    conditions.push(
-      `(
-        d.hostname::text ilike $${values.length - 5}
-        or d.device_identifier::text ilike $${values.length - 4}
-        or d.location_label::text ilike $${values.length - 3}
-        or d.last_directory_username::text ilike $${values.length - 2}
-        or d.last_directory_display_name::text ilike $${values.length - 1}
-        or d.last_directory_department::text ilike $${values.length}
-      )`,
-    );
+    const index = values.push(term);
+    conditions.push(`(
+      d.hostname::text ilike $${index}
+      or d.device_identifier::text ilike $${index}
+      or d.location_label::text ilike $${index}
+      or d.last_active_user_identifier::text ilike $${index}
+      or d.last_directory_username::text ilike $${index}
+      or d.last_directory_display_name::text ilike $${index}
+      or d.last_directory_department::text ilike $${index}
+      or site.name::text ilike $${index}
+      or area.name::text ilike $${index}
+    )`);
   }
 
   return {

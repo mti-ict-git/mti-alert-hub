@@ -70,3 +70,7 @@ Backend build/typecheck and targeted bootstrap lint passed. The authorization su
 
 ## Wellness active-usage scheduling
 The shared WellnessScheduleFields is the schedule form owner. ACTIVE_USAGE requires interval 1–10080 minutes and minimum rest/interprogram gap 1–1440 minutes. Create/edit and publish retain all fields, show activation as Available from, disable invalid submissions, and remove stagger controls. Draft saves do not notify devices. Live revision keeps the existing confirmation/version behavior.
+
+
+## Device targeting labels (2026-11-06)
+Target picker search matches hostname, known user identifiers/names, department and site/area labels across all loaded scoped pages. Missing user/department displays Not reported; unresolved site displays Site unavailable. Selection and bulk-visible behavior remain unchanged.

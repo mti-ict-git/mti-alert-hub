@@ -33,6 +33,7 @@ export function DeviceAudiencePicker(props: DeviceAudiencePickerProps) {
         device.areaName,
         device.currentDisplayName,
         device.currentUsername,
+        device.lastActiveUserIdentifier,
         device.currentDepartment,
       ];
 
@@ -149,16 +150,16 @@ export function DeviceAudiencePicker(props: DeviceAudiencePickerProps) {
                       <Badge variant="outline">{device.status}</Badge>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Site: {device.siteName ?? device.siteId}</span>
+                      <span>Site: {device.siteName || "Site unavailable"}</span>
                       {device.areaName && <span>Area: {device.areaName}</span>}
                       <span>
                         User:{" "}
-                        {device.currentDisplayName ??
-                          device.currentUsername ??
-                          device.lastActiveUserIdentifier ??
-                          "Unknown"}
+                        {device.currentDisplayName ||
+                          device.currentUsername ||
+                          device.lastActiveUserIdentifier ||
+                          "Not reported"}
                       </span>
-                      <span>Department: {device.currentDepartment ?? "Unknown"}</span>
+                      <span>Department: {device.currentDepartment || "Not reported"}</span>
                     </div>
                   </div>
                 </label>

@@ -194,3 +194,7 @@ For WPF modal/fullscreen notifications, priority banner and action footer remain
 
 ### Rest-aware wellness scheduling
 WellnessScheduleFields owns all three active-usage controls through shared Input/Label/Select. New/edit and publish use identical canonical recurrence serialization. Integer ranges validate before confirmation; values survive edit/publish/revision. Existing schedule modes remain explicit choices.
+
+
+## Device targeting labels (2026-11-06)
+DeviceAudiencePicker remains the shared targeting owner. Device labels use scoped site/area names and last reported user/department, with readable unavailable states; device identifiers remain selection keys, not site labels.

@@ -879,3 +879,8 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [x] Deploy exact-commit b69b4e2 backend/frontend, apply and verify migration 0022 with unchanged historical ledger, preserve configuration/package volume and excluded service IDs. Both services healthy; public TLS routes 200; deployed-asset Edge fixture and backend parameter validation passed. 18 Node tests and backend typecheck passed. Release/backup/rollback evidence and remaining device acceptance: wellness-active-usage.md.
 
 - [x] Agent 1.0.19 installed on the user's laptop, signed package published to private GitHub and imported to server registry at explicit subsequent requests. No fleet rollout; existing wellness programs remain unchanged.
+
+
+### Phase 4 — Device picker identity labels (2026-11-06)
+- [x] Preserve scoped targeting reference labels for site/area, last-known user and department; update mapping/search and explicit missing-data copy. Contract: device-list-pagination.md and openapi.yaml.
+- [ ] Verify SQL, scoped allowlist, paginated mapping, browser search/selection and exact-commit production deployment. No real program publication or device rollout.

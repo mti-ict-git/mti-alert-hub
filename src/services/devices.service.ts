@@ -32,7 +32,9 @@ type ApiDevice = {
   deviceIdentifier?: string | null;
   hostname: string;
   siteId: string;
+  siteName?: string | null;
   areaId?: string | null;
+  areaName?: string | null;
   locationLabel?: string | null;
   ownershipMode: "LocationOwned" | "EmployeeAssigned" | "Mixed";
   agentVersion?: string | null;
@@ -99,7 +101,13 @@ export const devicesService = {
       deviceId: item.deviceIdentifier ?? item.id,
       hostname: item.hostname,
       siteId: item.siteId,
+      siteName: item.siteName?.trim() || undefined,
       areaId: item.areaId ?? null,
+      areaName: item.areaName?.trim() || null,
+      lastActiveUserIdentifier: item.lastActiveUserIdentifier?.trim() || null,
+      currentUsername: item.lastDirectoryUsername?.trim() || null,
+      currentDisplayName: item.lastDirectoryDisplayName?.trim() || null,
+      currentDepartment: item.lastDirectoryDepartment?.trim() || null,
       ownershipMode: item.ownershipMode,
       status: item.status,
     }));
