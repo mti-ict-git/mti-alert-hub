@@ -881,6 +881,6 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [x] Agent 1.0.19 installed on the user's laptop, signed package published to private GitHub and imported to server registry at explicit subsequent requests. No fleet rollout; existing wellness programs remain unchanged.
 
 
-### Phase 4 — Device picker identity labels (2026-11-06)
+### Phase 4 â€” Device picker identity labels (2026-11-06)
 - [x] Preserve scoped targeting reference labels for site/area, last-known user and department; update mapping/search and explicit missing-data copy. Contract: device-list-pagination.md and openapi.yaml.
-- [ ] Verify SQL, scoped allowlist, paginated mapping, browser search/selection and exact-commit production deployment. No real program publication or device rollout.
+- [x] 12 tests, backend typecheck/build, frontend build and targeted lint passed. Actual compiled SQL executed read-only with search/scope/pagination checks. Local fixture and authenticated production Edge search/labels passed. Commit 427995f backend/frontend deployed healthy; TLS routes 200; configuration/excluded containers and migration ledger preserved. Evidence/rollback: device-list-pagination.md. No program publication or device rollout.
