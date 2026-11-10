@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -79,6 +80,7 @@ function CreateWellnessProgramPage() {
 
   const [family, setFamily] = useState<WellnessFamily | "">("");
   const [selectedVariantKeys, setSelectedVariantKeys] = useState<WellnessTemplateKey[]>([]);
+  const [responseTimeoutSeconds, setResponseTimeoutSeconds] = useState("60");
   const [minimumRestMinutes, setMinimumRestMinutes] = useState("5");
   const [interProgramGapMinutes, setInterProgramGapMinutes] = useState("15");
   const [scheduleBasis, setScheduleBasis] = useState<WellnessScheduleBasis>("Fixed");
@@ -166,6 +168,7 @@ function CreateWellnessProgramPage() {
     setRecurrenceInterval(recurrence?.interval.toString() ?? "1");
     setRecurrenceUnit(recurrence?.unit ?? "Day");
     setRotationMode(editingDraft.wellnessProgram.rotationMode ?? "Fixed");
+    setResponseTimeoutSeconds(String(editingDraft.wellnessProgram.responseTimeoutSeconds ?? 60));
     setDistributionMode(editingDraft.reminderSchedule?.distributionMode ?? "Staggered");
     setStaggerWindowMinutes((editingDraft.reminderSchedule?.staggerWindowMinutes ?? 30).toString());
     setInitializedDraftId(editingDraftId);
@@ -219,6 +222,9 @@ function CreateWellnessProgramPage() {
     distributionMode,
     staggerWindowMinutes,
   });
+  const timeoutSeconds = Number(responseTimeoutSeconds);
+  const validTimeout =
+    Number.isInteger(timeoutSeconds) && timeoutSeconds >= 5 && timeoutSeconds <= 600;
   const canSubmit =
     !createMutation.isPending &&
     (!isEditMode ||
@@ -228,7 +234,8 @@ function CreateWellnessProgramPage() {
     Boolean(selectedFamily) &&
     selectedVariantKeys.length > 0 &&
     selectedDeviceIds.length > 0 &&
-    hasValidSchedule;
+    hasValidSchedule &&
+    validTimeout;
 
   function handleFamilyChange(nextFamily: WellnessFamily) {
     const next = getWellnessFamily(nextFamily);
@@ -250,7 +257,7 @@ function CreateWellnessProgramPage() {
   }
 
   function submit() {
-    if (!selectedFamily || !previewWellnessProgram) {
+    if (!selectedFamily || !previewWellnessProgram || !validTimeout) {
       return;
     }
 
@@ -282,7 +289,7 @@ function CreateWellnessProgramPage() {
         distributionMode,
         staggerWindowMinutes,
       }),
-      wellnessProgram: previewWellnessProgram,
+      wellnessProgram: { ...previewWellnessProgram, responseTimeoutSeconds: timeoutSeconds },
     });
   }
 
@@ -469,6 +476,23 @@ function CreateWellnessProgramPage() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="wellness-response-timeout">Auto-hide after (seconds)</Label>
+                <Input
+                  id="wellness-response-timeout"
+                  type="number"
+                  min={5}
+                  max={600}
+                  step={1}
+                  value={responseTimeoutSeconds}
+                  onChange={(event) => setResponseTimeoutSeconds(event.target.value)}
+                  aria-invalid={!validTimeout}
+                  aria-describedby="wellness-response-timeout-help"
+                />
+                <p id="wellness-response-timeout-help" className="text-xs text-muted-foreground">
+                  Enter 5–600 seconds. The initial popup closes after this time without a response.
+                </p>
+              </div>
               <WellnessScheduleFields
                 scheduleBasis={scheduleBasis}
                 minimumRestMinutes={minimumRestMinutes}

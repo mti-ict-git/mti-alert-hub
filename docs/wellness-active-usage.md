@@ -80,3 +80,13 @@ Deployed source revision b69b4e2501f0e9794b021fd4a46f63062cc56fac (wellness comm
 Available through Wellness Programs editor/publish dialog > Schedule basis > After active usage / rest aware. Configure recurrence interval, Minimum rest (minutes), and Gap between programs (minutes). Existing programs retain their prior mode until explicitly revised/published. Requires supporting agent 1.0.19; no fleet upgrade or real schedule change was performed by this release. Remaining acceptance includes full-length interval/hibernate variants and coordinated device rollout.
 
 Observed operational limitation: root disk had approximately 695 MB free after candidate builds (100% rounded usage). No unrelated images/volumes or business data were pruned. Capacity maintenance remains a separate task. A later documentation-only commit does not alter the deployed image revision recorded above.
+
+## Agent 1.0.20 response handling
+
+Remind Me Later persists the local due time and queues its event before dismissing the popup. An action with no positive snooze duration uses 10 minutes. The scheduler retains a snooze that became due before it observed the window close. Rest-aware reset and inter-program gap still apply.
+
+Initial wellness reminder, overview, and countdown cards close after 60 seconds without a response. The agent queues TimedOut for the original occurrence. Guided routines and completion cards have no response timeout.
+
+The dashboard create and edit form now accepts Auto-hide after (seconds) per wellness program. The API stores an optional integer from 5 to 600 in the wellness program JSON and sends it with the agent policy. Existing policies with no value use 60 seconds on a supporting agent. No database migration is needed.
+
+Local verification: WPF Snooze save failure and retry passed. A configured 5-second timeout closed the window at 5.7 seconds with one timeout callback. The local dashboard browser fixture verified the 60-second default, rejection of 4 and 601 seconds, and submission of 25 seconds in the draft payload. Agent tests (98), wellness backend tests (13), backend build and frontend build passed.

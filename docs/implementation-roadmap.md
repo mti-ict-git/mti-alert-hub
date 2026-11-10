@@ -884,3 +884,9 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 ### Phase 4 — Device picker identity labels (2026-11-06)
 - [x] Preserve scoped targeting reference labels for site/area, last-known user and department; update mapping/search and explicit missing-data copy. Contract: device-list-pagination.md and openapi.yaml.
 - [x] 12 tests, backend typecheck/build, frontend build and targeted lint passed. Actual compiled SQL executed read-only with search/scope/pagination checks. Local fixture and authenticated production Edge search/labels passed. Commit 427995f backend/frontend deployed healthy; TLS routes 200; configuration/excluded containers and migration ledger preserved. Evidence/rollback: device-list-pagination.md. No program publication or device rollout.
+
+### Wellness Snooze and response timeout
+
+- [x] Persist Snooze before closing, retain overdue Snooze when the scheduler observes closure late, and queue TimedOut after 60 seconds on initial wellness cards. Agent build and all 98 tests passed.
+
+- [x] Add per-program response timeout to dashboard, API policy JSON and agent. Local browser fixture, WPF popup test, 98 agent tests, 13 backend wellness tests and both web builds passed.

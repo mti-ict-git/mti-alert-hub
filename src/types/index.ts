@@ -74,6 +74,7 @@ export interface WellnessProgram {
   layoutVariant: WellnessLayoutVariant;
   variantKeys?: string[];
   heroAssetUrl?: string | null;
+  responseTimeoutSeconds?: number | null;
   countdownSeconds?: number | null;
   rotationMode?: WellnessRotationMode | null;
   actions: WellnessAction[];

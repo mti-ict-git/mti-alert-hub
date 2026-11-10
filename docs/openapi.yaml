@@ -3431,6 +3431,11 @@ components:
         heroAssetUrl:
           type: string
           nullable: true
+        responseTimeoutSeconds:
+          type: [integer, 'null']
+          minimum: 5
+          maximum: 600
+          description: Seconds before an unanswered initial wellness popup closes. Defaults to 60 on supporting agents.
         countdownSeconds:
           type: integer
           nullable: true

@@ -147,6 +147,7 @@ type WellnessProgramPayload = {
     "ReminderCard" | "CountdownCard" | "GuidedRoutine" | "CompletionCard" | "OverviewCard";
   variantKeys: string[];
   heroAssetUrl: string | null;
+  responseTimeoutSeconds: number | null;
   countdownSeconds: number | null;
   rotationMode: "Fixed" | "Sequential" | "Random" | null;
   actions: Array<{
@@ -2302,6 +2303,8 @@ function parseWellnessProgramPayload(value: unknown): WellnessProgramPayload | n
         )
       : [],
     heroAssetUrl: typeof parsed.heroAssetUrl === "string" ? parsed.heroAssetUrl : null,
+    responseTimeoutSeconds:
+      typeof parsed.responseTimeoutSeconds === "number" ? parsed.responseTimeoutSeconds : null,
     countdownSeconds: typeof parsed.countdownSeconds === "number" ? parsed.countdownSeconds : null,
     rotationMode:
       parsed.rotationMode === "Fixed" ||

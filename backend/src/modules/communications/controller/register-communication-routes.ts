@@ -89,6 +89,7 @@ const wellnessProgramSchema = z.object({
   ]),
   variantKeys: z.array(z.string().trim().min(1)).optional().default([]),
   heroAssetUrl: z.string().trim().url().optional().nullable(),
+  responseTimeoutSeconds: z.number().int().min(5).max(600).optional().nullable(),
   countdownSeconds: z.number().int().min(1).max(3600).optional().nullable(),
   rotationMode: z.enum(["Fixed", "Sequential", "Random"]).optional().nullable(),
   actions: z.array(wellnessActionSchema).min(1),

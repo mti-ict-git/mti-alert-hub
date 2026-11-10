@@ -151,6 +151,7 @@ type WellnessProgramInput = {
   layoutVariant: WellnessLayoutVariant;
   variantKeys?: string[];
   heroAssetUrl?: string | null;
+  responseTimeoutSeconds?: number | null;
   countdownSeconds?: number | null;
   rotationMode?: "Fixed" | "Sequential" | "Random" | null;
   actions: WellnessAction[];
@@ -2651,6 +2652,7 @@ function normalizeWellnessProgramInput(
     ...wellnessProgram,
     variantKeys: normalizeWellnessVariantKeys(wellnessProgram),
     heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
+    responseTimeoutSeconds: wellnessProgram.responseTimeoutSeconds ?? null,
     countdownSeconds: wellnessProgram.countdownSeconds ?? null,
     rotationMode: wellnessProgram.rotationMode ?? null,
     actions: wellnessProgram.actions.map((action) => ({
@@ -2875,6 +2877,8 @@ function parseWellnessProgramRecord(value: unknown): WellnessProgramInput | null
         )
       : [],
     heroAssetUrl: typeof record.heroAssetUrl === "string" ? record.heroAssetUrl : null,
+    responseTimeoutSeconds:
+      typeof record.responseTimeoutSeconds === "number" ? record.responseTimeoutSeconds : null,
     countdownSeconds: typeof record.countdownSeconds === "number" ? record.countdownSeconds : null,
     rotationMode:
       record.rotationMode === "Fixed" ||

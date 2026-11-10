@@ -798,6 +798,7 @@ function mapWellnessProgramToApi(
       (value): value is string => typeof value === "string" && value.length > 0,
     ),
     heroAssetUrl: wellnessProgram.heroAssetUrl ?? null,
+    responseTimeoutSeconds: wellnessProgram.responseTimeoutSeconds ?? null,
     countdownSeconds: wellnessProgram.countdownSeconds ?? null,
     rotationMode: wellnessProgram.rotationMode ?? null,
     actions: wellnessProgram.actions.map((action) => ({
