@@ -890,3 +890,6 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 - [x] Persist Snooze before closing, retain overdue Snooze when the scheduler observes closure late, and queue TimedOut after 60 seconds on initial wellness cards. Agent build and all 98 tests passed.
 
 - [x] Add per-program response timeout to dashboard, API policy JSON and agent. Local browser fixture, WPF popup test, 98 agent tests, 13 backend wellness tests and both web builds passed.
+
+
+- [x] Deploy configurable wellness timeout to production at `71d0715` and verify the dashboard field and service health. Publish signed Agent 1.0.21 from `5f9301f` and verify package registry import by SHA-256. Device rollout is a separate step.

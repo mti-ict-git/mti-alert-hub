@@ -90,3 +90,12 @@ Initial wellness reminder, overview, and countdown cards close after 60 seconds 
 The dashboard create and edit form now accepts Auto-hide after (seconds) per wellness program. The API stores an optional integer from 5 to 600 in the wellness program JSON and sends it with the agent policy. Existing policies with no value use 60 seconds on a supporting agent. No database migration is needed.
 
 Local verification: WPF Snooze save failure and retry passed. A configured 5-second timeout closed the window at 5.7 seconds with one timeout callback. The local dashboard browser fixture verified the 60-second default, rejection of 4 and 601 seconds, and submission of 25 seconds in the draft payload. Agent tests (98), wellness backend tests (13), backend build and frontend build passed.
+
+
+## Production release 2026-11-10
+
+Dashboard and backend run commit `71d07153b8bc39ed5c7b2564d0b870accf292472`. Both containers were healthy and the public health and create-program routes returned HTTP 200. An authenticated read-only browser check verified the 60-second default and 5–600-second range. The release used existing policy JSON and required no database migration.
+
+Windows Agent 1.0.21 was built from `5f9301f85e88ae9fe2e9c6c18bb17786bdb1fe71`, signed, published, and imported into the production package registry. The imported MSI SHA-256 matched `9e09aedb4ccd06a2c05a12ddcc3d94b65912509c3347473136333a6e860a00b0`. The package is available for device rollout.
+
+Runtime verification and rollback references are stored in `/root/mti-alert-releases/wellness-timeout-20261110-71d0715`. Rollback tags are `mti-alert-backend:rollback-wellness-timeout-20261110` and `mti-alert-frontend:rollback-wellness-timeout-20261110`.
