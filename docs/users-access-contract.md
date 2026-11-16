@@ -315,3 +315,7 @@ Server-side queued jobs must remain blocked pending authorized review.
 Shared global templates may be read by scoped users but only Global holders of templates.manage may modify them.
 Scoped communication operators manage explicitly scoped templates/programs; shared-object ownership/schema is a required
 implementation gate. Existing global-only records must not become editable by any scoped operator implicitly.
+
+## Wellness Administrator
+
+The WellnessAdministrator role creates, edits, publishes, revises, and cancels Wellness programs within its assigned Global, Site, or Area scope. It can select scoped devices and view Wellness activity, reporting, deliveries and responses. Shared communications routes enforce a Wellness record filter even for Global grants. General notifications, device administration, package rollout, organization settings, and user management are outside this role. The landing page is Wellness Programs.

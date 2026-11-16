@@ -5,6 +5,12 @@ export function can(user: User | null | undefined, permission: string) {
   return Boolean(user?.permissions?.includes(permission));
 }
 export function canVisit(user: User | null | undefined, path: string) {
+  if (
+    user?.roleId === "WellnessAdministrator" &&
+    path !== "/wellness-programs" &&
+    !path.startsWith("/wellness-programs/")
+  )
+    return false;
   if (path === "/") return can(user, "dashboard.read");
   const routes: Array<[string, string[]]> = [
     ["/notifications/new", ["notifications.draft"]],

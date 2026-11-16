@@ -1,7 +1,12 @@
 import { apiClient } from "./api-client";
 
 export type AccessRole =
-  "CentralAdmin" | "ITOperator" | "CommunicationOperator" | "EmergencyOfficer" | "ManagementViewer";
+  | "CentralAdmin"
+  | "ITOperator"
+  | "CommunicationOperator"
+  | "EmergencyOfficer"
+  | "WellnessAdministrator"
+  | "ManagementViewer";
 export type AccessScope = { scopeType: "Global" | "Site" | "Area"; scopeValue: string };
 export type AccessUser = {
   id: string;

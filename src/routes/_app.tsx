@@ -17,7 +17,7 @@ import { authService } from "@/services/auth.service";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_app")({
-  async beforeLoad() {
+  async beforeLoad({ location }) {
     if (typeof window === "undefined") {
       return;
     }
@@ -29,6 +29,9 @@ export const Route = createFileRoute("/_app")({
     const user = await authService.validateSession();
     if (!user) {
       throw redirect({ to: "/login" });
+    }
+    if (user.roleId === "WellnessAdministrator" && location.pathname === "/") {
+      throw redirect({ to: "/wellness-programs" });
     }
   },
   component: AppLayout,

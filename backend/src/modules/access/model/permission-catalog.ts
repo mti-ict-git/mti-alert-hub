@@ -6,6 +6,7 @@ export const accessRole = z.enum([
   "ITOperator",
   "CommunicationOperator",
   "EmergencyOfficer",
+  "WellnessAdministrator",
   "ManagementViewer",
 ]);
 export type AccessRole = z.infer<typeof accessRole>;
@@ -83,6 +84,17 @@ export const rolePermissions: Record<AccessRole, readonly Permission[]> = {
     "templates.manage",
   ],
   EmergencyOfficer: [...common, ...author, "notifications.emergency", "devices.read"],
+  WellnessAdministrator: [
+    "wellness.read",
+    "wellness.manage",
+    "wellness.publish",
+    "notifications.read",
+    "notifications.draft",
+    "notifications.publish",
+    "notifications.cancel",
+    "reports.read",
+    "reports.recipients.read",
+  ],
   ManagementViewer: common,
 };
 export const roleLabels: Record<AccessRole, string> = {
@@ -90,6 +102,7 @@ export const roleLabels: Record<AccessRole, string> = {
   ITOperator: "IT Operator",
   CommunicationOperator: "Communication Operator",
   EmergencyOfficer: "Emergency Officer",
+  WellnessAdministrator: "Wellness Administrator",
   ManagementViewer: "Viewer",
 };
 export const grantSchema = z.discriminatedUnion("scopeType", [

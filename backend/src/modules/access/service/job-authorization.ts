@@ -39,6 +39,7 @@ export function communicationJobSql(communication = "c", device = "auth_device")
    left join public.employees target_employee on target_employee.id=pending_target.employee_id
    where pending_target.communication_id=${communication}.id
    and not (${jobActorSql("job_access.publisher_user_id", "job_access.publisher_authorization_version", "coalesce(target_device.site_id,target_employee.site_id)", "coalesce(target_device.area_id,target_employee.area_id)", "notifications.publish")}))
+ and (publisher.role_type <> 'WellnessAdministrator' or ${communication}.wellness_program_json is not null)
  and (${communication}.wellness_program_json is null or publisher.role_type in (${roles("wellness.publish")}))
  and ((${communication}.priority <> 'Critical' and not exists(select 1 from public.communication_templates emergency_template where emergency_template.id=${communication}.template_id and emergency_template.critical_behavior_mode is not null)) or publisher.role_type in (${roles("notifications.emergency")})))`;
 }

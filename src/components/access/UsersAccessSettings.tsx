@@ -71,6 +71,7 @@ const descriptions: Record<string, string> = {
   CommunicationOperator:
     "Create and publish communications and wellness programs within the selected locations.",
   EmergencyOfficer: "Can publish emergency notifications after preview and confirmation.",
+  WellnessAdministrator: "Manages and reports on wellness programs within assigned locations.",
   ManagementViewer:
     "Read dashboards and recipient-level reports, and export within the selected locations.",
 };

@@ -7,21 +7,28 @@ import {
   requiresEmergencyPermission,
 } from "../model/permission-catalog.js";
 
+function wellnessScopeSql(alias: string) {
+  return currentAccess()?.role === "WellnessAdministrator"
+    ? `${alias}.wellness_program_json is not null and `
+    : "";
+}
+
 /** Draft ownership covers intended future audience; publication uses recipient snapshots. */
 export function communicationScopeSql(alias = "communications") {
   if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw Error("Invalid communication alias");
   const context = currentAccess();
-  if (!context || context.scopes.some((s) => s.scopeType === "Global")) return "true";
+  const wellness = wellnessScopeSql(alias);
+  if (!context || context.scopes.some((s) => s.scopeType === "Global")) return `(${wellness}true)`;
   const scopeChecks = context.scopes.map((s) =>
     s.scopeType === "Site"
       ? `(grant_item->>'scopeType' = 'Site' and grant_item->>'scopeValue' = '${s.scopeValue}') or (grant_item->>'scopeType' = 'Area' and exists(select 1 from public.areas granted_area where granted_area.id::text = grant_item->>'scopeValue' and granted_area.site_id = '${s.scopeValue}'::uuid))`
       : `(grant_item->>'scopeType' = 'Area' and grant_item->>'scopeValue' = '${s.scopeValue}')`,
   );
   const covered = scopeChecks.length ? `(${scopeChecks.join(" or ")})` : "false";
-  return `((exists(select 1 from public.communication_recipients content_recipient where content_recipient.communication_id = ${alias}.id) or exists(select 1 from public.communication_access access_record where access_record.communication_id = ${alias}.id
+  return `(${wellness}((exists(select 1 from public.communication_recipients content_recipient where content_recipient.communication_id = ${alias}.id) or exists(select 1 from public.communication_access access_record where access_record.communication_id = ${alias}.id
     and jsonb_array_length(access_record.scope_grants_json) > 0
     and not exists(select 1 from jsonb_array_elements(access_record.scope_grants_json) grant_item where not coalesce((${covered}), false))))
-    and not exists(select 1 from public.communication_recipients scope_recipient where scope_recipient.communication_id = ${alias}.id and not (${locationScopeSql("scope_recipient.site_id", "scope_recipient.area_id")})))`;
+    and not exists(select 1 from public.communication_recipients scope_recipient where scope_recipient.communication_id = ${alias}.id and not (${locationScopeSql("scope_recipient.site_id", "scope_recipient.area_id")}))))`;
 }
 export function reminderHistoryScopeSql() {
   const actor = currentAccess();
@@ -34,7 +41,7 @@ export function reminderHistoryScopeSql() {
 }
 export function communicationReportScopeSql(alias = "communications") {
   if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw Error("Invalid communication alias");
-  return `(${communicationScopeSql(alias)} or exists(select 1 from public.communication_recipients report_recipient where report_recipient.communication_id = ${alias}.id and ${locationScopeSql("report_recipient.site_id", "report_recipient.area_id")}))`;
+  return `(${wellnessScopeSql(alias)}(${communicationScopeSql(alias)} or exists(select 1 from public.communication_recipients report_recipient where report_recipient.communication_id = ${alias}.id and ${locationScopeSql("report_recipient.site_id", "report_recipient.area_id")})))`;
 }
 export function requireCommunicationCapability(
   priority: string,
@@ -44,6 +51,12 @@ export function requireCommunicationCapability(
 ) {
   const context = currentAccess();
   if (!context) return;
+  if (context.role === "WellnessAdministrator" && !wellness)
+    throw new AppError({
+      statusCode: 403,
+      code: "FORBIDDEN",
+      message: "This role can only manage wellness programs.",
+    });
   requirePermission(context.role, `notifications.${action}`);
   if (wellness)
     requirePermission(context.role, action === "publish" ? "wellness.publish" : "wellness.manage");

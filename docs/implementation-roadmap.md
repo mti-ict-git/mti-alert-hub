@@ -893,3 +893,8 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 
 
 - [x] Deploy configurable wellness timeout to production at `71d0715` and verify the dashboard field and service health. Publish signed Agent 1.0.21 from `5f9301f` and verify package registry import by SHA-256. Device rollout is a separate step.
+
+### Wellness Administrator
+
+- [x] Add the assignable Wellness Administrator role, scoped program authoring and reporting, and migration 0023 for persisted assignments.
+- [x] Verify migration 0023 in isolated PostgreSQL 16.15 after applying migrations 0001–0022. Existing assignments survived, WellnessAdministrator was accepted, and unknown roles were rejected. Backend typecheck, frontend build, and 16 access tests passed.

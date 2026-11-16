@@ -1989,6 +1989,7 @@ paths:
               - ITOperator
               - CommunicationOperator
               - EmergencyOfficer
+              - WellnessAdministrator
               - ManagementViewer
         - name: siteId
           in: query
@@ -2283,6 +2284,7 @@ paths:
                             - ITOperator
                             - CommunicationOperator
                             - EmergencyOfficer
+                            - WellnessAdministrator
                             - ManagementViewer
                         label:
                           type: string
@@ -2636,6 +2638,7 @@ components:
                 - ITOperator
                 - CommunicationOperator
                 - EmergencyOfficer
+                - WellnessAdministrator
                 - ManagementViewer
             - type: 'null'
         scopes:
@@ -2680,6 +2683,7 @@ components:
             - ITOperator
             - CommunicationOperator
             - EmergencyOfficer
+            - WellnessAdministrator
             - ManagementViewer
         scopes:
           type: array
@@ -2716,6 +2720,7 @@ components:
             - ITOperator
             - CommunicationOperator
             - EmergencyOfficer
+            - WellnessAdministrator
             - ManagementViewer
         scopes:
           type: array
@@ -2824,6 +2829,7 @@ components:
             - ITOperator
             - CommunicationOperator
             - EmergencyOfficer
+            - WellnessAdministrator
             - ManagementViewer
         scopes:
           type: array
@@ -3092,7 +3098,7 @@ components:
           nullable: true
         roleType:
           type: string
-          enum: [CentralAdmin, LocalOperator, ManagementViewer, ITOperator, CommunicationOperator, EmergencyOfficer]
+          enum: [CentralAdmin, LocalOperator, ManagementViewer, ITOperator, CommunicationOperator, EmergencyOfficer, WellnessAdministrator]
 
     AdminScope:
       type: object

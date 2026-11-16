@@ -110,3 +110,33 @@ test("AD GUID equality filter writes exact binary octets, including high-bit and
   assert.deepEqual(writer.buffer.subarray(-18), Buffer.concat([Buffer.from([4, 16]), expected]));
   assert.throws(() => directoryGuidFilter("*)(objectClass=*)"));
 });
+
+test("Wellness Administrator is bound to wellness records even with global location scope", async () => {
+  const { withAccess } = await import("../src/modules/access/service/access-context.js");
+  const { communicationScopeSql, communicationReportScopeSql, requireCommunicationCapability } =
+    await import("../src/modules/access/service/communication-access-service.js");
+  withAccess(
+    {
+      userId: site,
+      role: "WellnessAdministrator",
+      authorizationVersion: 1,
+      scopes: [{ scopeType: "Global", scopeValue: "*" }],
+    },
+    () => {
+      for (const action of ["draft", "publish", "cancel"] as const) {
+        assert.doesNotThrow(() => requireCommunicationCapability("Info", null, true, action));
+        assert.throws(() => requireCommunicationCapability("Info", null, false, action), {
+          code: "FORBIDDEN",
+        });
+      }
+      assert.match(
+        communicationScopeSql(),
+        /^\(communications\.wellness_program_json is not null and /,
+      );
+      assert.match(
+        communicationReportScopeSql("c"),
+        /^\(c\.wellness_program_json is not null and \(.* or exists/s,
+      );
+    },
+  );
+});

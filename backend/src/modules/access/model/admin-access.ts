@@ -4,7 +4,8 @@ export type AdminRoleType =
   | "ManagementViewer"
   | "ITOperator"
   | "CommunicationOperator"
-  | "EmergencyOfficer";
+  | "EmergencyOfficer"
+  | "WellnessAdministrator";
 export type AdminScopeType = "Global" | "Site" | "Area" | "Department" | "Section";
 
 export type AdminScope = {

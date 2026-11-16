@@ -5,6 +5,7 @@ import {
   protectAdministrativeRoutes,
   administrativeRoutePolicies,
   nonAdministrativeRoutes,
+  routeAvailableToRole,
 } from "../src/modules/access/service/administrative-route-policy.js";
 import { accessRole, rolePermissions } from "../src/modules/access/model/permission-catalog.js";
 import { registerAccessRoutes } from "../src/modules/access/controller/register-access-routes.js";
@@ -56,7 +57,7 @@ test("Unmapped routes cannot bypass authorization by marking themselves anonymou
   }
 });
 
-test("Every mapped route checks all five roles before resource enforcement or handler execution", async () => {
+test("Every mapped route checks every role before resource enforcement or handler execution", async () => {
   for (const [key, policy] of Object.entries(administrativeRoutePolicies)) {
     for (const role of accessRole.options) {
       let enforced = false,
@@ -89,7 +90,9 @@ test("Every mapped route checks all five roles before resource enforcement or ha
           },
         },
       } as AppRouteHandlerContext;
-      const allowed = !policy.permission || rolePermissions[role].includes(policy.permission);
+      const allowed =
+        routeAvailableToRole(role, key) &&
+        (!policy.permission || rolePermissions[role].includes(policy.permission));
       if (allowed) await route!.handler(context);
       else await assert.rejects(async () => route!.handler(context), { code: "FORBIDDEN" });
       assert.equal(executed, allowed, `${key} / ${role}`);
@@ -198,4 +201,21 @@ test("Policy application is a device route and still requires an agent session",
     statusCode: 204,
   });
   assert.equal(calls, 2);
+});
+
+test("Wellness Administrator may use wellness workflows and cannot submit general delivery responses", () => {
+  const role = "WellnessAdministrator";
+  for (const key of [
+    "GET /reference/devices",
+    "POST /communications/{communicationId}/revise-wellness",
+    "GET /communications/{communicationId}/wellness-reporting",
+  ])
+    assert.equal(routeAvailableToRole(role, key), true, key);
+  for (const key of [
+    "POST /communications/{communicationId}/deliveries/{deliveryJobId}/response",
+    "GET /dashboard/overview",
+    "POST /devices/rollout-packages/upload",
+    "GET /access/users",
+  ])
+    assert.equal(routeAvailableToRole(role, key), false, key);
 });

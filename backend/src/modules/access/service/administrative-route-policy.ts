@@ -149,6 +149,31 @@ export const nonAdministrativeRoutes = new Set([
   "POST /agent/reminder-policies/{policyId}/events",
   "POST /agent/reminder-policies/{policyId}/application",
 ]);
+const wellnessAdministratorRoutes = new Set([
+  "GET /reference/devices",
+  "GET /communications",
+  "GET /communications/{communicationId}",
+  "POST /communications",
+  "PATCH /communications/{communicationId}",
+  "POST /communications/{communicationId}/duplicate",
+  "POST /communications/{communicationId}/audience-preview",
+  "POST /communications/{communicationId}/publish",
+  "POST /communications/{communicationId}/cancel",
+  "POST /communications/{communicationId}/revise-wellness",
+  "GET /communications/{communicationId}/reminder-activity",
+  "GET /communications/{communicationId}/wellness-reporting",
+  "GET /communications/{communicationId}/deliveries",
+  "GET /communications/{communicationId}/responses",
+]);
+
+export function routeAvailableToRole(role: string, key: string) {
+  return (
+    role !== "WellnessAdministrator" ||
+    policies[key]?.resource === "session" ||
+    wellnessAdministratorRoutes.has(key)
+  );
+}
+
 export const administrativeRoutePolicies: Readonly<Record<string, Policy>> = policies;
 
 export type ResourceEnforcer = (
@@ -181,6 +206,13 @@ export function protectAdministrativeRoutes(
             statusCode: 401,
             code: "ACCESS_CHANGED",
             message: "Sign in again to refresh your access.",
+          });
+        }
+        if (!routeAvailableToRole(session.accessProfile.roleType, key)) {
+          throw new AppError({
+            statusCode: 403,
+            code: "FORBIDDEN",
+            message: "You do not have permission to perform this action.",
           });
         }
         if (policy.permission) requirePermission(session.accessProfile.roleType, policy.permission);

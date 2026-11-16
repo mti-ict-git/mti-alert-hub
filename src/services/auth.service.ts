@@ -98,7 +98,13 @@ function mapRoleType(roleType: AuthSessionResponse["user"]["roleType"]): User["r
   }
 
   if (
-    ["LocalOperator", "ITOperator", "CommunicationOperator", "EmergencyOfficer"].includes(roleType)
+    [
+      "LocalOperator",
+      "ITOperator",
+      "CommunicationOperator",
+      "EmergencyOfficer",
+      "WellnessAdministrator",
+    ].includes(roleType)
   ) {
     return "Operator";
   }
