@@ -898,3 +898,4 @@ Contract: `wellness-policy-application-reporting.md` in the parent application d
 
 - [x] Add the assignable Wellness Administrator role, scoped program authoring and reporting, and migration 0023 for persisted assignments.
 - [x] Verify migration 0023 in isolated PostgreSQL 16.15 after applying migrations 0001–0022. Existing assignments survived, WellnessAdministrator was accepted, and unknown roles were rejected. Backend typecheck, frontend build, and 16 access tests passed.
+- [x] Deploy Wellness Administrator from commit 38ac080 on 2026-11-16. Verified migration 0023 and the previous 22 migrations, healthy backend and frontend, HTTP 200 gateway, and the authenticated Roles page and API. Release evidence: /root/mti-alert-releases/wellness-role-20261116-38ac080. Previous containers retained under -rollback-wellness-38ac080. Migration is additive.
