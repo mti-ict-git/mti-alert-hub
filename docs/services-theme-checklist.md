@@ -104,3 +104,34 @@ All batch writes in browser verification were simulated on a separate local orig
 - [x] Add status, site, dependent area, ownership and version filters with chips/reset and pagination reset.
 - [x] Live local read-only verification: Online produced 13 matching loaded devices; combining version 1.0.9 produced zero results with active chips; Reset recovered all results. Filtering Offline from page 2 reset to 1–25 of 29. Mobile width remained 390px without page overflow. Restore filters and viewport afterward.
 - [x] Targeted lint/build passed; no new full-typecheck diagnostics versus the existing baseline. Logs: /tmp/mti-device-filter-types.log and /tmp/mti-device-filter-build.log. No business data was modified.
+
+### Typography and collapsed rail alignment — 2026-11-16
+
+- [x] Self-host Inter (`public/fonts/InterVariable.woff2`, `@font-face` in `src/styles.css`).
+- [x] Base text 13px: `body` and `text-sm` at 0.8125rem; workspace density Comfortable 13px / Compact 12px.
+- [x] Collapsed desktop rail 80px with centered menu buttons and mark.
+
+Verification used the real shell on a local dev server (127.0.0.1:5197) against a temporary read-only stub API that only answered `/auth/me` and returned empty lists; no backend, credentials or business records were involved, and the stub and its launch entries were removed afterward. At 1280 × 900 on `/employees`: `document.fonts` reported Inter loaded; computed body, navigation label, table cell and input text 13px; header 56px; expanded sidebar 240px with a 223 × 36px active item in rgb(37, 99, 235). After collapsing: main content starts at 80px, the 32px active button spans x 23.5–55.5 and the 36px mark x 21.5–57.5 (both centered in the rail), the decorative artwork is `display: none`, and there is no page-level horizontal overflow. At the pane's narrow width the mobile layout rendered without overflow and inputs stayed 16px. Targeted ESLint on AppSidebar and `ui/sidebar` had no errors (the existing fast-refresh export warning remains); `NITRO_PRESET=node-server vite build` passed.
+
+Not covered: populated tables and other routes with real data, dark mode, the mobile drawer, and the full typecheck/strict audit, which keep their previously recorded baseline. Remaining reference differences (MTI Connect logo, Lucide icons, 8px card and 6px button radius, content background, status colors) were left as documented decisions.
+
+### Component alignment with the Services reference — 2026-11-16
+
+- [x] Measure the reference patterns (computed styles and geometry at 1280 × 900) from the local `merdeka-frontend` template, served temporarily from a scratch copy that was removed afterward.
+- [x] Align tokens, typography features, shell, sidebar, buttons, form controls, tables, tabs, badges, pager, page header and StatCard (details in `DESIGN.md`).
+- [x] Review every authenticated route.
+
+Verification ran the local frontend and backend against the configured `ictMTIAlertHub` database with the owner's own signed-in session; only GET navigation was performed and no record was created, edited, approved or sent. Routes viewed at 1280 × 900: Dashboard, Notification Center, Create Notification, Wellness Programs, Employees, Devices, WhatsApp Gateway, Templates, Reports, Settings, Audit Logs. Measured on Notification Center with 15 loaded rows: header 56px with a 16px title; white content area; navigation rows 36px with 20px #929dab icons; active tab rgb(59, 130, 246) with a 3px rule; search input 32px, 12px text, 4px corners, #dadfe5 border; header cells 12px/600 on rgb(248, 250, 252), 48px high, 0.48px tracking; body cells 12px with 12px padding and #e2e8f0 rules; row height 61px (reference 59px); status pill 12px regular, fully rounded; account pill 44px on rgb(241, 245, 249); no page-level horizontal overflow. At 375 × 812 the same route had no page overflow and the header sidebar trigger was visible.
+
+ESLint on all changed files had no errors (three existing fast-refresh warnings); `NITRO_PRESET=node-server vite build` passed; `tsc --noEmit` reported no diagnostics in the changed files (project-wide baseline not re-compared).
+
+Not covered: dialogs, sheets and dropdown menus opened, detail routes (`/notifications/$id`, `/wellness-programs/$id`, `/wellness-programs/new`), dark mode, the mobile drawer, and automated tests. Wellness summary cards keep their own tile styling. Notification Center took roughly 20 seconds to fill because the list requests each communication separately; that behavior predates this change.
+
+### Overlays and remaining gaps — 2026-11-16
+
+- [x] Dialog, alert dialog and sheet backdrop/structure; card header band; header back control; icon row actions; employee initials avatar; pill priority badges; Wellness summary tiles; dashboard status-line spacing.
+- [x] Review detail and create routes, dark mode and the mobile drawer.
+
+Verified on the local stack against `ictMTIAlertHub` with the owner's session; navigation only. The Add Site dialog (Settings → Sites & Areas) was opened and dismissed with Escape without entering or saving anything: 512px wide, 8px corners, 16px semibold title, 12px labels, 32px inputs, bordered header and tinted footer bar. The reference dialog was measured from the template the same way. Viewed at 1280 × 900: Dashboard, Create Notification, Employees (avatar "SO", 32px), Settings, one Notification detail, Create Wellness Program, Wellness Programs and one Wellness detail reached through the new row action. Dark mode was forced with the `dark` class on Dashboard and Wellness detail and rendered with the existing dark tokens. At 375 × 812 the navigation drawer opened at 288px with 11 items of 44px and closed with Escape; no page-level horizontal overflow.
+
+ESLint on changed files had no errors; `NITRO_PRESET=node-server vite build` passed. `tsc --noEmit` still reports diagnostics in `_app.notifications.index.tsx` and `_app.wellness-programs.tsx` on lines this work did not touch (baseline). Not covered: alert dialogs, sheets and dropdown menus in their open state, WhatsApp/Reports/Audit Logs/Devices/Templates after this second pass, and automated tests.

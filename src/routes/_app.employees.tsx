@@ -346,7 +346,21 @@ function EmployeesPage() {
                 {pagination.items.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="font-mono text-xs">{e.employeeId}</TableCell>
-                    <TableCell>{e.name}</TableCell>
+                    <TableCell>
+                      <div className="flex min-w-40 items-center gap-2.5">
+                        <span
+                          aria-hidden="true"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
+                        >
+                          {e.name
+                            .split(/\s+/)
+                            .slice(0, 2)
+                            .map((part) => part.charAt(0).toUpperCase())
+                            .join("")}
+                        </span>
+                        <span>{e.name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{e.siteName ?? "-"}</TableCell>
                     <TableCell>{e.areaName ?? "-"}</TableCell>
                     <TableCell>{e.departmentName ?? "-"}</TableCell>

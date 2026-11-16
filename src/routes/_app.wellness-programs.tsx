@@ -226,7 +226,7 @@ function WellnessProgramsIndexPage() {
               <TabsList aria-label="Request views">
                 <TabsTrigger value="all">
                   All
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((item) => matchesWellnessView(item.notification.status, "all"))
                         .length
@@ -235,7 +235,7 @@ function WellnessProgramsIndexPage() {
                 </TabsTrigger>
                 <TabsTrigger value="drafts">
                   Drafts
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((item) => matchesWellnessView(item.notification.status, "drafts"))
                         .length
@@ -244,7 +244,7 @@ function WellnessProgramsIndexPage() {
                 </TabsTrigger>
                 <TabsTrigger value="live">
                   Scheduled / Live
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((item) => matchesWellnessView(item.notification.status, "live"))
                         .length
@@ -253,7 +253,7 @@ function WellnessProgramsIndexPage() {
                 </TabsTrigger>
                 <TabsTrigger value="history">
                   History
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((item) =>
                         matchesWellnessView(item.notification.status, "history"),
@@ -467,14 +467,16 @@ function WellnessProgramsIndexPage() {
                       <TableCell onClick={(event) => event.stopPropagation()}>
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button
-                            variant="ghost"
-                            size="sm"
+                            variant="outline"
+                            size="icon"
+                            className="h-[26px] w-[27px] rounded-[7px] text-primary [&_svg]:size-3.5"
+                            aria-label={`View ${notification.title}`}
+                            title="View"
                             onClick={() =>
                               nav({ to: "/wellness-programs/$id", params: { id: notification.id } })
                             }
                           >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View
+                            <Eye />
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -560,15 +562,15 @@ function SummaryCard({
   description: string;
 }) {
   return (
-    <Card>
+    <Card className="rounded-2xl shadow-[0_2px_4px_rgb(0_0_0/7.5%)]">
       <CardContent className="flex items-start gap-4 p-5">
-        <div className="rounded-xl bg-sky-100 p-3 text-sky-700">
+        <div className="rounded-lg bg-primary p-2.5 text-white">
           <Icon className="h-5 w-5" />
         </div>
-        <div className="space-y-1">
-          <div className="text-sm font-medium">{title}</div>
-          <div className="text-2xl font-semibold tracking-tight">{value}</div>
-          <p className="text-sm text-muted-foreground">{description}</p>
+        <div>
+          <div className="text-sm font-medium leading-5">{title}</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
       </CardContent>
     </Card>

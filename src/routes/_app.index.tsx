@@ -113,7 +113,7 @@ function DashboardPage() {
       />
 
       <div
-        className="mb-4 flex min-h-6 flex-wrap items-center gap-2 text-sm text-muted-foreground"
+        className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground empty:hidden"
         role="status"
       >
         {overviewLoading || notificationsLoading ? "Loading operational overview…" : null}

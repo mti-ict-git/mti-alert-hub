@@ -193,13 +193,13 @@ function NotificationCenter() {
               <TabsList aria-label="Request views">
                 <TabsTrigger value="all">
                   All
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "all")).length}
                   </span>
                 </TabsTrigger>
                 <TabsTrigger value="drafts">
                   Drafts
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "drafts"))
                         .length
@@ -208,13 +208,13 @@ function NotificationCenter() {
                 </TabsTrigger>
                 <TabsTrigger value="live">
                   Scheduled / Live
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "live")).length}
                   </span>
                 </TabsTrigger>
                 <TabsTrigger value="history">
                   History
-                  <span className="ml-2 rounded bg-muted px-1.5 text-xs tabular-nums">
+                  <span className="ml-2 rounded-sm bg-(--brand-500) px-1.5 py-px text-[11px] font-semibold tabular-nums text-white">
                     {
                       data.filter((n) => !n.wellnessProgram && matchesCenterView(n, "history"))
                         .length
@@ -439,13 +439,14 @@ function NotificationCenter() {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
-                          variant="ghost"
-                          size="sm"
+                          variant="outline"
+                          size="icon"
+                          className="h-[26px] w-[27px] rounded-[7px] text-primary [&_svg]:size-3.5"
                           aria-label={`View ${n.title}`}
+                          title="View"
                           onClick={() => nav({ to: "/notifications/$id", params: { id: n.id } })}
                         >
-                          <Eye className="mr-2 h-4 w-4" />
-                          <span>View</span>
+                          <Eye />
                         </Button>
                         {n.status === "Draft" && (
                           <PermissionAction

@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -59,8 +60,8 @@ export function AppSidebar() {
   const isActive = (url: string) => activeItem?.url === url;
 
   const renderGroup = (label: string, items: typeof primaryItems) => (
-    <SidebarGroup className="px-2 py-3 group-data-[collapsible=icon]:px-2">
-      <SidebarGroupLabel className="mb-1 px-4 text-[11px] font-normal tracking-wide text-sidebar-foreground/75">
+    <SidebarGroup className="px-2 py-2 group-data-[collapsible=icon]:px-2">
+      <SidebarGroupLabel className="mb-0.5 h-6 px-4 text-[10px] font-normal tracking-[0.4px] text-muted-foreground">
         {label}
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -73,7 +74,7 @@ export function AppSidebar() {
                   asChild
                   isActive={isActive(item.url)}
                   tooltip={item.title}
-                  className="h-11 gap-3 rounded-sm px-4 text-[13px] font-normal md:h-9 data-[active=true]:font-medium"
+                  className="h-11 gap-2 rounded-sm px-4 text-[13px] font-normal md:h-9 data-[active=true]:font-normal [&>svg]:size-5 [&>svg]:text-[#929dab] data-[active=true]:[&>svg]:text-white group-data-[collapsible=icon]:mx-auto"
                 >
                   <Link
                     to={item.url}
@@ -81,7 +82,7 @@ export function AppSidebar() {
                     aria-current={isActive(item.url) ? "page" : undefined}
                     onClick={() => setOpenMobile(false)}
                   >
-                    <item.icon aria-hidden="true" strokeWidth={1.5} className="h-4 w-4" />
+                    <item.icon aria-hidden="true" strokeWidth={1.5} />
                     <span>{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -105,7 +106,7 @@ export function AppSidebar() {
           className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 w-full select-none opacity-[0.065] mix-blend-multiply [mask-image:linear-gradient(to_bottom,black_15%,transparent_100%)] group-data-[collapsible=icon]:hidden"
         />
         <SidebarHeader className="h-22 justify-center px-4 group-data-[collapsible=icon]:px-0">
-          <div className="flex items-center gap-2 px-2 py-3">
+          <div className="flex items-center gap-2 px-2 py-3 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <img
               src="/images/brand/mti-connect-logo/logo-icon.svg"
               alt=""
@@ -119,6 +120,7 @@ export function AppSidebar() {
                 Employee Communications
               </span>
             </div>
+            <SidebarTrigger className="ml-auto hidden h-7 w-7 text-muted-foreground md:inline-flex group-data-[collapsible=icon]:ml-0" />
           </div>
         </SidebarHeader>
         <SidebarContent className="gap-0">

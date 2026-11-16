@@ -1334,15 +1334,15 @@ function SummaryCard({
   description: string;
 }) {
   return (
-    <Card className="min-w-0">
+    <Card className="min-w-0 rounded-2xl shadow-[0_2px_4px_rgb(0_0_0/7.5%)]">
       <CardContent className="flex items-start gap-4 p-5">
-        <div className="rounded-xl bg-sky-100 p-3 text-sky-700">
+        <div className="rounded-lg bg-primary p-2.5 text-white">
           <Icon className="h-5 w-5" />
         </div>
-        <div className="min-w-0 space-y-1">
-          <div className="text-sm font-medium">{title}</div>
-          <div className="break-words text-2xl font-semibold tracking-tight">{value}</div>
-          <p className="break-words text-sm text-muted-foreground">{description}</p>
+        <div className="min-w-0">
+          <div className="text-sm font-medium leading-5">{title}</div>
+          <div className="mt-1 break-words text-xl font-semibold tabular-nums">{value}</div>
+          <p className="mt-1 break-words text-xs text-muted-foreground">{description}</p>
         </div>
       </CardContent>
     </Card>

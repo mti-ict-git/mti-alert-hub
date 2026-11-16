@@ -91,7 +91,7 @@ export function StatusBadge({ status, className }: { status: string; className?:
   return (
     <Badge
       className={cn(
-        "rounded-full border-transparent px-2.5 py-1 text-xs font-medium",
+        "rounded-full border-transparent px-[9px] py-[3px] text-xs font-normal leading-4",
         m.className,
         className,
       )}

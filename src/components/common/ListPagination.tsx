@@ -55,21 +55,26 @@ export function ListPagination({
         </Select>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
+          className="h-6 w-6 rounded-md bg-sidebar-border text-muted-foreground hover:bg-sidebar-border/70"
           aria-label="Previous page"
           disabled={busy || page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft />
         </Button>
-        <span className="min-w-12 text-center tabular-nums">
-          {page} / {pageCount}
+        <span className="flex items-center gap-1.5 tabular-nums">
+          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-(--brand-500) px-1.5 text-white">
+            {page}
+          </span>
+          / {pageCount}
         </span>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
+          className="h-6 w-6 rounded-md bg-sidebar-border text-muted-foreground hover:bg-sidebar-border/70"
           aria-label="Next page"
           disabled={busy || page >= pageCount}
           onClick={() => onPageChange(page + 1)}

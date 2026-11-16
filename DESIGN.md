@@ -198,3 +198,32 @@ WellnessScheduleFields owns all three active-usage controls through shared Input
 
 ## Device targeting labels (2026-11-06)
 DeviceAudiencePicker remains the shared targeting owner. Device labels use scoped site/area names and last reported user/department, with readable unavailable states; device identifiers remain selection keys, not site labels.
+
+## Services typography and collapsed rail alignment (2026-11-16)
+A comparison with the captured Merdeka Services dashboard (`merdeka-frontend` template) closed three measured gaps. Inter is now self-hosted from `public/fonts/InterVariable.woff2` through an `@font-face` in `src/styles.css`, so it renders on machines without Inter installed; there is still no external font request. Base text follows the reference 13px: `body` and the `text-sm` theme size are 0.8125rem with the 20px line box retained. `text-xs`, `text-base` and headings are unchanged; inputs keep 16px below the `md` breakpoint. Table workspace density is now Comfortable 13px and Compact 12px (padding unchanged), superseding the 14px/13px values recorded on 2026-09-13. The collapsed desktop rail is 80px (`SIDEBAR_WIDTH_ICON = 5rem`), superseding 48px; AppSidebar centers the 32px menu buttons and the MTI Connect mark in the rail. Expanded width stays 240px. MTI Connect branding, Lucide icons, 8px cards, semantic status colors and the tinted content background remain deliberate differences from the reference.
+
+## Services component alignment (2026-11-16)
+After the typography pass, the shared layer was measured against the Merdeka Services reference (employee, travel-request, create-form and dashboard patterns at 1280 × 900) and aligned. This section supersedes earlier values where they differ.
+
+- **Tokens (light):** border and input #dadfe5; table rule #e2e8f0 (`--table-border`); muted/secondary/accent #f1f5f9; muted text #667382; success #2fb344, info #4299e1, warning #f76707, destructive and emergency #d63939; tab and pager accent #3b82f6 (`--brand-500`); card shadow `0 0 4px rgb(24 36 51 / 4%)`. Dark mode keeps its own remapping.
+- **Type:** Inter with `font-feature-settings: "cv03", "cv04", "cv11"` and line-height 1.4286, as the reference renders it.
+- **Shell:** the content area is white (`bg-card`) with 16px padding. The 56px header shows the section title (16px semibold), notifications, a 44px #f1f5f9 account pill and a red sign-out icon. The breadcrumb moved from the header to the top of the page body (`PageBreadcrumb`, owned by `Topbar.tsx`). The sidebar toggle sits in the sidebar header on desktop and stays in the page header on mobile.
+- **Sidebar:** 20px icons in #929dab (white when active), 8px icon gap, 10px group labels with 0.4px tracking, active label at regular weight.
+- **Controls:** buttons 13px/500 with 4px corners, outline buttons on white with a 1px hairline shadow; inputs, selects and textareas 32px high with 12px text on desktop (16px below `md`); labels 12px semibold.
+- **Tables:** 12px text, 12px cell padding, 48px #f8fafc header with capitalized 12px semibold labels and 0.04em tracking. Workspace density is Comfortable 12px text / 12px padding and Compact 12px / 8px.
+- **Tabs, badges, paging:** tabs are regular weight with a 3px #3b82f6 active rule; tab counts are blue 4px chips; status pills are 12px regular; the pager uses 24px #e2e8f0 arrow buttons and a blue circular current page.
+- **Cards:** page titles are 20px semibold with a 12px muted subtitle; StatCard uses 16px corners, a solid tone tile with a white 20px icon and a 20px value.
+
+Deliberate remaining differences: MTI Connect logo and wordmark instead of the corporate sidebar logo, Lucide instead of Tabler icons, inputs at 12px rather than the reference 10.4px, Radix select/dialog primitives, the company switcher is not present, and dark mode has no reference.
+
+## Services overlays and remaining component gaps (2026-11-16)
+A second pass against the same reference closed the gaps listed after the component alignment.
+
+- **Dialogs and alert dialogs:** 8px corners, no border, shadow `0 8px 16px rgb(0 0 0 / 15%)`, backdrop rgb(24 36 51 / 24%) (black 60% in dark mode). The header is a full-bleed band at least 56px high with a bottom rule and a 16px semibold title; the footer is a full-bleed tinted bar with a top rule and right-aligned 36px actions. `DialogHeader` and `DialogFooter` own the bleed through negative margins, so dialog bodies keep the content padding. Sheets use the same backdrop.
+- **Cards:** `CardHeader` is a #f8fafc band (16px × 24px padding) with a 13px semibold title and 12px description; `CardContent` is 16px × 24px.
+- **Header:** a back chevron precedes the section title on desktop and calls browser history.
+- **Row actions:** the primary row action in Notification Center and Wellness Programs is a 27 × 26px outlined icon button with 7px corners and a blue icon; its accessible name carries the record title.
+- **People:** the Employees name column shows a 32px blue initials avatar beside the name.
+- **Priority badges** use the status pill shape (fully rounded, 12px regular).
+- **Summary tiles** on Wellness Programs and Wellness detail follow StatCard (16px corners, solid tile, white icon, 20px value).
+- **Dashboard:** the overview status line collapses when it has nothing to announce.

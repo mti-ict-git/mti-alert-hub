@@ -51,11 +51,25 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Services reference body text is 13px; keep the 20px line box. */
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(1.25 / 0.8125);
+}
+
+/* Self-hosted so Inter renders on machines without it installed; no external request. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
 }
 
 :root {
   --surface-radius: 0.5rem;
-  --surface-shadow: 0 2px 8px rgb(24 36 51 / 4%);
+  --surface-shadow: 0 0 4px rgb(24 36 51 / 4%);
+  --brand-500: #3b82f6;
+  --table-border: #e2e8f0;
   --login-shadow:
     0 40px 100px -20px rgb(3 10 18 / 65%), 0 16px 36px -12px rgb(3 10 18 / 55%),
     0 0 0 1px rgb(255 255 255 / 28%);
@@ -71,24 +85,24 @@
   --popover-foreground: oklch(0.18 0.03 250);
   --primary: #2563eb;
   --primary-foreground: oklch(0.985 0.005 240);
-  --secondary: oklch(0.955 0.01 245);
+  --secondary: #f1f5f9;
   --secondary-foreground: oklch(0.22 0.03 250);
-  --muted: oklch(0.955 0.01 245);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.94 0.02 250);
+  --muted: #f1f5f9;
+  --muted-foreground: #667382;
+  --accent: #f1f5f9;
   --accent-foreground: oklch(0.22 0.03 250);
-  --destructive: oklch(0.55 0.24 27);
+  --destructive: #d63939;
   --destructive-foreground: oklch(0.985 0.005 240);
-  --border: #e5e9ef;
-  --input: #d5dce5;
+  --border: #dadfe5;
+  --input: #dadfe5;
   --ring: #2563eb;
-  --info: oklch(0.62 0.14 235);
+  --info: #4299e1;
   --info-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.76 0.16 75);
+  --warning: #f76707;
   --warning-foreground: oklch(0.2 0.05 60);
-  --emergency: oklch(0.55 0.24 27);
+  --emergency: #d63939;
   --emergency-foreground: oklch(0.99 0 0);
-  --success: oklch(0.62 0.16 155);
+  --success: #2fb344;
   --success-foreground: oklch(0.99 0 0);
   --sidebar: #f8fafc;
   --sidebar-foreground: #182433;
@@ -102,6 +116,8 @@
 
 .dark {
   --surface-shadow: 0 2px 8px rgb(0 0 0 / 16%);
+  --brand-500: oklch(0.65 0.16 255);
+  --table-border: oklch(1 0 0 / 12%);
   --background: oklch(0.15 0.02 250);
   --foreground: oklch(0.96 0.005 245);
   --card: oklch(0.2 0.025 250);
@@ -173,6 +189,9 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.4285714;
+    font-feature-settings: "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
   }
 }
@@ -252,23 +271,26 @@ table[data-workspace="true"] thead {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--card);
+  background: var(--sidebar);
+}
+table[data-workspace="true"] thead tr > * {
+  background: var(--sidebar) !important; /* Header fill wins over the pinned-column card fill. */
 }
 table[data-workspace="true"] th {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--table-border);
 }
 table[data-workspace="true"] td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--table-border);
 }
 table[data-workspace="true"][data-density="comfortable"] td {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-  font-size: 0.875rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.75rem;
 }
 table[data-workspace="true"][data-density="compact"] td {
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 @media (min-width: 768px) {
   table[data-workspace="true"] tr > :first-child:not([colspan]) {

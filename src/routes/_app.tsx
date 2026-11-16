@@ -11,7 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
-import { Topbar } from "@/components/layout/Topbar";
+import { PageBreadcrumb, Topbar } from "@/components/layout/Topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { authService } from "@/services/auth.service";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,9 +73,10 @@ function AppLayout() {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <SidebarInset className="flex min-w-0 flex-1 flex-col">
+        <SidebarInset className="flex min-w-0 flex-1 flex-col bg-card">
           <Topbar />
-          <main className="min-w-0 flex-1 p-4 md:p-6">
+          <main className="min-w-0 flex-1 p-4">
+            <PageBreadcrumb />
             {canVisit(user, pathname) ? (
               <Outlet />
             ) : (
